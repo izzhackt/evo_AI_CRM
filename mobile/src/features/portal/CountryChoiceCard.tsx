@@ -8,6 +8,7 @@ import { timelineCountryOptions } from "@web/lib/portal/student-journey";
 import { useLang } from "@/i18n/LangProvider";
 import { useSaveCountryChoice } from "@/api/queries";
 import { useTheme } from "@/theme/ThemeProvider";
+import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Screen";
 import { InlineAlert, MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
@@ -16,12 +17,15 @@ export function CountryPicker({
   current,
   source = null,
   onDone,
+  onCancel,
   lead,
 }: {
   current: string | null;
   /** Откуда выбор: тот же код, уже сохранённый студентом, повторно не пишется. */
   source?: CountryChoiceSource | null;
   onDone?: () => void;
+  /** «Отмена» под вариантами при смене страны (веб: кнопка есть, только когда страна уже выбрана); без неё кнопки нет. */
+  onCancel?: () => void;
   lead: string | null;
 }) {
   const { lang, t } = useLang();
@@ -93,6 +97,7 @@ export function CountryPicker({
         );
       })}
       {save.isError ? <InlineAlert message={timeline.saveError} testID="country-save-error" /> : null}
+      {onCancel ? <Button variant="ghost" label={timeline.cancelChange} onPress={onCancel} testID="country-cancel" /> : null}
     </View>
   );
 }

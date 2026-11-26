@@ -18,6 +18,8 @@ test("direction comes from the English title; unknown stays «other» instead of
   assert.equal(programField("Master of Counselling"), "social");
   assert.equal(programField("Diploma of Prevention Studies"), "social");
   assert.equal(programField("Cambridge A Level"), "other");
+  // `globa[l]` в правиле (страж общих импортов приложения не любит голое `global`) находит то же, что находило `global`.
+  assert.equal(programField("Global Citizenship"), "social");
   // 19.11.2026, Китай из рабочей таблицы EVO: языки, сельское хозяйство, искусство, специальные инженерные названия.
   assert.equal(programField("Japanese"), "social");
   assert.equal(programField("Horticulture"), "science");

@@ -8,6 +8,8 @@
 //     остаётся только `kind` и код, а экран берёт строку из словаря i18n.
 import { randomUUID } from "expo-crypto";
 
+import { catalogPreparationFailure, type CatalogPreparationFailure } from "@web/lib/portal/catalog-preparations";
+
 export type RpcErrorKind =
   | "transport" // ответа нет: обрыв, таймаут, нет сети; повтор той же записи безопасен
   | "forbidden" // 42501
@@ -24,13 +26,20 @@ export class RpcError extends Error {
   readonly status: number | null;
   /** Именованный отказ 22023 из закрытого списка (например, срок теста вышел); текст сервера не хранится. */
   readonly named: RpcNamedFailure | null;
-  constructor(kind: RpcErrorKind, code: string | null = null, status: number | null = null, named: RpcNamedFailure | null = null) {
+  /**
+   * Причина отказа выбора программы каталога (`student_select_catalog_intake_v1`): имя из закрытого списка веба
+   * (`catalogPreparationFailure`), например «набор закрыт» или «публикация устарела». `forbidden` и `unavailable` здесь не
+   * хранятся: их несёт `kind`. Текст сервера не хранится.
+   */
+  readonly catalog: CatalogPreparationFailure | null;
+  constructor(kind: RpcErrorKind, code: string | null = null, status: number | null = null, named: RpcNamedFailure | null = null, catalog: CatalogPreparationFailure | null = null) {
     super(`rpc:${kind}`); // фиксированный текст, без ответа сервера
     this.name = "RpcError";
     this.kind = kind;
     this.code = code;
     this.status = status;
     this.named = named;
+    this.catalog = catalog;
   }
 }
 
@@ -71,12 +80,23 @@ export function classifyRpcFailure(code: string | null | undefined, status: numb
   return new RpcError("unknown", c, s);
 }
 
+/**
+ * Причина отказа выбора программы по коду и тексту ошибки: сопоставление веба (`catalogPreparationFailure`, закрытый список
+ * `catalog_preparation_*`). `forbidden` и неопознанное (`unavailable`) не причины, их несёт `kind` ошибки.
+ */
+function catalogReason(code: string | null | undefined, message: string | null | undefined): CatalogPreparationFailure | null {
+  if (typeof message !== "string" || !message.startsWith("catalog_preparation_")) return null;
+  const reason = catalogPreparationFailure({ code: code ?? undefined, message });
+  return reason === "unavailable" || reason === "forbidden" ? null : reason;
+}
+
 function toError(result: RpcTransportResult): RpcError {
   const base = classifyRpcFailure(result.error?.code ?? null, result.status ?? null);
   // Из текста сервера берётся только имя из закрытого списка; сам текст дальше не идёт.
   const message = result.error?.message;
   const named = base.code === "22023" && typeof message === "string" && Object.hasOwn(NAMED_22023, message) ? NAMED_22023[message] ?? null : null;
-  return named ? new RpcError(base.kind, base.code, base.status, named) : base;
+  const catalog = catalogReason(base.code, message);
+  return named || catalog ? new RpcError(base.kind, base.code, base.status, named, catalog) : base;
 }
 
 async function invoke(

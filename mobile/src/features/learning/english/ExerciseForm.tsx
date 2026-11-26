@@ -97,7 +97,7 @@ export function ExerciseForm({ exercise, value, disabled, onChange }: { exercise
                         onChange({ kind: "matching", matches: next });
                       }}
                       testID={`match-${index}-${rightIndex}`}
-                      style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: "center", borderRadius: tokens.radiusChip, borderWidth: on ? 2 : 1, borderColor: on ? tokens.accent : tokens.line, backgroundColor: on ? tokens.accentSoft : tokens.surface, opacity: blocked ? 0.4 : 1 }}
+                      style={{ minHeight: MIN_TARGET, minWidth: MIN_TARGET, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", borderRadius: tokens.radiusChip, borderWidth: on ? 2 : 1, borderColor: on ? tokens.accent : tokens.line, backgroundColor: on ? tokens.accentSoft : tokens.surface, opacity: blocked ? 0.4 : 1 }}
                     >
                       <Text variant="secondary" bold={on}>
                         {lang === "ky" ? right.rightKy : right.rightRu}
@@ -261,7 +261,9 @@ export function ExplainPanel({ exercise, verdict, explain, answer }: { exercise:
     );
   }
   return (
-    <View accessibilityLiveRegion="polite" style={{ gap: 8, padding: 12, borderRadius: tokens.radiusItem, backgroundColor: verdict.correct ? tokens.surface : tokens.accentSoft, borderWidth: 1, borderColor: verdict.correct ? tokens.ok : tokens.error }} testID="explain-panel">
+    // Живой области у панели нет: вердикт («Верно», «Неверно») называет читалке `announce` на обоих телефонах, как строка состояния
+    // у веба, а разбор целиком не озвучивается сам (у веба так же); с живой областью TalkBack читал бы вердикт дважды и весь разбор.
+    <View style={{ gap: 8, padding: 12, borderRadius: tokens.radiusItem, backgroundColor: verdict.correct ? tokens.surface : tokens.accentSoft, borderWidth: 1, borderColor: verdict.correct ? tokens.ok : tokens.error }} testID="explain-panel">
       <Chip tone={verdict.correct ? "ok" : "bad"} label={verdict.correct ? e.verdictCorrect : e.verdictWrong} testID="verdict" />
       {body}
     </View>

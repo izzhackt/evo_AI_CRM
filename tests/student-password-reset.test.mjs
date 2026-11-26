@@ -1,6 +1,6 @@
-// Сброс пароля студента администратором (344, 07.11.2026). Сервер, действие и чтение карточки — настоящий код против
-// наблюдаемых подделок клиентов. Сторону базы (только админ, студент из привязки дела, повтор, журнал, 10 минут)
-// доказывает supabase/tests/platform_student_password_resets.sql.
+// Сброс пароля студента (344, 07.11.2026; с 374 — и куратором этого дела). Сервер, действие и чтение карточки — настоящий
+// код против наблюдаемых подделок клиентов. Сторону базы (кто может сбросить, студент из привязки дела, повтор, журнал,
+// 10 минут) доказывают supabase/tests/platform_student_password_resets.sql и platform_curator_student_password_resets.sql.
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -35,7 +35,7 @@ function reset({ authorize = { data: { reset_id: RESET, state: "authorized", aut
   updateError = null, complete = { data: { reset_id: RESET, state: "completed" }, error: null } } = {}) {
   const calls = [];
   const rpc = (result) => (name, args) => ({ abortSignal: async () => { calls.push(["rpc", name, args]); return result(name); } });
-  const admin = { schema: (schema) => { assert.equal(schema, "platform"); return { rpc: rpc(() => authorize) }; } };
+  const staff = { schema: (schema) => { assert.equal(schema, "platform"); return { rpc: rpc(() => authorize) }; } };
   const service = {
     schema: () => ({ rpc: rpc((name) => (name.startsWith("complete_") ? (typeof complete === "function" ? complete() : complete) : { data: null, error: null })) }),
     auth: { admin: {
@@ -57,10 +57,10 @@ function reset({ authorize = { data: { reset_id: RESET, state: "authorized", aut
       "./platform-supabase-service-client": {},
     }),
   });
-  return { calls, run: () => subject.resetStudentPassword(admin, ORG, REQUEST, CASE) };
+  return { calls, run: () => subject.resetStudentPassword(staff, ORG, REQUEST, CASE) };
 }
 
-test("a reset: the admin's permission, then Auth for the bound student, then the journal; the password stays out of the database", async () => {
+test("a reset: the staff member's permission, then Auth for the bound student, then the journal; the password stays out of the database", async () => {
   const run = reset();
   const result = await run.run();
   assert.deepEqual(steps(run.calls), ["authorize_student_password_reset_v1", "updateUserById", "complete_student_password_reset_v1"]);
@@ -77,7 +77,7 @@ test("a reset: the admin's permission, then Auth for the bound student, then the
   assert.notEqual(second.calls[1][2].password, attributes.password, "every reset has its own password");
 });
 
-test("refusals before Auth: not an admin, no cabinet, a finished or failed request, a broken answer", async () => {
+test("refusals before Auth: neither the admin nor the case's curator, no cabinet, a finished or failed request, a broken answer", async () => {
   for (const [error, status] of [[{ code: "42501" }, "forbidden"], [{ code: "PT409", message: "student_case_no_cabinet" }, "no_cabinet"],
     [{ code: "PT409", message: "other" }, "unavailable"], [{ code: "22023" }, "invalid"], [{ code: "23505" }, "invalid"], [{ code: "" }, "unavailable"]]) {
     const run = reset({ authorize: { data: null, error } });
@@ -100,14 +100,14 @@ test("Auth refuses: the permission is closed and nothing is shown", async () => 
   assert.deepEqual(run.calls[2][2], { p_reset_id: RESET });
 });
 
-test("the journal: a lost answer is asked again; no confirmed row shows no password and closes the permission", async () => {
+test("the journal: a lost answer is asked again; no confirmed row shows no password, closes the permission and warns the old one may be dead", async () => {
   let asked = 0;
   const recovered = reset({ complete: () => (++asked === 1 ? { data: null, error: { code: "" } } : { data: { reset_id: RESET, state: "completed" }, error: null }) });
   assert.equal((await recovered.run()).status, "reset");
   assert.deepEqual(steps(recovered.calls),
     ["authorize_student_password_reset_v1", "updateUserById", "complete_student_password_reset_v1", "complete_student_password_reset_v1"]);
   for (const [complete, status] of [[{ data: null, error: { code: "" } }, "unavailable"], [{ data: null, error: { code: "55000" } }, "unavailable"],
-    [{ data: null, error: { code: "42501" } }, "forbidden"], [{ data: null, error: { code: "PT409", message: "student_case_no_cabinet" } }, "no_cabinet"],
+    [{ data: null, error: { code: "42501" } }, "unavailable"], [{ data: null, error: { code: "PT409", message: "student_case_no_cabinet" } }, "unavailable"],
     [{ data: { state: "authorized" }, error: null }, "unavailable"]]) {
     const run = reset({ complete });
     assert.deepEqual(await run.run(), { status }, JSON.stringify(complete));
@@ -134,11 +134,16 @@ function action({ actor = { organizationId: ORG, systemRole: "admin" }, preview 
   return { calls, submit };
 }
 
-test("only an administrator outside role preview resets; the database gets the form's request and case", async () => {
-  for (const run of [action({ actor: { organizationId: ORG, systemRole: "staff" } }), action({ preview: true })]) {
-    assert.deepEqual(await run.submit(), { status: "forbidden", requestId: REQUEST });
-    assert.equal(run.calls.length, 0);
-  }
+test("outside role preview the database decides who resets (374); it gets the form's request and case", async () => {
+  const preview = action({ preview: true });
+  assert.deepEqual(await preview.submit(), { status: "forbidden", requestId: REQUEST });
+  assert.equal(preview.calls.length, 0, "a role preview never reaches the database");
+  const curator = action({ actor: { organizationId: ORG, systemRole: "staff" } });
+  assert.equal((await curator.submit()).status, "reset", "a staff member who is not an admin reaches the database");
+  assert.deepEqual(curator.calls, [[ORG, REQUEST, CASE]]);
+  const refused = await action({ actor: { organizationId: ORG, systemRole: "staff" }, outcome: { status: "forbidden" } }).submit();
+  assert.equal(refused.status, "forbidden", "the database's refusal (not this case's curator) is shown as is");
+  assert.notEqual(refused.requestId, REQUEST, "after the database answered, the next try is a new request");
   const bad = action();
   assert.deepEqual(await bad.submit({ student_case_id: "not-a-case" }), { status: "invalid", requestId: REQUEST });
   assert.deepEqual(await bad.submit({ auth_user_id: crypto.randomUUID() }), { status: "invalid", requestId: REQUEST },
@@ -179,12 +184,18 @@ test("the card reads the login or a real e-mail; the WhatsApp message names the 
 
 test("the open cabinet in the card: its own reset request, the reset block in the one cabinet place", () => {
   const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-  assert.match(read("src/app/(staff)/profile/page.tsx"), /requestId: randomUUID\(\), resetRequestId: randomUUID\(\)/u,
+  const page = read("src/app/(staff)/profile/page.tsx");
+  assert.match(page, /requestId: randomUUID\(\), resetRequestId: randomUUID\(\)/u,
     "the reset never reuses the cabinet form's request");
+  assert.match(page,
+    /caseTarget && !isStaffPreview\(actor\)\s+&& \(actor\.systemRole === "admin" \? tab === "overview" : staffHasPermission\(actor, "case\.read\.full"\)\)\s+\? readStudentCaseCabinet\(actor, caseTarget\.studentCaseId\)\.catch\(\(\) => null\) : null,/u,
+    "a curator reads the cabinet on every tab (his «⋯ → Доступ к порталу» needs it), the Admin on «Обзор» only");
   assert.match(read("src/components/staff/profile/CaseCabinetAccount.tsx"),
-    /if \(view === "open"\) return canReset \? <CaseCabinetReset studentCaseId=\{studentCaseId\} portalOrigin=\{portalOrigin\} \{\.\.\.reset\} \/> : null;/u,
-    "the reset stays with the Admin: a curator who opened the cabinet (363) gets no reset block");
-  assert.match(read("src/components/staff/profile/CaseWorkParts.tsx"), /view=\{cabinetView\} canReset=\{admin\}/u);
+    /if \(view === "open"\) return <CaseCabinetReset studentCaseId=\{studentCaseId\} portalOrigin=\{portalOrigin\} \{\.\.\.reset\} \/>;/u,
+    "an open cabinet always shows the login and «Сбросить пароль»: the database gave its state only to the Admin and the case's curator");
+  const parts = read("src/components/staff/profile/CaseWorkParts.tsx");
+  assert.match(parts, /const cabinetShown = cabinetView !== null;/u, "the curator sees an open cabinet too (374)");
+  assert.doesNotMatch(parts, /canReset/u);
   assert.match(read("src/components/staff/profile/CaseCabinetReset.tsx"), /useActionState\(resetStudentPasswordAction,/u);
 });
 

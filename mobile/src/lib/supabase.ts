@@ -7,6 +7,7 @@ import { AppState, type AppStateStatus } from "react-native";
 import { getConfig } from "@/config";
 import { LargeSecureStore } from "@/lib/large-secure-store";
 import type { RpcTransport } from "@/lib/rpc";
+import { withServerClock } from "@/lib/server-clock";
 
 /** Транспорту нужен предел ожидания: зависший запрос должен стать ошибкой обрыва, а не вечной загрузкой. */
 export const TRANSPORT_TIMEOUT_MS = 20_000;
@@ -46,7 +47,8 @@ export function getSupabase(): AppSupabase {
         detectSessionInUrl: false,
       },
       db: { schema: "platform" },
-      global: { fetch: fetchWithTimeout() },
+      // Каждый ответ сервера по пути пополняет часы сервера (`lib/server-clock.ts`): «сегодня» на «Главной» считает сервер, как на вебе.
+      global: { fetch: withServerClock(fetchWithTimeout()) },
     });
   }
   return client;

@@ -9,14 +9,22 @@ import { Appearance, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ConfigError, getConfig } from "@/config";
+import { usePreferencesReady } from "@/features/app/PreferencesGate";
+import { UpdatePrompt } from "@/features/app/UpdatePrompt";
 import { LangProvider, useLang } from "@/i18n/LangProvider";
 import { bindAutoRefresh, getSupabase } from "@/lib/supabase";
 import { SessionProvider, useSession } from "@/session/SessionProvider";
 import { FONT_FILES } from "@/theme/fonts";
 import { ThemeProvider, useTheme } from "@/theme/ThemeProvider";
+import { primeReducedMotion } from "@/ui/motion";
 import { Text } from "@/ui/Text";
 
+// Сбой отрисовки: свой экран на языке студента вместо английского «Something went wrong» expo-router (G5 аудита паритета).
+export { AppErrorBoundary as ErrorBoundary } from "@/features/app/AppErrorBoundary";
+
 void SplashScreen.preventAutoHideAsync();
+// Настройка «Уменьшить движение» читается при запуске: к первому показу «Главной» она уже известна.
+primeReducedMotion();
 
 export default function RootLayout() {
   return (
@@ -30,10 +38,14 @@ export default function RootLayout() {
   );
 }
 
-/** Без EXPO_PUBLIC_* приложение не стартует и говорит почему (src/config.ts). */
+/**
+ * Без EXPO_PUBLIC_* приложение не стартует и говорит почему (src/config.ts). Заставка держится, пока не загрузились шрифты и
+ * не прочитан выбор темы и языка с устройства (`usePreferencesReady`): первый показанный кадр уже в теме и на языке студента.
+ */
 function ConfiguredApp() {
   const { tokens } = useTheme();
   const { m } = useLang();
+  const preferencesReady = usePreferencesReady();
   const [fontsLoaded] = useFonts(FONT_FILES);
   let configError: string | null = null;
   try {
@@ -42,12 +54,12 @@ function ConfiguredApp() {
     configError = error instanceof ConfigError ? error.message : "Config";
   }
   useEffect(() => {
-    if (configError && fontsLoaded) void SplashScreen.hideAsync();
-  }, [configError, fontsLoaded]);
+    if (configError && fontsLoaded && preferencesReady) void SplashScreen.hideAsync();
+  }, [configError, fontsLoaded, preferencesReady]);
 
   if (configError) {
-    return fontsLoaded ? (
-      <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 12, backgroundColor: tokens.bg }}>
+    return fontsLoaded && preferencesReady ? (
+      <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 12, backgroundColor: tokens.bg }} testID="config-error">
         <Text variant="title">{m("config.errorTitle")}</Text>
         <Text variant="secondary" tone="text2">
           {configError}
@@ -57,12 +69,12 @@ function ConfiguredApp() {
   }
   return (
     <SessionProvider>
-      <Routes fontsLoaded={fontsLoaded} />
+      <Routes fontsLoaded={fontsLoaded} preferencesReady={preferencesReady} />
     </SessionProvider>
   );
 }
 
-function Routes({ fontsLoaded }: { fontsLoaded: boolean }) {
+function Routes({ fontsLoaded, preferencesReady }: { fontsLoaded: boolean; preferencesReady: boolean }) {
   const { tokens, scheme, choice } = useTheme();
   const { state, mustSetPassword, ready } = useSession();
 
@@ -71,12 +83,15 @@ function Routes({ fontsLoaded }: { fontsLoaded: boolean }) {
     return unbind;
   }, []);
 
-  // Родные элементы (клавиатура, диалоги) следуют выбору студента.
+  // Родные элементы (клавиатура, диалоги, а на iOS и заставка: её стиль берётся из `overrideUserInterfaceStyle` окна) следуют
+  // выбору студента. Пока выбор с устройства не прочитан, `choice` - значение по умолчанию (светлая): выставить его значило бы
+  // на миг перекрасить заставку тёмной ОС в светлую и обратно (рецензия #1579), поэтому до `preferencesReady` ничего не ставится.
   useEffect(() => {
+    if (!preferencesReady) return;
     Appearance.setColorScheme(choice === "system" ? "unspecified" : choice);
-  }, [choice]);
+  }, [choice, preferencesReady]);
 
-  const show = fontsLoaded && ready;
+  const show = fontsLoaded && ready && preferencesReady;
   useEffect(() => {
     if (show) void SplashScreen.hideAsync();
   }, [show]);
@@ -109,6 +124,8 @@ function Routes({ fontsLoaded }: { fontsLoaded: boolean }) {
           <Stack.Screen name="(app)" />
         </Stack.Protected>
       </Stack>
+      {/* Обновление скачано: предложить перезапуск (G4). Без обновлений и в разработке карточки нет. */}
+      <UpdatePrompt />
     </>
   );
 }

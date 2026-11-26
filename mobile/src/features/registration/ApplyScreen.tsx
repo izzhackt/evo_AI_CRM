@@ -1,17 +1,28 @@
-// Регистрация по личной ссылке (аноним): ссылка -> анкета -> «Проверьте почту».
+// Регистрация по личной ссылке (аноним): ссылка -> проверка ссылки -> анкета -> «Проверьте почту».
 // Ссылка приходит из universal link / App Link / evoadmissions://apply?invite=…
 // (параметр маршрута) или вставляется вручную. Без неё аккаунт не создаётся (SEC-1, 341).
+// До анкеты ссылка проверяется на сервере (веб делает это при открытии /apply): использованная, просроченная и неизвестная
+// ссылки открывают экран «Регистрация по приглашению», а не семь шагов ради отказа на последнем; у действующей имя
+// приглашённого подставляется в анкету. Если маршрут проверки недоступен или сбоит (старый сервер, нет связи), приложение идёт
+// дальше, как раньше: ссылку всё равно проверит отправка анкеты (403 `invite`).
+// «Проверьте почту» запоминается (pending-store.ts) и после перезапуска возвращается с «Отправить письмо ещё раз».
+// Порядок как на вебе (apply/page.tsx:85-98): ожидание подтверждения почты первее ссылки. Сервер гасит личную ссылку при создании
+// аккаунта, поэтому ссылка из письма менеджера, открытая второй раз, отвечает «использована», а записи ожидания (предъявитель
+// повторной отправки) стирать из-за этого нельзя: без неё не войти (почта не подтверждена), не отправить письмо и не
+// зарегистрироваться заново (409). Запись стирает только действующая новая ссылка.
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 
 import { getConfig } from "@/config";
 import { ApplicationWizard, type WizardSubmit } from "@/features/registration/ApplicationWizard";
 import { ConfirmationPending } from "@/features/registration/ConfirmationPending";
 import { clearDraft, clearInviteToken, loadInviteToken, saveInviteToken } from "@/features/registration/draft-store";
+import { InviteRequired, type InviteProblem } from "@/features/registration/InviteRequired";
 import { parseInviteToken } from "@/features/registration/invite-link";
+import { clearPendingSignup, loadPendingSignup, savePendingSignup } from "@/features/registration/pending-store";
 import { createRegistrationApi, type PendingConfirmation, type RegisterFailure, type RegistrationApi } from "@/features/registration/registration-api";
-import { buildQuestionnaire } from "@/features/registration/wizard-model";
+import { buildQuestionnaire, type NamePrefill } from "@/features/registration/wizard-model";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
@@ -23,7 +34,13 @@ import { Text } from "@/ui/Text";
 import { TextField } from "@/ui/TextField";
 import { getSignupConfirmationStrings } from "@web/lib/portal/signup-confirmation-i18n";
 
-type Phase = { kind: "loading" } | { kind: "entry" } | { kind: "wizard"; invite: string } | { kind: "pending"; pending: PendingConfirmation };
+type Phase =
+  | { kind: "loading" }
+  | { kind: "checking"; invite: string }
+  | { kind: "entry" }
+  | { kind: "invite"; status: InviteProblem; invite: string }
+  | { kind: "wizard"; invite: string; prefill: NamePrefill | null }
+  | { kind: "pending"; pending: PendingConfirmation; restored: boolean };
 
 /** Сообщение пользователю для отказа регистрации (тексты веба, ответ сервера не показывается). */
 export function useRegisterFailureMessage(): (reason: RegisterFailure) => string {
@@ -69,22 +86,81 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
   // Сообщение на экране ввода ссылки: например, «ссылка недействительна» после отказа сервера.
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Токен из ссылки приложения важнее сохранённого; без обоих — ввод вручную.
+  // Каждое новое начало (ссылка, вставка, повтор) получает номер: ответ проверки, пришедший после ухода с экрана или после
+  // следующего начала, отбрасывается.
+  const run = useRef(0);
+  useEffect(
+    () => () => {
+      run.current += 1;
+    },
+    [],
+  );
+
+  /**
+   * Проверить ссылку и открыть анкету или экран «Регистрация по приглашению». Если регистрация уже ждёт подтверждения почты,
+   * анкета открывается только по действующей новой ссылке (запись ожидания стирается ею); использованная, просроченная, неизвестная
+   * ссылка и сбой проверки оставляют запись и показывают «Подтвердите почту» с повтором письма.
+   */
+  const begin = useCallback(
+    async (invite: string) => {
+      const id = ++run.current;
+      setPhase({ kind: "checking", invite });
+      const [waiting, check] = await Promise.all([loadPendingSignup(), api.checkInvite(invite)]);
+      if (id !== run.current) return;
+      if (waiting) {
+        if (check?.status === "valid") {
+          await clearPendingSignup();
+          await saveInviteToken(invite);
+          if (id !== run.current) return;
+          setPhase({ kind: "wizard", invite, prefill: check.prefill });
+          return;
+        }
+        setPhase({ kind: "pending", pending: { ...waiting.pending, retryAfterSeconds: waiting.cooldownSeconds }, restored: true });
+        return;
+      }
+      // `null`: маршрута нет или он сбоит. Как раньше: анкета открыта, ссылку проверит отправка.
+      if (check === null || check.status === "valid") {
+        await saveInviteToken(invite);
+        if (id !== run.current) return;
+        setPhase({ kind: "wizard", invite, prefill: check === null ? null : check.prefill });
+        return;
+      }
+      // Использованная, просроченная и неизвестная ссылка бесполезна: стереть её и черновик (как после отказа `invite`).
+      // «Не удалось проверить» ничего не стирает: ссылка, возможно, в порядке.
+      if (check.status === "unavailable") await saveInviteToken(invite);
+      else {
+        await clearInviteToken();
+        await clearDraft("anonymous");
+      }
+      if (id !== run.current) return;
+      setPhase({ kind: "invite", status: check.status, invite });
+    },
+    [api],
+  );
+
+  // Токен из ссылки приложения важнее сохранённого; без обоих — ввод вручную. Ожидающая регистрация («Проверьте почту»)
+  // возвращается, пока нет действующей новой ссылки (её проверяет `begin`).
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       if (inviteParam) {
-        await saveInviteToken(inviteParam);
-        if (!cancelled) setPhase({ kind: "wizard", invite: inviteParam });
+        if (!cancelled) await begin(inviteParam);
+        return;
+      }
+      const restored = await loadPendingSignup();
+      if (restored) {
+        if (!cancelled) setPhase({ kind: "pending", pending: { ...restored.pending, retryAfterSeconds: restored.cooldownSeconds }, restored: true });
         return;
       }
       const stored = await loadInviteToken();
-      if (!cancelled) setPhase(stored ? { kind: "wizard", invite: stored } : { kind: "entry" });
+      if (cancelled) return;
+      if (stored) await begin(stored);
+      else setPhase({ kind: "entry" });
     })();
     return () => {
       cancelled = true;
     };
-  }, [inviteParam]);
+  }, [inviteParam, begin]);
 
   const submitPasted = async () => {
     const token = parseInviteToken(pasted);
@@ -94,14 +170,15 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
     }
     setPasteError(false);
     setNotice(null);
-    await saveInviteToken(token);
-    setPhase({ kind: "wizard", invite: token });
+    await begin(token);
   };
 
   const changeLink = async () => {
+    run.current += 1;
     await clearInviteToken();
     await clearDraft("anonymous");
     setPasted("");
+    setNotice(null);
     setPhase({ kind: "entry" });
   };
 
@@ -117,7 +194,9 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
       if (result.ok) {
         await clearInviteToken();
         await clearDraft("anonymous");
-        setPhase({ kind: "pending", pending: result.pending });
+        // Письмо читают в почте, а приложение за это время могут выгрузить: «Отправить письмо ещё раз» не должно пропасть.
+        await savePendingSignup(result.pending);
+        setPhase({ kind: "pending", pending: result.pending, restored: false });
         return null;
       }
       if (result.reason === "invite") {
@@ -128,21 +207,34 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
         setPhase({ kind: "entry" });
         return null;
       }
+      // Аккаунт с этой почтой уже есть: под сообщением появляется «Перейти ко входу» (веб: server.conflict + goToLogin).
+      if (result.reason === "conflict") return { message: failureMessage(result.reason), signIn: true };
       return failureMessage(result.reason);
     },
     [api, failureMessage, phase],
   );
 
-  if (phase.kind === "loading") {
+  if (phase.kind === "loading" || phase.kind === "checking") {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: tokens.bg }}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: tokens.bg }} accessibilityLiveRegion="polite">
         <ActivityIndicator color={tokens.accent} />
       </View>
     );
   }
 
   if (phase.kind === "wizard") {
-    return <ApplicationWizard signedInEmail={null} scope="anonymous" onSubmit={onSubmit} onExit={() => void changeLink()} exitLabel={m("apply.changeLink")} />;
+    return (
+      <ApplicationWizard
+        signedInEmail={null}
+        scope="anonymous"
+        namePrefill={phase.prefill}
+        onSubmit={onSubmit}
+        onExit={() => void changeLink()}
+        exitLabel={m("apply.changeLink")}
+        // Черновик остаётся: «Уже есть аккаунт? Войти» не стирает ответы (в отличие от «Другая ссылка»).
+        onSignIn={() => router.replace("/sign-in")}
+      />
+    );
   }
 
   return (
@@ -152,14 +244,28 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
       </View>
       <View style={{ marginTop: 24, marginBottom: 20, gap: 12 }}>
         <EvoMark size={44} color={tokens.brandRed} />
-        {phase.kind === "pending" ? null : (
+        {phase.kind === "pending" || phase.kind === "invite" ? null : (
           <Text variant="display" accessibilityRole="header">
             {m("apply.entryTitle")}
           </Text>
         )}
       </View>
       {phase.kind === "pending" ? (
-        <ConfirmationPending initial={phase.pending} api={api} onSignIn={() => router.replace("/sign-in")} />
+        <ConfirmationPending
+          initial={phase.pending}
+          api={api}
+          restored={phase.restored}
+          onPendingChange={(next) => void savePendingSignup(next)}
+          onTerminal={() => void clearPendingSignup()}
+          onSignIn={() => router.replace("/sign-in")}
+        />
+      ) : phase.kind === "invite" ? (
+        <InviteRequired
+          status={phase.status}
+          onSignIn={() => router.replace("/sign-in")}
+          onChangeLink={() => void changeLink()}
+          onRetry={phase.status === "unavailable" ? () => void begin(phase.invite) : undefined}
+        />
       ) : (
         <Card>
           <Text variant="body" tone="text2">

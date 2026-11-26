@@ -12,10 +12,12 @@ import { Text } from "@/ui/Text";
 
 import { CatalogFrame } from "./CatalogFrame";
 import { useFavoriteState } from "./FavoritesContext";
+import { tileItem } from "./lists";
 import { cityPageModel, tileModel } from "./model";
-import { geographyUrls, PathRow, PhotoCredit, RemotePhoto, UniversityTileView, usePhotoPixels } from "./parts";
-import { geographyPhotoCredit } from "./photos";
+import { NearList } from "./NearList";
 import { NotFoundBlock } from "./NotFoundBlock";
+import { countryRoute, CreditedPhoto, geographyUrls, PathRow, usePhotoPixels } from "./parts";
+import { geographyPhotoCredit } from "./photos";
 
 export function CityScreen() {
   const params = useLocalSearchParams<{ code: string; city: string }>();
@@ -33,13 +35,19 @@ export function CityScreen() {
       {(index) => {
         const page = cityPageModel(index, code, cityKey, strings, lang);
         const country = index.countries.find((entry) => entry.code === code);
-        if (page === null || !country) return <NotFoundBlock />;
+        if (page === null || !country) return <NotFoundBlock embedded />;
         return (
           <View style={{ gap: 16 }}>
-            <PathRow crumbs={[localizedText(country.name, lang), page.name]} strings={strings} />
+            <PathRow
+              crumbs={[
+                { label: localizedText(country.name, lang), href: countryRoute(code) },
+                { label: page.name, href: null },
+              ]}
+              strings={strings}
+            />
             <View style={{ gap: 8 }}>
-              <RemotePhoto urls={geographyUrls(page.city.photo, pixels)} height={180} label={page.name} strings={strings} />
-              <PhotoCredit credit={geographyPhotoCredit(page.city.photo)} strings={strings} />
+              {/* Фото места - фон: его смысл несёт текст рядом, поэтому читалке оно не нужно (веб: `alt=""`). «©» в верхнем углу, как в вебе. */}
+              <CreditedPhoto urls={geographyUrls(page.city.photo, pixels)} height={180} label={page.name} strings={strings} credit={geographyPhotoCredit(page.city.photo)} placement="top" decorative />
               <Text variant="title" accessibilityRole="header">
                 {page.name}
               </Text>
@@ -60,9 +68,13 @@ export function CityScreen() {
             <Text variant="heading" accessibilityRole="header">
               {strings.cityUniversitiesHeading}
             </Text>
-            {page.universities.map((item) => (
-              <UniversityTileView key={item.id} tile={tileModel(index, item, { strings, lang, now, showPlace: false })} strings={strings} favored={favorites.isFavored(item.id)} onToggle={favorites.toggle} />
-            ))}
+            <NearList
+              gap={12}
+              listKey={`city:${cityKey}`}
+              items={page.universities.map((item, position) =>
+                tileItem({ id: item.id, tile: tileModel(index, item, { strings, lang, now, showPlace: false }), strings, favorites, position }),
+              )}
+            />
           </View>
         );
       }}

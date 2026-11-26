@@ -36,7 +36,13 @@ const config: ExpoConfig = {
       dark: "./assets/images/icon-dark.png",
       tinted: "./assets/images/icon-tinted.png",
     },
-    infoPlist: { ITSAppUsesNonExemptEncryption: false },
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+      // Приложение местоположение не запрашивает и не использует. Строка нужна только потому, что в библиотеке
+      // карты MapLibre есть код определения положения, и Apple при загрузке сборки предупреждает (ITMS-90683),
+      // если строки нет. Текст честный: диалога разрешения в приложении не бывает.
+      NSLocationWhenInUseUsageDescription: "EVO не определяет и не использует ваше местоположение. Карта университетов показывает только расположение вузов.",
+    },
     // Манифест приватности (Apple). Required-reason API: объединение того, что объявляют сами зависимости
     // (React Native, expo-file-system, expo-constants, expo-system-ui, async-storage), потому что Apple не
     // читает манифесты статических pod-ов. Сторонний трекинг и рекламные SDK не используются.

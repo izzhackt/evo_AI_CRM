@@ -40,9 +40,11 @@ export function placeCounts(strings: UniversityStrings, universities: number, ci
     if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "few";
     return "many";
   };
-  const uni = formatPortalString(strings[`count.university.${form(universities)}`], { count: String(universities) });
+  // Число и слово не разрываются переносом («3 города», а не «3 / города»): как `placeCountsLabel` веба (Places.tsx).
+  const keep = (value: string) => value.replace(" ", "\u00a0");
+  const uni = keep(formatPortalString(strings[`count.university.${form(universities)}`], { count: String(universities) }));
   if (cities === null) return uni;
-  return `${uni} · ${formatPortalString(strings[`count.city.${form(cities)}`], { count: String(cities) })}`;
+  return `${uni} · ${keep(formatPortalString(strings[`count.city.${form(cities)}`], { count: String(cities) }))}`;
 }
 
 export function intakeText(nearest: NearestIndexIntake | null, strings: UniversityStrings, lang: Lang): string {
@@ -97,7 +99,7 @@ export function countryCards(index: StudentUniversityIndex, strings: UniversityS
   }));
 }
 
-export type CityCard = Readonly<{ key: string; name: string; count: string; summary: string; photo: IndexCity["photo"]; search: string }>;
+export type CityCard = Readonly<{ key: string; name: string; count: string; summary: string; fact: string; photo: IndexCity["photo"]; search: string }>;
 
 export type CountryPageModel = Readonly<{
   country: IndexCountry;
@@ -131,6 +133,8 @@ export function countryPageModel(index: StudentUniversityIndex, code: string, st
       name: localizedText(city.name, lang),
       count: placeCounts(strings, city.universityCount, null, lang),
       summary: localizedText(city.summary, lang),
+      // «Интересный факт» на карточке города, как у веба (Places.tsx, CityCards).
+      fact: lang === "ky" ? city.fact.ky : city.fact.ru,
       photo: city.photo,
       search: citySearchText(city),
     });
@@ -159,11 +163,29 @@ export function countryPageModel(index: StudentUniversityIndex, code: string, st
   };
 }
 
-/** Точки карты страны: только вузы с проверенной координатой; остальные считаются в `missing`. */
-export function countryPins(index: StudentUniversityIndex, code: string, lang: Lang) {
+type CountryPins = ReturnType<typeof buildCampusPins>;
+/** Готовые точки по индексу (он неизменен, пока не придёт новая версия каталога), стране и языку. */
+const pinsCache = new WeakMap<StudentUniversityIndex, Map<string, CountryPins>>();
+
+/**
+ * Точки карты страны: только вузы с проверенной координатой; остальные считаются в `missing`. Для того же индекса, страны и языка
+ * это один и тот же результат (одни и те же массив и точки): экран строит модель страницы при каждой отрисовке, а карте нужны стабильные
+ * точки, иначе выбранная точка при каждой отрисовке экрана «новая» и обработчик «Назад» карточки подписывается заново.
+ */
+export function countryPins(index: StudentUniversityIndex, code: string, lang: Lang): CountryPins {
+  let byKey = pinsCache.get(index);
+  if (byKey === undefined) {
+    byKey = new Map();
+    pinsCache.set(index, byKey);
+  }
+  const cacheKey = `${code}:${lang}`;
+  const cached = byKey.get(cacheKey);
+  if (cached !== undefined) return cached;
   const items = index.universities.filter((item) => item.country === code);
   const byId = new Map(items.map((item) => [item.id, item]));
-  return buildCampusPins(items, (item) => universityPlace(index, byId.get(item.id) as IndexUniversity, lang));
+  const built = buildCampusPins(items, (item) => universityPlace(index, byId.get(item.id) as IndexUniversity, lang));
+  byKey.set(cacheKey, built);
+  return built;
 }
 
 export type CityPageModel = Readonly<{ city: IndexCity; name: string; counts: string; summary: string; fact: string; universities: readonly IndexUniversity[] }>;

@@ -12,6 +12,8 @@ export type PaymentsIo = DocumentsIo &
     createProofSend: (baseUrl: string, getToken: () => Promise<string | null>, refreshToken?: () => Promise<string | null>) => ProofSend;
     /** Текст в буфер обмена; `false` - система отказала. */
     copyText: (value: string) => Promise<boolean>;
+    /** Кто сейчас вошёл на устройстве (auth user id) или `null`: отправка проверяет, что это студент, который её начал (`upload-session.ts`). */
+    liveUserId: () => Promise<string | null>;
   }>;
 
-export const nativePaymentsIo: PaymentsIo = { ...nativeDocumentsIo, createReceiptSend: native.createReceiptSend, createProofSend: native.createProofSend, copyText: native.copyText };
+export const nativePaymentsIo: PaymentsIo = { ...nativeDocumentsIo, createReceiptSend: native.createReceiptSend, createProofSend: native.createProofSend, copyText: native.copyText, liveUserId: native.liveUserId };

@@ -642,6 +642,10 @@ describe("сессия: после закрытия экрана ничего н
   const READ_RPC = "learning_test_attempt_v1";
   const ofName = (h: { calls: Call[] }, name: string) => h.calls.filter((c) => c.name === name);
   const keysOf = (attempt: { items: { itemKey: string }[] }) => attempt.items.map((i) => i.itemKey);
+  /** Цепочка запросов и обработчиков идёт одними обещаниями без таймеров: несколько проходов по 30 шагов её дочитывают до конца (один проход мог остановить проверку на полпути). */
+  const settle = async () => {
+    for (let i = 0; i < 6; i += 1) await flushMicrotasks();
+  };
 
   async function running(extra: Record<string, Reply[]> = {}) {
     const attempt = draftAttempt();
@@ -671,7 +675,7 @@ describe("сессия: после закрытия экрана ничего н
     const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK] });
     session.select(keys[0], "a"); // не отправлено
     session.dispose();
-    await flushMicrotasks();
+    await settle();
     const sent = ofName(h, SAVE_RPC).length;
     expect(sent).toBe(3); // три попытки слоя RPC одного запроса
     expect(h.pendingTimers()).toBe(0);
@@ -698,7 +702,7 @@ describe("сессия: после закрытия экрана ничего н
     session.select(keys[0], "a");
     session.dispose();
     session.dispose();
-    await flushMicrotasks();
+    await settle();
     expect(ofName(h, SAVE_RPC)).toHaveLength(3);
     expect(h.pendingTimers()).toBe(0);
   });
@@ -711,7 +715,7 @@ describe("сессия: после закрытия экрана ничего н
     const before = session.getState();
     session.dispose();
     release(); // ответ пришёл уже после закрытия
-    await flushMicrotasks();
+    await settle();
     const sent = ofName(h, SAVE_RPC).length;
     expect(sent).toBe(6); // три попытки висевшего запроса и досылка при закрытии (тот же запрос ещё раз)
     expect(h.pendingTimers()).toBe(0);
@@ -728,7 +732,7 @@ describe("сессия: после закрытия экрана ничего н
     const before = session.getState();
     session.dispose();
     release();
-    await flushMicrotasks();
+    await settle();
     expect(ofName(h, SAVE_RPC)).toHaveLength(1);
     expect(h.pendingTimers()).toBe(0);
     await h.advance(RETRY_MS * 10);
@@ -741,7 +745,7 @@ describe("сессия: после закрытия экрана ничего н
     const { h, session, keys } = await running({ [SAVE_RPC]: [err("40001", "Learning attempt changed")], [READ_RPC]: [draftAttempt()] });
     session.select(keys[0], "a");
     session.dispose();
-    await flushMicrotasks();
+    await settle();
     expect(ofName(h, SAVE_RPC)).toHaveLength(1);
     expect(ofName(h, READ_RPC)).toHaveLength(1);
     expect(h.pendingTimers()).toBe(0);
@@ -764,7 +768,7 @@ describe("сессия: после закрытия экрана ничего н
     const { h, session, keys } = await running({ [SAVE_RPC]: [err("22023", "learning_test_deadline_passed")], [COMPLETE_RPC]: [fx("csca_test_complete_diagnostic")] });
     session.select(keys[0], "a");
     session.dispose();
-    await flushMicrotasks();
+    await settle();
     expect(ofName(h, SAVE_RPC)).toHaveLength(1);
     expect(ofName(h, COMPLETE_RPC)).toHaveLength(0);
   });
@@ -775,7 +779,7 @@ describe("сессия: после закрытия экрана ничего н
     const finishing = session.finalize();
     session.dispose();
     await finishing;
-    await flushMicrotasks();
+    await settle();
     expect(ofName(h, COMPLETE_RPC)).toHaveLength(0);
     expect(h.pendingTimers()).toBe(0);
     expect(session.debug().retry).not.toBeNull(); // замороженный запрос на месте: завершение ждёт его

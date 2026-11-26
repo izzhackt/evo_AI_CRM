@@ -5,7 +5,7 @@ import { router } from "expo-router";
 
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { stripCardWidth } from "@/features/home/HomeList";
-import { OVERVIEW_ROW_EMPTY, PAYMENT_ROW } from "@/test-fixtures/rpc-rows";
+import { OVERVIEW_ROW_EMPTY, PAYMENT_ROW, SLOT_ID } from "@/test-fixtures/rpc-rows";
 import { favorites, homeHandlers, moveNow, restoreNow, setNow } from "@/test-fixtures/home";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { fakeTransport, preparationRow, universityRow, uuidN } from "@/test-fixtures/universities";
@@ -44,7 +44,11 @@ describe("«Ближайшие даты»", () => {
     expect(screen.getByTestId("week-today", { includeHiddenElements: true })).toBeTruthy();
     expect(screen.getByTestId("week-marked-2026-09-12", { includeHiddenElements: true })).toBeTruthy();
     await fireEvent.press(row);
-    expect(navigate).toHaveBeenCalledWith("/documents");
+    // строка документа открывает «Документы» на этом документе (веб: ссылка `/portal/documents#document-<slot>`)
+    expect(navigate).toHaveBeenCalledWith(`/documents?focus=${SLOT_ID}`);
+    // оплата - на «Оплату», без параметров
+    await fireEvent.press(later);
+    expect(navigate).toHaveBeenLastCalledWith("/payments");
   });
 
   it("в окне 60 дней дат нет, а позже есть: «Дальше» и первая такая дата с годом", async () => {
@@ -82,9 +86,9 @@ describe("«Ближайшие даты»", () => {
     // две строки в один день: срок программы вуза 1 и срок вуза 2 (у вуза 1 общей строки нет)
     expect(rows).toHaveLength(2);
     expect(titles.sort()).toEqual(["Информатика, Университет 1: последний день подачи", "Университет 2: последний день подачи"]);
-    // срок программы ведёт в «Мои программы»
+    // срок программы ведёт на экран этой программы (веб: `/portal/preparations/<applicationId>`)
     await fireEvent.press(screen.getAllByTestId("date-2027-05-01").find((node) => within(node).queryByText(/^Информатика/) !== null)!);
-    expect(navigate).toHaveBeenCalledWith(expect.stringMatching(/^\/home\?list=programs&at=\d+$/));
+    expect(navigate).toHaveBeenCalledWith(`/preparations/${uuidN(1, "bbbbbbbb")}`);
   });
 
   it("Китай: официальные даты CSCA - последний день регистрации и экзамен; строка ведёт в раздел CSCA", async () => {
@@ -145,6 +149,41 @@ describe("«Что сделать сейчас»: дела строками", ()
     expect(within(screen.getByTestId("case-next-0")).getByText(/через \d+ д/)).toBeTruthy();
   });
 
+  // Читалка слышит и дату, и слова пилюли («Срок: 20.09.2026, через 12 дней»): у веба оба читаются (`pt-sr-only` и пилюля).
+  it("метка строки следующего дела несёт слова пилюли: «через N дней», «просрочено на N дня», «сегодня»", async () => {
+    const world = {
+      student_portal_overview_v2: [OVERVIEW_ROW_EMPTY],
+      student_portal_finance_v2: [
+        payment("Взнос 1", "2026-09-03T08:00:00+00:00"), // просрочено на 5 дней: первое дело, кнопкой
+        payment("Взнос 2", "2026-09-06T08:00:00+00:00"), // просрочено на 2 дня
+        payment("Взнос 3", "2026-09-08T10:00:00+00:00"), // сегодня, 16:00
+        payment("Взнос 4", "2026-09-20T08:00:00+00:00"), // через 12 дней
+        payment("Взнос 5", "2026-10-01T08:00:00+00:00"), // «Ещё действий»
+      ],
+    };
+    const { transport } = fakeTransport(homeHandlers("MY", world));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("case-open");
+    expect(screen.getByTestId("case-next-0").props.accessibilityLabel).toBe("Оплата: Взнос 2. Срок: 06.09.2026, просрочено на 2 дня");
+    expect(screen.getByTestId("case-next-1").props.accessibilityLabel).toBe("Оплата: Взнос 3. Срок: 08.09.2026, сегодня");
+    // те же слова рисует сама пилюля строки
+    expect(within(screen.getByTestId("case-next-0")).getByText("просрочено на 2 дня")).toBeTruthy();
+    expect(within(screen.getByTestId("case-next-1")).getByText("сегодня")).toBeTruthy();
+  });
+
+  it("метка следующего дела со сроком «через N дней» и дело без срока: у второго слов пилюли и даты в метке нет", async () => {
+    const world = {
+      student_portal_overview_v2: [OVERVIEW_ROW_EMPTY],
+      student_portal_finance_v2: [payment("Взнос 1", "2026-09-20T08:00:00+00:00"), payment("Взнос 2", "2026-10-01T08:00:00+00:00"), { ...PAYMENT_ROW, obligation_label: "Взнос 3", due_at: null }],
+    };
+    const { transport } = fakeTransport(homeHandlers("MY", world));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("case-open");
+    const labels = [0, 1].map((index) => screen.getByTestId(`case-next-${index}`).props.accessibilityLabel);
+    expect(labels).toEqual(expect.arrayContaining(["Оплата: Взнос 2. Срок: 01.10.2026, через 23 дня"]));
+    expect(labels.some((label) => label === "Оплата: Взнос 3")).toBe(true); // без срока - одно название, без «Срок» и слов
+  });
+
   it.each([
     ["2026-09-08T03:00:00+00:00", /^просрочено$/], // 09:00 в Бишкеке, сейчас 11:00: срок прошёл сегодня по часам
     ["2026-09-08T10:00:00+00:00", /^сегодня$/], // 16:00: срок позже сегодня
@@ -194,8 +233,8 @@ describe("«Мои вузы» лентой", () => {
     expect(screen.getByTestId(`fav-${uuidN(3)}`)).toBeTruthy();
   });
 
-  it("у вуза без дат набора - «даты уточняются»; нажатие ведёт на карточку вуза", async () => {
-    // набор без срока подачи и без начала: ближайшей даты нет, карточка честно так и говорит
+  it("у вуза без открытого набора строки набора нет (веб HomeFavorites); нажатие ведёт на карточку вуза", async () => {
+    // набор без срока подачи и без начала: ближайшей даты нет, и строки «даты уточняются» на карточке веб не пишет
     const noDates = (args?: Record<string, unknown>) => ({
       items: ((args?.p_institution_ids as string[]) ?? []).map((id) => {
         const row = universityRow(Number(id.slice(-12)), "Вуз без дат");
@@ -207,9 +246,20 @@ describe("«Мои вузы» лентой", () => {
     const { transport } = fakeTransport(homeHandlers("MY", { student_university_catalog_by_ids_v1: noDates }));
     await renderPortal(<HomeScreen />, testApi(transport));
     const card = await screen.findByTestId(`fav-${uuidN(1)}`);
-    expect(within(card).getByTestId(`fav-intake-${uuidN(1)}`)).toHaveTextContent("Даты уточняются у источника");
+    expect(within(card).queryByTestId(`fav-intake-${uuidN(1)}`)).toBeNull();
+    expect(screen.queryByText(/Даты уточняются/)).toBeNull();
+    // читалка слышит то же, что видно: название и место, без строки набора
+    expect(card.props.accessibilityLabel).toBe("Вуз без дат. Куала-Лумпур · Малайзия");
     await fireEvent.press(card);
     expect(navigate).toHaveBeenCalledWith(`/universities/${uuidN(1)}`);
+  });
+
+  it("метка карточки несёт видимые строки: название, место и срок подачи", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const card = await screen.findByTestId(`fav-${uuidN(1)}`);
+    expect(within(card).getByTestId(`fav-intake-${uuidN(1)}`)).toHaveTextContent("Подача до 1 мая 2027 г.");
+    expect(card.props.accessibilityLabel).toBe("Университет 1. Куала-Лумпур · Малайзия. Подача до 1 мая 2027 г.");
   });
 });
 

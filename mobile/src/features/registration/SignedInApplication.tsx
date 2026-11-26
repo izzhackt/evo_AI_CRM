@@ -2,11 +2,15 @@
 // черновик отправляется сразу (resume, expected_revision 0), либо мастер в режиме signedIn.
 // Порт ApplicationIntake iPhone: приглашение (invite-acceptance) только предзаполняет имя и
 // никогда не блокирует; конфликт ревизии ведёт на статус уже существующей анкеты.
+// До одобрения анкеты у вошедшего всегда есть «Выйти» и «Удалить аккаунт» (Apple 5.1.1(v)): в мастере, на экране
+// «Анкета не отправилась» и в запасном состоянии без почты сессии.
 import { userDraftScope } from "@/features/registration/draft-store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
+import { accountNamePrefill } from "@/features/registration/account-identity";
 
 import { getConfig } from "@/config";
+import { ApplicantDeletionSection } from "@/features/registration/ApplicantDeletion";
 import { registrationAiConsentChoice } from "@/features/registration/ai-consent";
 import { ApplicationWizard, type WizardSubmit } from "@/features/registration/ApplicationWizard";
 import { createRegistrationApi } from "@/features/registration/registration-api";
@@ -22,6 +26,7 @@ import { getSupabase, platformTransport } from "@/lib/supabase";
 import { useSession } from "@/session/SessionProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
+import { LangSwitch } from "@/ui/LangSwitch";
 import { Card, Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 import type { StudentApplicationDraft } from "@/features/registration/application-contract";
@@ -78,6 +83,7 @@ export function SignedInWizard({
   onExit?: () => void;
 }) {
   const { m } = useLang();
+  const { signOut } = useSession();
   const deps = useSubmitDeps();
   const onSubmit: WizardSubmit = useCallback(
     async ({ draft }) => {
@@ -100,6 +106,7 @@ export function SignedInWizard({
       namePrefill={namePrefill}
       onSubmit={onSubmit}
       onExit={onExit}
+      account={{ onSignOut: () => void signOut(), deletion: <ApplicantDeletionSection transport={deps.transport} /> }}
     />
   );
 }
@@ -144,16 +151,22 @@ export function NeedsApplicationScreen({ email, resume }: { email: string | null
         return;
       }
       // Приглашение только предзаполняет имя; любой сбой молча пропускается.
+      let invited: NamePrefill | null = null;
+      let fromAdmin: NamePrefill | null = null;
       try {
         const { data } = await deps.supabase.auth.getSession();
+        // 342: кабинет от администратора: имя и фамилия, которые он ввёл, лежат в user_metadata (веб: accountNamePrefill).
+        fromAdmin = accountNamePrefill(data.session?.user?.user_metadata);
         const token = data.session?.access_token;
         if (token) {
           const result = await createRegistrationApi({ baseUrl: getConfig().portalBaseUrl }).acceptInvite(token);
-          if (result.ok && result.acceptance.intakeFlow === "anketa_v1") setPrefill(namePrefillFromDisplayName(result.acceptance.displayName));
+          if (result.ok && result.acceptance.intakeFlow === "anketa_v1") invited = namePrefillFromDisplayName(result.acceptance.displayName);
         }
       } catch {
         // не блокирует
       }
+      // Как на вебе: имя из приглашения первее имени от администратора.
+      setPrefill(invited ?? fromAdmin);
       setMode("wizard");
     })();
   }, [deps, resume, doResume]);
@@ -165,21 +178,51 @@ export function NeedsApplicationScreen({ email, resume }: { email: string | null
   if (mode === "failed") {
     return (
       <Screen>
-        <Card>
-          <Text variant="title" accessibilityRole="header">
-            {m("resume.failedTitle")}
-          </Text>
-          <Text variant="body">{m("resume.failedBody")}</Text>
-          {failure ? (
-            <Text variant="secondary" tone="error" accessibilityRole="alert">
-              {m(failure)}
+        <View style={{ alignItems: "flex-end", marginBottom: 12 }}>
+          <LangSwitch />
+        </View>
+        <View style={{ gap: 16 }}>
+          <Card>
+            <Text variant="title" accessibilityRole="header">
+              {m("resume.failedTitle")}
             </Text>
-          ) : null}
-          <Button label={m("resume.retry")} onPress={retryResume} testID="resume-retry" />
-          <Button label={m("resume.fillAgain")} variant="ghost" onPress={() => setMode("wizard")} testID="resume-fill-again" />
-          <Button label={m("gate.refresh")} variant="ghost" onPress={() => void refreshAccess()} />
-          <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} />
-        </Card>
+            <Text variant="body">{m("resume.failedBody")}</Text>
+            {failure ? (
+              <Text variant="secondary" tone="error" accessibilityRole="alert">
+                {m(failure)}
+              </Text>
+            ) : null}
+            <Button label={m("resume.retry")} onPress={retryResume} testID="resume-retry" />
+            <Button label={m("resume.fillAgain")} variant="ghost" onPress={() => setMode("wizard")} testID="resume-fill-again" />
+            <Button label={m("gate.refresh")} variant="ghost" onPress={() => void refreshAccess()} />
+            <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} testID="resume-sign-out" />
+          </Card>
+          <ApplicantDeletionSection transport={deps.transport} />
+        </View>
+      </Screen>
+    );
+  }
+
+  // Мастер без почты в сессии открыть нельзя: вместо вечной загрузки есть выход и удаление аккаунта (аудит U19).
+  if (mode === "wizard") {
+    return (
+      <Screen>
+        <View style={{ alignItems: "flex-end", marginBottom: 12 }}>
+          <LangSwitch />
+        </View>
+        <View style={{ gap: 16 }}>
+          <Card>
+            <Text variant="title" accessibilityRole="header">
+              {m("gate.pendingTitle")}
+            </Text>
+            <Text variant="secondary" tone="text2">
+              {m("gate.pendingBody")}
+            </Text>
+            <Button label={m("gate.refresh")} variant="ghost" onPress={() => void refreshAccess()} testID="no-email-refresh" />
+            <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} testID="no-email-sign-out" />
+          </Card>
+          <ApplicantDeletionSection transport={deps.transport} />
+        </View>
       </Screen>
     );
   }

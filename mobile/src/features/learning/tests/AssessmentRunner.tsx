@@ -7,6 +7,7 @@ import { Alert, Platform, View } from "react-native";
 
 import type { AssessmentAttempt } from "@web/lib/student-assessment-contract";
 
+import { useRevealBlock, type PageScroll } from "@/features/learning/page-reveal";
 import { AssessmentQuestionView } from "@/features/learning/tests/AssessmentQuestionView";
 import type { AssessmentSession, AssessmentUiState } from "@/features/learning/tests/assessment-session";
 import { assessmentPageCount, assessmentPageSize, firstOpenPage, pageQuestions } from "@/features/learning/tests/paging";
@@ -19,7 +20,7 @@ import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 
-export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAndExit, onLeaveAnyway, onPageChange }: { session: AssessmentSession; state: AssessmentUiState; attempt: AssessmentAttempt; exitNotice: boolean; onSaveAndExit: () => void; onLeaveAnyway: () => void; onPageChange: () => void }) {
+export function AssessmentRunner({ session, state, attempt, exitNotice, exitAttempts, onSaveAndExit, onLeaveAnyway, page: pageScroll }: { session: AssessmentSession; state: AssessmentUiState; attempt: AssessmentAttempt; exitNotice: boolean; exitAttempts: number; onSaveAndExit: () => void; onLeaveAnyway: () => void; page: PageScroll }) {
   const { m, t, format } = useLang();
   const { tokens } = useTheme();
   const s = t("tests");
@@ -47,7 +48,7 @@ export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAn
     state.reload === "loading" ? s.statusLoadingSaved : state.saveStatus === "saving" ? s.statusSaving : state.saveStatus === "unconfirmed" || state.reloadRequired ? s.statusUnconfirmed : state.saveStatus === "dirty" ? s.statusDirty : s.statusSaved;
   const go = (next: number) => {
     session.goTo(next);
-    onPageChange();
+    pageScroll.toTop();
   };
   const select = (questionId: string, optionId: string) => session.select(questionId, optionId);
   const notice = runNotice(state, exitNotice, Platform.OS === "ios");
@@ -58,12 +59,25 @@ export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAn
   // только эта строка; строки ушли или набор тот же (круг повтора) - молчание.
   const noticeKeys = notice.messages.join("|");
   const announcedKeys = useRef<readonly string[]>([]);
+  // Блок сбоя стоит наверху, а «Сохранить и выйти» и «Завершить» внизу (QA 24, N2): блок прокручивается в видимую часть, когда он
+  // появился или к нему прибавилась строка, и когда студент нажал выход или «Завершить» и снова получил отказ (строки те же, а
+  // нажатия ответа глазами ждут). Один раз на такое событие: круги повтора набор строк не меняют. Только если верх блока выше
+  // видимой части (`page-reveal.ts`).
+  const block = useRevealBlock(pageScroll);
+  const shownExitAttempts = useRef(exitAttempts);
+  const wasCompleting = useRef(false);
   useEffect(() => {
     const keys = noticeKeys === "" ? [] : (noticeKeys.split("|") as RunNoticeKey[]);
     const added = keys.filter((key) => !announcedKeys.current.includes(key));
     announcedKeys.current = keys;
+    const exitTried = shownExitAttempts.current !== exitAttempts;
+    shownExitAttempts.current = exitAttempts;
+    const finishFailed = wasCompleting.current && !completing;
+    wasCompleting.current = completing;
+    if (keys.length === 0) block.hide();
     if (added.length > 0) announce(added.map((key) => (isAppNoticeKey(key) ? m(key) : s[key])).join(" "));
-  }, [noticeKeys, m, s]);
+    if (keys.length > 0 && (added.length > 0 || exitTried || finishFailed)) block.show();
+  }, [noticeKeys, exitAttempts, completing, block, m, s]);
   // У сайта сбой, который прошёл, говорит живая область строки статуса («Все ответы сохранены»). На iPhone живые области не работают,
   // поэтому, когда ответы наконец сохранились после сбоя, это называет `announce`; на Android живая область делает это сама.
   const failing = isBlocked(state);
@@ -93,7 +107,7 @@ export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAn
     ]);
 
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 12 }} onLayout={block.onRootLayout} testID="assessment-runner">
       <Card>
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "baseline", columnGap: 16, rowGap: 4 }}>
           <Text variant="secondary" bold testID="assessment-answered">
@@ -111,7 +125,7 @@ export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAn
         />
       </Card>
       {notice.messages.length > 0 ? (
-        <View accessibilityRole="alert" testID="assessment-error" style={{ gap: 8, padding: 12, borderRadius: tokens.radiusItem, borderWidth: 1, borderColor: tokens.error, backgroundColor: tokens.surface }}>
+        <View accessibilityRole="alert" testID="assessment-error" onLayout={block.onBlockLayout} style={{ gap: 8, padding: 12, borderRadius: tokens.radiusItem, borderWidth: 1, borderColor: tokens.error, backgroundColor: tokens.surface }}>
           {noticeText.map((text, i) => (
             <Text key={notice.messages[i]} variant="secondary" tone="error">
               {text}

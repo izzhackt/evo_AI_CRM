@@ -2,7 +2,7 @@
 // времени, пачки сохранения, замороженные запросы, завершение) живёт в CscaTestSession.
 import { router, useNavigation, usePreventRemove } from "expo-router";
 import { Flag } from "lucide-react-native";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, AppState, Modal, Pressable, View } from "react-native";
 
 import { formatClock, type CscaTestAttempt } from "@web/lib/portal/csca";
@@ -14,6 +14,7 @@ import { cscaDayLabelSafe } from "@/features/learning/csca/format";
 import { ItemCard } from "@/features/learning/csca/ItemCard";
 import { CSCA_TOPICS_FALLBACK, openCscaTopics } from "@/features/learning/csca/routes";
 import { useWarmMath } from "@/features/learning/math/useWarmMath";
+import { usePageScroll, useRevealBlock, type PageScroll } from "@/features/learning/page-reveal";
 import { ReportSheet } from "@/features/learning/csca/ReportSheet";
 import { useCscaHome, useCscaTestResult, useInvalidateCsca } from "@/features/learning/queries";
 import { introRules, resultActions, resultFacts, resultTallies, type TallyRow } from "@/features/learning/test-runner/result-model";
@@ -119,6 +120,7 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
   // уход перехватывается и спрашивает подтверждение; жест закрыт, и экран закрывается через flush.
   const navigation = useNavigation();
   const scroller = useRef<ScrollTarget>(null);
+  const page = usePageScroll(scroller);
   // Страница одна и та же прокрутка, а содержимое под ней меняется: «Перед началом» длиннее первого задания, и студент жмёт «Начать»,
   // долистав до кнопки (QA 23, D3). Так же итог открывается сверху, а не с низа последнего задания, и «Пройти ещё раз» возвращает к началу.
   // Смена задания внутри теста сбрасывает прокрутку сама (`Runner`). Сброс при смене стадии, а не фазы: `running` и `finishing` одна стадия.
@@ -127,8 +129,8 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
   useEffect(() => {
     if (shownStage.current === stage) return;
     shownStage.current = stage;
-    scroller.current?.scrollTo({ y: 0, animated: false });
-  }, [stage]);
+    page.toTop();
+  }, [stage, page]);
   const [leaving, setLeaving] = useState<Parameters<typeof navigation.dispatch>[0] | null>(null);
   usePreventRemove(running && leaving === null, ({ data }) => confirmLeave(session, () => setLeaving(data.action), m));
   useEffect(() => {
@@ -143,9 +145,10 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
       header={<SubHeader title={title} onBack={back} backLabel={c.backToHome} testID="test-title" right={running && state.remaining !== null ? <Clock state={state} /> : undefined} />}
       testID="test-screen"
       scrollRef={scroller}
+      onScrollY={page.onScrollY}
     >
       {phase === "intro" || phase === "starting" ? <Intro form={form} state={state} onStart={() => void session.start()} /> : null}
-      {phase === "running" || phase === "finishing" ? <Runner session={session} state={state} scrollRef={scroller} /> : null}
+      {phase === "running" || phase === "finishing" ? <Runner session={session} state={state} page={page} /> : null}
       {phase === "result" && state.attempt ? <Result attempt={state.attempt} onRestart={() => session.restart()} /> : null}
     </StackPage>
   );
@@ -235,7 +238,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Runner({ session, state, scrollRef }: { session: CscaTestSession; state: TestUiState; scrollRef: RefObject<ScrollTarget | null> }) {
+function Runner({ session, state, page }: { session: CscaTestSession; state: TestUiState; page: PageScroll }) {
   const { m, t, format } = useLang();
   const { tokens } = useTheme();
   const c = t("csca");
@@ -255,12 +258,28 @@ function Runner({ session, state, scrollRef }: { session: CscaTestSession; state
   useEffect(() => {
     if (shownIndex.current === state.index) return;
     shownIndex.current = state.index;
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, [state.index, scrollRef]);
+    page.toTop();
+  }, [state.index, page]);
+  // Сообщения о сбое стоят над заданием, а «Завершить» внизу (QA 24, N2): сообщение прокручивается в видимую часть, когда оно
+  // появилось (или появилось другое) и когда студент нажал «Завершить» и снова получил отказ. Один раз на такое событие; только если
+  // верх сообщений выше видимой части (`page-reveal.ts`).
+  const noticeKeys = [state.notice, state.error ? `error:${state.error}` : null].filter((key) => key !== null).join("|");
+  const block = useRevealBlock(page);
+  const shownNotices = useRef<readonly string[]>([]);
+  const wasFinishing = useRef(false);
+  useEffect(() => {
+    const keys = noticeKeys === "" ? [] : noticeKeys.split("|");
+    const added = keys.filter((key) => !shownNotices.current.includes(key));
+    shownNotices.current = keys;
+    const finishFailed = wasFinishing.current && !finishing;
+    wasFinishing.current = finishing;
+    if (keys.length === 0) block.hide();
+    if (keys.length > 0 && (added.length > 0 || finishFailed)) block.show();
+  }, [noticeKeys, finishing, block]);
   // Верхняя строка как на вебе: «Отвечено X из Y» и состояние сохранения; при завершении слова «Время вышло» или «Подводим итог».
   const barStatus = finishing ? (state.remaining === 0 ? c.timeUp : c.finishing) : status;
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 12 }} onLayout={block.onRootLayout} testID="test-runner">
       <View style={{ gap: 2 }}>
         <Text variant="body" bold testID="test-answered">
           {format(c.answeredCount, { answered: String(answeredCount), total: String(attempt.items.length) })}
@@ -271,9 +290,13 @@ function Runner({ session, state, scrollRef }: { session: CscaTestSession; state
         </Text>
       </View>
       <TestNavigator attempt={attempt} answers={state.answers} flags={state.flags} index={state.index} disabled={finishing} onPick={goTo} />
-      {state.notice === "finishUnsent" ? <InlineAlert message={c.finishUnsent} testID="test-unsent" /> : null}
-      {state.notice === "conflict" ? <InlineAlert message={m("learn.testConflict")} testID="test-conflict" /> : null}
-      {state.error ? <InlineAlert message={errorText(state.error, c, m)} testID="test-error" /> : null}
+      {noticeKeys !== "" ? (
+        <View style={{ gap: 12 }} onLayout={block.onBlockLayout} testID="test-notices">
+          {state.notice === "finishUnsent" ? <InlineAlert message={c.finishUnsent} testID="test-unsent" /> : null}
+          {state.notice === "conflict" ? <InlineAlert message={m("learn.testConflict")} testID="test-conflict" /> : null}
+          {state.error ? <InlineAlert message={errorText(state.error, c, m)} testID="test-error" /> : null}
+        </View>
+      ) : null}
       <ItemCard
         key={item.itemKey}
         item={item}

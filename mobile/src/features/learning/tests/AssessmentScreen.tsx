@@ -11,6 +11,7 @@ import { isAssessmentKey, type AssessmentAttempt, type StudentAssessmentKey } fr
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
+import { usePageScroll } from "@/features/learning/page-reveal";
 import { AssessmentRunner } from "@/features/learning/tests/AssessmentRunner";
 import { AssessmentSession, defaultAssessmentEnv, type AssessmentUiState } from "@/features/learning/tests/assessment-session";
 import { RunnerPage } from "@/features/learning/tests/RunnerPage";
@@ -86,7 +87,7 @@ function AssessmentFlow({ instrumentKey, knownDraft, initial, instrument, origin
   const [session] = useState(() => new AssessmentSession(defaultAssessmentEnv(transport), instrumentKey, knownDraft, initial));
   const state = useSyncExternalStore(session.subscribe, session.getState);
   const scroller = useRef<ScrollTarget>(null);
-  const toTop = useCallback(() => scroller.current?.scrollTo({ y: 0, animated: false }), []);
+  const page = usePageScroll(scroller);
   useEffect(() => () => session.dispose(), [session]);
   // Выход из аккаунта: токен отозван, ни повтор, ни закрытие экрана больше ничего не шлют (QA 23: запись с отозванным токеном, 401).
   useAbandonOnSignOut(session);
@@ -109,7 +110,7 @@ function AssessmentFlow({ instrumentKey, knownDraft, initial, instrument, origin
   }, [phase, client, userKey]);
   const title = state.attempt?.metadata.title ?? instrument?.metadata.title ?? s.title;
   const running = phase === "running" || phase === "completing";
-  const { exitNotice, saveAndExit, leaveAnyway } = useLeaveGuard({ session, active: running, back: exit });
+  const { exitNotice, exitAttempts, saveAndExit, leaveAnyway } = useLeaveGuard({ session, active: running, back: exit });
   const loading = resuming && (phase === "intro" || phase === "starting");
   // Страница одна и та же прокрутка, а содержимое под ней меняется: «Перед началом» длиннее страницы вопросов, и студент жмёт «Начать»,
   // долистав до кнопки. Без сброса тест открывался с той же прокруткой: первое задание выше экрана, наверху второе (QA 23, D3). Так же
@@ -121,13 +122,13 @@ function AssessmentFlow({ instrumentKey, knownDraft, initial, instrument, origin
   useEffect(() => {
     if (shownStage.current === stage) return;
     shownStage.current = stage;
-    toTop();
-  }, [stage, toTop]);
+    page.toTop();
+  }, [stage, page]);
   return (
-    <RunnerPage header={<SubHeader title={title} onBack={saveAndExit} backLabel={s.backToCatalog} testID="assessment-title" />} scrollRef={scroller} testID="assessment-screen">
+    <RunnerPage header={<SubHeader title={title} onBack={saveAndExit} backLabel={s.backToCatalog} testID="assessment-title" />} scrollRef={scroller} onScrollY={page.onScrollY} testID="assessment-screen">
       {loading ? <CardSkeleton label={m("state.loading")} lines={4} /> : null}
       {!loading && (phase === "intro" || phase === "starting") ? <Intro instrument={instrument} state={state} onStart={() => void session.start()} resume={state.resumable} /> : null}
-      {running && state.attempt ? <AssessmentRunner session={session} state={state} attempt={state.attempt} exitNotice={exitNotice} onSaveAndExit={saveAndExit} onLeaveAnyway={leaveAnyway} onPageChange={toTop} /> : null}
+      {running && state.attempt ? <AssessmentRunner session={session} state={state} attempt={state.attempt} exitNotice={exitNotice} exitAttempts={exitAttempts} onSaveAndExit={saveAndExit} onLeaveAnyway={leaveAnyway} page={page} /> : null}
       {phase === "result" && state.attempt ? <AssessmentResult attempt={state.attempt} onRestart={() => session.restart()} /> : null}
     </RunnerPage>
   );

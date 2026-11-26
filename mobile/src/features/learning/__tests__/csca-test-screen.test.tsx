@@ -446,6 +446,96 @@ describe("слова ошибок", () => {
   });
 });
 
+describe("сообщение о сбое в видимой части (QA 24, N2)", () => {
+  // Сообщения о сбое стоят над заданием, а «Завершить» внизу: сообщение показывается, если его верх выше видимой части. Раскладки в Jest
+  // нет, телефон сообщает её событием: раннер лежит на 16 от начала содержимого, сообщения на 140 от раннера.
+  const scrollTo = ScrollView.prototype.scrollTo as unknown as jest.Mock;
+  const NOTICE_Y = 140;
+  const shown = { y: 16 + NOTICE_Y - 12, animated: false }; // верх раннера + верх сообщений - запас над ними
+  const scrollDown = () => fireEvent.scroll(screen.getByTestId("test-screen-scroll"), { nativeEvent: { contentOffset: { y: 900 } } });
+  const layout = (id: string, y: number) => fireEvent(screen.getByTestId(id), "layout", { nativeEvent: { layout: { x: 0, y, width: 370, height: 100 } } });
+  /**
+   * Конфликт при сохранении на первый вызов, дальше сохранение проходит (как «слова ошибок»); перечитывание попытки придержано,
+   * и сообщение о конфликте остаётся на экране, пока тест не отпустит. Вечный конфликт сессия повторяла бы без пауз.
+   */
+  async function openWithConflict() {
+    let attempt: unknown = null;
+    let release: () => void = () => undefined;
+    const reload = new Promise<void>((resolve) => (release = resolve));
+    let saves = 0;
+    const { start } = await openRunning(240, {
+      save_learning_test_v1: (args: Record<string, unknown> | undefined) => (++saves === 1 ? failure("40001", 409) : { ...fx("csca_test_save"), attemptId: args?.p_attempt_id }),
+      learning_test_attempt_v1: () => reload.then(() => attempt),
+    });
+    attempt = start;
+    return release;
+  }
+  /** Закончить тест досрочно: нажать «Завершить» и подтвердить. */
+  const finish = async () => {
+    await fireEvent.press(screen.getByTestId("test-finish"));
+    await fireEvent.press(await screen.findByTestId("test-confirm-yes"));
+  };
+
+  it("конфликт при сохранении, пока студент внизу страницы: страница идёт к сообщению один раз (раскладка приходит после появления сообщения)", async () => {
+    const release = await openWithConflict();
+    await layout("test-runner", 16);
+    await scrollDown();
+    scrollTo.mockClear();
+    await fireEvent.press(await screen.findByTestId("option-b"));
+    await screen.findByTestId("test-conflict", undefined, { timeout: 5000 });
+    expect(scrollTo).not.toHaveBeenCalled(); // раскладки сообщения ещё нет
+    await layout("test-notices", NOTICE_Y);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenLastCalledWith(shown);
+    release();
+  });
+
+  it("страница вверху: сообщение на виду, страница не двигается", async () => {
+    const release = await openWithConflict();
+    await layout("test-runner", 16);
+    scrollTo.mockClear();
+    await fireEvent.press(await screen.findByTestId("option-b"));
+    await screen.findByTestId("test-conflict", undefined, { timeout: 5000 });
+    await layout("test-notices", NOTICE_Y);
+    expect(scrollTo).not.toHaveBeenCalled();
+    release();
+  });
+
+  it("ответ не принят при сохранении, пока студент внизу страницы: сообщение об ошибке показано (ошибка тоже причина сообщения)", async () => {
+    await openRunning(240, { save_learning_test_v1: failure("22023", 400) });
+    await layout("test-runner", 16);
+    await scrollDown();
+    scrollTo.mockClear();
+    await fireEvent.press(await screen.findByTestId("option-b"));
+    await screen.findByTestId("test-error", undefined, { timeout: 5000 });
+    await layout("test-notices", NOTICE_Y);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenLastCalledWith(shown);
+  });
+
+  it("«Завершить» не удалось (связи нет), а сообщение выше видимой части: оно показано; нажатие снова даёт тот же отказ, и сообщение показано снова", async () => {
+    let online = false;
+    await openRunning(240, { save_learning_test_v1: (args: Record<string, unknown> | undefined) => (online ? { ...fx("csca_test_save"), attemptId: args?.p_attempt_id } : failure(null, 0)) });
+    await layout("test-runner", 16);
+    await fireEvent.press(await screen.findByTestId("option-b")); // выбор не отправлен
+    await scrollDown();
+    scrollTo.mockClear();
+    await finish();
+    await screen.findByTestId("test-unsent");
+    expect(scrollTo).not.toHaveBeenCalled(); // раскладки сообщения ещё нет
+    await layout("test-notices", NOTICE_Y);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenLastCalledWith(shown);
+
+    await scrollDown();
+    await finish(); // сообщение то же, а нажатие ответа ждёт
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(2));
+    expect(scrollTo).toHaveBeenLastCalledWith(shown);
+    expect(screen.getAllByTestId("test-unsent")).toHaveLength(1);
+    online = true; // связь вернулась: досылка при закрытии экрана проходит, и повторы после теста кончаются (без этого они шли бы вечно)
+  });
+});
+
 describe("итог теста", () => {
   async function openResult(change: (done: Record<string, any>) => void = () => undefined, homeHandler: unknown = fx("csca_home_after"), lang: "ru" | "ky" = "ru") {
     const done = fx("csca_test_complete_diagnostic");

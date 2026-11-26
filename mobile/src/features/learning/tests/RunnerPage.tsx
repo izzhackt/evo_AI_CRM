@@ -9,14 +9,21 @@ import { useStackPageBottom } from "@/features/learning/ui";
 import { useTheme } from "@/theme/ThemeProvider";
 import type { ScrollTarget } from "@/ui/Screen";
 
-export function RunnerPage({ children, header, scrollRef, testID }: { children: ReactNode; header: ReactNode; scrollRef?: RefObject<ScrollTarget | null>; testID?: string }) {
+export function RunnerPage({ children, header, scrollRef, onScrollY, testID }: { children: ReactNode; header: ReactNode; scrollRef?: RefObject<ScrollTarget | null>; onScrollY?: (y: number) => void; testID?: string }) {
   const { tokens } = useTheme();
   // Тот же запас под панель и кнопку «Написать EVO», что у `StackPage`: «Продолжить» и «Далее» внизу страницы не прячутся под панелью.
   const bottom = useStackPageBottom();
   return (
     <View style={{ flex: 1, backgroundColor: tokens.bg }} testID={testID}>
       {header}
-      <ScrollView ref={scrollRef as RefObject<never> | undefined} testID={testID ? `${testID}-scroll` : undefined} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: bottom }}>
+      <ScrollView
+        ref={scrollRef as RefObject<never> | undefined}
+        testID={testID ? `${testID}-scroll` : undefined}
+        onScroll={onScrollY ? (event) => onScrollY(event.nativeEvent.contentOffset.y) : undefined}
+        scrollEventThrottle={onScrollY ? 16 : undefined}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: bottom }}
+      >
         {children}
       </ScrollView>
     </View>

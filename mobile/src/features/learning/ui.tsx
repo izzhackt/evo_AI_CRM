@@ -103,7 +103,7 @@ export function useStackPageBottom(extra = 0): number {
 }
 
 /** Страница со шапкой и прокруткой. */
-export function StackPage({ children, header, refreshing, onRefresh, bottomPad = 0, scrollRef, testID }: { children: ReactNode; header: ReactNode; refreshing?: boolean; onRefresh?: () => void; bottomPad?: number; scrollRef?: RefObject<ScrollTarget | null>; testID?: string }) {
+export function StackPage({ children, header, refreshing, onRefresh, bottomPad = 0, scrollRef, onScrollY, testID }: { children: ReactNode; header: ReactNode; refreshing?: boolean; onRefresh?: () => void; bottomPad?: number; scrollRef?: RefObject<ScrollTarget | null>; onScrollY?: (y: number) => void; testID?: string }) {
   const { tokens } = useTheme();
   const bottom = useStackPageBottom(bottomPad);
   return (
@@ -112,6 +112,8 @@ export function StackPage({ children, header, refreshing, onRefresh, bottomPad =
       <ScrollView
         ref={scrollRef as RefObject<never> | undefined}
         testID={testID ? `${testID}-scroll` : undefined}
+        onScroll={onScrollY ? (event) => onScrollY(event.nativeEvent.contentOffset.y) : undefined}
+        scrollEventThrottle={onScrollY ? 16 : undefined}
         keyboardShouldPersistTaps="handled"
         refreshControl={onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} tintColor={tokens.text2} /> : undefined}
         contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: bottom }}

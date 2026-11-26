@@ -12,7 +12,7 @@ import {
 import { isOrvisScaleId, type OrvisScaleId, type ProfessionLinkedProgramRef } from "@web/lib/portal/professions";
 import { formatMinorAmount, formatUsd } from "@web/lib/portal/university-costs";
 import type { IndexUniversity, StudentUniversityDetail } from "@web/lib/portal/university-index";
-import type { AssessmentAttempt } from "@web/lib/student-assessment-contract";
+import type { AssessmentAttempt, AssessmentCatalog } from "@web/lib/student-assessment-contract";
 
 import type { Lang } from "@/i18n";
 
@@ -79,4 +79,30 @@ export function tuitionLabel(tuition: ProgramTuition, lang: Lang, approx: string
   const min = formatMinorAmount(tuition.minMinor, tuition.exponent, lang);
   const max = tuition.maxMinor === null ? "" : `–${formatMinorAmount(tuition.maxMinor, tuition.exponent, lang)}`;
   return `${min}${max} ${tuition.currency}`;
+}
+
+/** Тест интересов для верхнего блока «Профессий»: сколько вопросов, сколько отвечено в начатой попытке, есть ли пройденная. */
+export type InterestTestState = Readonly<{ questionCount: number; draftAnswered: number | null; completed: boolean }>;
+
+/**
+ * Состояние собственного orvis92 из каталога тестов (то же, что `readOwnOrvisState` веба без профиля): нет инструмента или каталог
+ * не прочитан - `null`, блок теста ведёт в раздел без прогресса.
+ */
+export function interestTestFromCatalog(catalog: AssessmentCatalog | null | undefined): InterestTestState | null {
+  const instrument = catalog?.instruments.find((item) => item.instrumentKey === "orvis92");
+  if (!catalog || !instrument) return null;
+  const draft = instrument.draftAttemptId ? (catalog.attempts.find((attempt) => attempt.attemptId === instrument.draftAttemptId) ?? null) : null;
+  return { questionCount: instrument.questionCount, draftAnswered: draft ? draft.answeredCount : null, completed: instrument.latestCompletedAttemptId !== null };
+}
+
+/** Что рисует блок теста (веб: `ProfessionsTestHero`): начатый - «Продолжить», пройденный - «Пройти заново», иначе «Пройти тест». */
+export function testHeroView(state: InterestTestState | null): Readonly<{ total: number; answered: number | null; draft: boolean; action: "continue" | "retake" | "start" }> {
+  const total = state?.questionCount ?? 92;
+  const draft = state?.draftAnswered != null;
+  return {
+    total,
+    answered: state?.draftAnswered ?? (state?.completed ? total : null),
+    draft,
+    action: draft ? "continue" : state?.completed ? "retake" : "start",
+  };
 }

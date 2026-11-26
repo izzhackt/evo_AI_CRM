@@ -1,28 +1,47 @@
-// Главная: единственный домашний экран (#1355, веб HomeView.tsx на /portal; отдельного
-// «Поступления» больше нет). Порядок на телефоне: шапка с приветствием, выбор страны (пока страны нет),
-// затем блоки из domain/home-model.ts: задача EVO, «Что сделать сейчас»
-// (у approved одна «Ваша анкета»), путь страны, даты, «Что нового»
-// (assisted), CSCA (Китай), «Мой список» (вкладки «Вузы» и «Мои программы») и весь «Путь поступления».
+// Главная: единственный домашний экран (#1355, веб HomeView.tsx на /portal; отдельного «Поступления» больше нет).
+// Веб #1489 (18-20.11.2026): сверху одна шапка на фото столицы страны - приветствие, «страна · набор», отсчёт до ближайшей
+// даты, строка текущего шага «Шаг N из M · дальше — …» (закрепляется при прокрутке пути) и весь «Путь поступления»
+// (JourneyHead, JourneyNow, JourneyBody); пока страны нет - тёмная плашка и выбор страны. Под ней блоки из
+// domain/home-model.ts: задача EVO, «Что сделать сейчас» (у approved «Ваша анкета»), «Мой список» (вузы лентой и «Мои
+// программы»), даты (дела, программы, избранное, CSCA), «Что нового» (assisted), CSCA (Китай); блоки входят по очереди.
+// Всё это - прямые блоки списка ScrollView: так строку шага закрепляет сам ScrollView (stickyHeaderIndices).
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
-import { useCallback, useRef, useState } from "react";
-import { View } from "react-native";
-import { cscaAvailableFor, selectCscaHomeCard } from "@web/lib/portal/csca-home-card";
+import { useCallback, useRef, useState, type ReactElement } from "react";
+import { BackHandler, View, type LayoutChangeEvent } from "react-native";
+import { cscaAvailableFor, cscaHomeDates, selectCscaHomeCard } from "@web/lib/portal/csca-home-card";
 import { selectStudentJourney } from "@web/lib/portal/student-journey";
 import { isStudyCountryCode, studyCountryName } from "@web/lib/study-countries";
 
-import { HOME_FAVORITES_LIMIT, collectHomeDates, homeParams, homeSlots, homeToday, latestNews, showCountryChoice, type HomeListTab } from "@/domain/home-model";
+import { HOME_FAVORITES_LIMIT, collectHomeDates, homeCountdown, homeParams, homeSlots, homeToday, latestNews, showCountryChoice, type HomeListTab, type HomeSlotId } from "@/domain/home-model";
 import { usePortalApi } from "@/api/PortalApi";
-import { useCountryChoice, useCscaHome, useFavorites, useNotifications, useOverview, useRefetchOnFocus } from "@/api/queries";
-import { JourneySection } from "@/features/admission/JourneySection";
-import { ApplicationCard, CaseCard, CscaCard, DatesCard, EvoTaskCard, JourneyCard, NewsCard } from "@/features/home/HomeCards";
-import { HomeHero } from "@/features/home/HomeHero";
+import { useCountryChoice, useCscaHome, useFavorites, useHomeApplication, useNotifications, useOverview, usePreparations, useRefetchOnFocus } from "@/api/queries";
+import { JourneyBody, JourneyEnd, JourneyHead, JourneyNow, ROW_SLACK, journeyEdges, useJourney } from "@/features/admission/JourneySection";
+import { ApplicationCard, CaseCard, CscaCard, DatesCard, EvoTaskCard, NewsCard } from "@/features/home/HomeCards";
+import { capitalGeographyPhoto } from "@/features/home/capital-photo";
+import { HeroContent, HomeHero } from "@/features/home/HomeHero";
 import { HomeList } from "@/features/home/HomeList";
+import { useHomeNow } from "@/features/home/useHomeNow";
 import { CountryChoiceCard } from "@/features/portal/CountryChoiceCard";
 import { loadOf } from "@/features/portal/load";
+import { useUniversityIndex } from "@/features/universities/hooks";
+import { geographyUrls, usePhotoPixels } from "@/features/universities/parts";
+import { geographyPhotoCredit } from "@/features/universities/photos";
 import { useLang } from "@/i18n/LangProvider";
+import { useFocusEffect } from "@/lib/focus";
+import { useReducedMotion } from "@/ui/a11y";
 import { CardSkeleton } from "@/ui/CardParts";
+import { Enter } from "@/ui/motion";
 import { Card, Screen, type ScrollTarget } from "@/ui/Screen";
+
+/** Промежуток между блоками экрана, как между карточками остальных экранов приложения. */
+const BLOCK_GAP = 16;
+
+/**
+ * Порядок входа блоков (веб, 18.11.2026): дело, даты, список, новости, CSCA - с шагом `stagger`; по слоту, а не по месту
+ * на экране, как в CSS. Задача команды EVO стоит вне колонок и не входит.
+ */
+const SLOT_ENTER: Readonly<Record<HomeSlotId, number | null>> = { evo: null, case: 0, dates: 1, list: 2, news: 3, csca: 4 };
 
 export function HomeScreen() {
   const { lang, m, t } = useLang();
@@ -33,35 +52,43 @@ export function HomeScreen() {
   const overview = useOverview();
   const news = useNotifications();
   const favorites = useFavorites();
+  // Те же чтения, что у «Моего списка» (один запрос на ключ): сроки своих программ идут в «Ближайшие даты».
+  const preparations = usePreparations();
+  const application = useHomeApplication();
   const homeItems = favorites.data?.items.slice(0, HOME_FAVORITES_LIMIT) ?? null;
   const choice = useCountryChoice();
   const choiceData = choice.data ?? null;
   const cscaVisible = cscaAvailableFor(choiceData);
   const csca = useCscaHome(cscaVisible);
+  // Индекс каталога грузится в начале сессии (UniversityIndexWarmup): здесь он только читается ради фото столицы.
+  const { index } = useUniversityIndex();
+  const photoPixels = usePhotoPixels();
   const [refreshing, setRefreshing] = useState(false);
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await client.refetchQueries({ queryKey: ["portal", userKey], type: "active" });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [client, userKey]);
+  const reducedMotion = useReducedMotion();
 
   // Вкладка «Мой список» и раскрытый путь: из ссылок (`?list=programs`, `?path=open`, в том числе из старого /overview)
   // и из нажатий на самом экране.
   const params = homeParams(useLocalSearchParams<{ list?: string; path?: string; at?: string }>());
   const [listTab, setListTab] = useState<HomeListTab>(params.listTab ?? "universities");
+  // «Всё избранное» (полный список со сравнением): веб `?all=1#list`; вкладка «Вузы» и ссылка на список возвращают ленту.
+  const [favoritesAll, setFavoritesAll] = useState(false);
   const [pathOpen, setPathOpen] = useState(params.openPath);
-  // Каждый запрос «раскрыть путь» (ссылка с новой меткой `at` или кнопка) - новая метка для JourneySection.
+  // Каждый запрос «раскрыть путь» (ссылка с новой меткой `at`) - новая метка для JourneySection.
   const [unfoldStamp, setUnfoldStamp] = useState(params.openPath ? params.stamp : "");
   const scroller = useRef<ScrollTarget>(null);
-  const offsets = useRef<Partial<Record<"list" | "fullPath", number>>>({});
-  const scrollTo = useCallback((slot: "list" | "fullPath") => {
-    const y = offsets.current[slot];
-    if (y !== undefined) scroller.current?.scrollTo({ y: Math.max(0, y), animated: true });
-  }, []);
-  const [pending, setPending] = useState<"list" | "fullPath" | null>(params.listTab ? "list" : params.openPath ? "fullPath" : null);
+  // Где сейчас верх окна (по событиям прокрутки): «Свернуть» возвращает к карточке пути, только если экран ниже неё.
+  const scrollY = useRef(0);
+  const offsets = useRef<Partial<Record<"list" | "path", number>>>({});
+  // Прокрутка к блоку и к текущему шагу плавная, а при «Уменьшить движение» мгновенная (веб: `behavior: "auto"` при `prefers-reduced-motion`).
+  const scrollToY = useCallback((y: number) => scroller.current?.scrollTo({ y: Math.max(0, y), animated: !reducedMotion }), [reducedMotion]);
+  const scrollTo = useCallback(
+    (slot: "list" | "path") => {
+      const y = offsets.current[slot];
+      if (y !== undefined) scrollToY(y);
+    },
+    [scrollToY],
+  );
+  const [pending, setPending] = useState<"list" | "path" | null>(params.listTab ? "list" : params.openPath ? "path" : null);
   // Новая ссылка на уже открытую «Главную» (смена параметров или метки `at`): состояние подстраивается прямо при
   // рендере, без эффекта (react-hooks/set-state-in-effect).
   const linkKey = `${params.listTab ?? ""}|${params.openPath}|${params.stamp}`;
@@ -70,15 +97,33 @@ export function HomeScreen() {
     setSeenLink(linkKey);
     if (params.listTab) {
       setListTab(params.listTab);
+      setFavoritesAll(false);
       setPending("list");
     } else if (params.openPath) {
       setPathOpen(true);
       setUnfoldStamp(params.stamp);
-      setPending("fullPath");
+      setPending("path");
     }
   }
+  // Избранное опустело (последний вуз убран из полного списка): ленты и кнопки больше нет, прежнее «открыто» не остаётся.
+  if (favoritesAll && favorites.data?.total === 0) setFavoritesAll(false);
+  // Android: «Назад» при открытом полном списке избранного закрывает его (Главная - первая вкладка: без этого «Назад» вышло бы из
+  // приложения). Обработчик живёт, только пока вкладка в фокусе и список открыт, и снимается при уходе: чужой экран «Назад» не
+  // перехватывает. На iPhone обработчик ничего не делает: назад - нажатие на уже выбранную вкладку «Вузы» (у веба то же).
+  useFocusEffect(
+    useCallback(() => {
+      if (!favoritesAll) return undefined;
+      const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+        setFavoritesAll(false);
+        return true;
+      });
+      return () => subscription.remove();
+    }, [favoritesAll]),
+  );
 
-  const now = new Date();
+  // Время сервера, которое не застывает: пересчитывается в полночь по Бишкеку, в час срока ближайшего дела, при возврате в приложение
+  // и на вкладку (раньше `new Date()` при каждой отрисовке: после ночи в фоне «Сегодня» и «Завтра» оставались вчерашними).
+  const now = useHomeNow((overview.data?.studentActions ?? []).map((action) => action.dueAt));
   const home = t("home");
   const admission = t("admission");
 
@@ -87,24 +132,58 @@ export function HomeScreen() {
   const journey = selectStudentJourney({
     country: choiceData?.country ?? null, stage, boardStage: assisted ? (overview.data?.boardStage ?? null) : null, locale: lang, now,
   });
+  const journeyState = useJourney({
+    view: journey.view,
+    progress: journey.progress,
+    stage: assisted ? (overview.data?.operationalStage ?? null) : null,
+    initiallyUnfolded: pathOpen,
+    unfoldStamp,
+    scrollTo: scrollToY,
+    // Свернули путь, стоя глубоко в нём: к верху карточки пути сразу, без анимации (место карточки известно после её раскладки).
+    // Экран на карточке или выше неё (у самого верха страницы верх карточки на 16 pt ниже края) не двигаем: иначе «Свернуть» у верха
+    // сдвигало бы страницу на эти 16 pt.
+    scrollToCard: () => {
+      const y = offsets.current.path;
+      if (y !== undefined && scrollY.current > y) scroller.current?.scrollTo({ y: Math.max(0, y), animated: false });
+    },
+  });
+  // Потянуть вниз перечитывает источники и даёт фото шапки, которое не загрузилось, ещё одну попытку (веб: перезагрузка страницы).
+  const { setFailedPhoto } = journeyState;
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    setFailedPhoto(null);
+    try {
+      await client.refetchQueries({ queryKey: ["portal", userKey], type: "active" });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [client, userKey, setFailedPhoto]);
   const country = choiceData?.country ?? null;
   const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, lang) : null;
   const cscaCard = selectCscaHomeCard({ choice: choiceData, home: csca.data ?? null, locale: lang, cscaStrings: t("csca"), homeStrings: home });
   const evoAction = overview.data?.evoAction ?? null;
-  const slots = homeSlots({ tier, hasJourney: journey.view !== null, hasCscaCard: cscaCard !== null, hasEvoTask: evoAction !== null });
+  const slots = homeSlots({ tier, hasJourney: journey.view !== null, hasCsca: cscaVisible, hasEvoTask: assisted && evoAction !== null });
   const choiceLoad = loadOf(choice, m);
 
-  const dates = collectHomeDates({ overview: overview.data ?? null, favorites: homeItems, admission, home, now });
+  const dated = collectHomeDates({
+    overview: overview.data ?? null,
+    favorites: homeItems,
+    preparations: preparations.data ?? null,
+    csca: cscaHomeDates({ choice: choiceData, home: csca.data ?? null, homeStrings: home }),
+    admission,
+    home,
+    now,
+  });
+  const countdown = homeCountdown({ overview: overview.data ?? null, dated, now, admission });
   const newsView = news.data ? latestNews(news.data) : null;
+  // Фото столицы выбранной страны: нет индекса, столицы или фото - шапка на тёмной плашке.
+  const capital = capitalGeographyPhoto(index, country);
+  const capitalUrls = capital ? geographyUrls(capital, photoPixels) : null;
+  const photo = capital && capitalUrls ? { urls: capitalUrls, credit: geographyPhotoCredit(capital) } : null;
+  const heroProps = { displayName, studyCountry, intake: journey.view?.intake.label ?? null, countdown };
 
-  const openPath = () => {
-    setPathOpen(true);
-    setUnfoldStamp(`tap-${Date.now()}`);
-    if (offsets.current.fullPath !== undefined) scrollTo("fullPath");
-    else setPending("fullPath");
-  };
-  // Блок встаёт на место после раскладки: прокрутка к нему, когда его высота известна.
-  const placed = (slot: "list" | "fullPath") => (y: number) => {
+  // Блок встаёт на место после раскладки: прокрутка к нему, когда его место известно (y - от верха содержимого).
+  const placed = (slot: "list" | "path") => (y: number) => {
     offsets.current[slot] = y;
     if (pending === slot) {
       setPending(null);
@@ -117,47 +196,121 @@ export function HomeScreen() {
       case "evo":
         return evoAction ? <EvoTaskCard action={evoAction} /> : null;
       case "case":
-        return assisted ? <CaseCard overview={overview.data ?? null} load={loadOf(overview, m)} /> : <ApplicationCard />;
-      case "path":
-        return journey.view ? <JourneyCard view={journey.view} progress={journey.progress} stage={assisted ? (overview.data?.operationalStage ?? null) : null} onOpenPath={openPath} /> : null;
+        return assisted ? <CaseCard overview={overview.data ?? null} load={loadOf(overview, m)} now={now} /> : <ApplicationCard application={application.data ?? null} now={now} />;
       case "dates":
-        return <DatesCard items={dates} today={homeToday(now)} />;
+        return <DatesCard items={dated} today={homeToday(now)} />;
       case "news":
-        return <NewsCard news={newsView} load={loadOf(news, m)} />;
+        return <NewsCard news={newsView} load={loadOf(news, m)} now={now} />;
       case "csca":
         return cscaCard ? <CscaCard view={cscaCard} /> : null;
       case "list":
-        return <HomeList tab={listTab} onTabChange={setListTab} now={now} />;
-      case "fullPath":
-        return journey.view ? (
-          <JourneySection view={journey.view} progress={journey.progress} source={choiceData?.source ?? null} readFailed={false} assisted={assisted} initiallyUnfolded={pathOpen} unfoldStamp={unfoldStamp} />
-        ) : null;
+        return (
+          <HomeList
+            tab={listTab}
+            onTabChange={(next) => {
+              setListTab(next);
+              setFavoritesAll(false);
+            }}
+            favoritesAll={favoritesAll}
+            onFavoritesAll={setFavoritesAll}
+            now={now}
+          />
+        );
     }
   };
 
+  // Блоки списка экрана: шапка пути (или тёмная плашка), строка шага, шаги, выбор страны, блоки под ними. Закрепляются строка
+  // шага и нулевой блок `JourneyEnd`: он выталкивает строку, когда карточка пути кончается. Оба закреплены ВСЕГДА, пока строка есть
+  // (иначе строка пересоздавалась бы при каждом «Свернуть»); меняется только место нулевого блока. За шагами - строка держится у
+  // верха на всё их протяжение; сразу за строкой (путь свёрнут или строка выше 40% окна, `rowPinned`) - она почти не держится, а
+  // `ROW_SLACK` под ней не даёт React Native оставить её на экране навсегда (там левая и правая часть неравенства равны).
+  const blocks: ReactElement[] = [];
+  const sticky: number[] = [];
+  const endAfterRow = !journeyState.pinned;
+  if (journey.view) {
+    const edges = journeyEdges(journeyState);
+    blocks.push(
+      <View key="journey-head" testID="home-screen" onLayout={(event) => placed("path")(event.nativeEvent.layout.y)}>
+        <JourneyHead
+          journey={journeyState}
+          edge={edges.head}
+          source={choiceData?.source ?? null}
+          readFailed={false}
+          hero={(onPhoto) => <HeroContent {...heroProps} onPhoto={onPhoto} />}
+          photo={photo}
+        />
+      </View>,
+    );
+    if (journeyState.strip) {
+      sticky.push(blocks.length);
+      blocks.push(<JourneyNow key="journey-now" journey={journeyState} edge={edges.now} style={endAfterRow ? { marginBottom: ROW_SLACK } : undefined} />);
+      if (endAfterRow) {
+        // Запас под строкой (+ROW_SLACK) не должен быть виден: блок за путём тянет следующий за ним блок обратно (-ROW_SLACK). Сам блок
+        // остаётся на ROW_SLACK ниже строки (там и нужен запас), а то, что за ним, встаёт ровно у нижнего края строки: между строкой и
+        // шагами нет щели в карточке, а свёрнутая карточка не удлиняется на лишние два пункта.
+        sticky.push(blocks.length);
+        blocks.push(<JourneyEnd key="journey-end" style={{ marginBottom: -ROW_SLACK }} />);
+      }
+    }
+    if (!journeyState.folded) blocks.push(<JourneyBody key="journey-body" journey={journeyState} edge={edges.body} assisted={assisted} />);
+    if (journeyState.strip && !endAfterRow) {
+      sticky.push(blocks.length);
+      blocks.push(<JourneyEnd key="journey-end" />);
+    }
+  } else {
+    blocks.push(
+      <View key="home-hero" testID="home-screen">
+        <HomeHero {...heroProps} />
+      </View>,
+    );
+  }
+  if (showCountryChoice(journey.view !== null)) {
+    blocks.push(
+      <View key="country-choice" style={{ marginTop: BLOCK_GAP }}>
+        {choiceLoad?.state === "loading" ? (
+          <Card>
+            <CardSkeleton label={`${t("timeline").chooseTitle}. ${m("state.loading")}`} lines={3} />
+          </Card>
+        ) : (
+          <CountryChoiceCard readFailed={choiceLoad?.state === "error"} readFailedMessage={choiceLoad?.state === "error" ? choiceLoad.message : ""} />
+        )}
+      </View>,
+    );
+  }
+  for (const id of slots) {
+    const content = slot(id);
+    // Пустое место не рисуется (веб: `{csca ? <div className="pt-home-slot">…</div> : null}`): иначе у выбравшего Китай, пока
+    // карточка CSCA не прочиталась или чтение не удалось, под последним блоком оставался бы пустой промежуток в 16 pt.
+    if (content === null) continue;
+    const enter = SLOT_ENTER[id];
+    const onLayout = id === "list" ? (event: LayoutChangeEvent) => placed("list")(event.nativeEvent.layout.y) : undefined;
+    // Задача команды EVO стоит вне колонок веба и не входит по очереди; остальные блоки входят с шагом `stagger`.
+    blocks.push(
+      enter === null ? (
+        <View key={id} testID={`slot-${id}`} style={{ marginTop: BLOCK_GAP }} onLayout={onLayout}>
+          {content}
+        </View>
+      ) : (
+        <Enter key={id} testID={`slot-${id}`} index={enter} style={{ marginTop: BLOCK_GAP }} onLayout={onLayout}>
+          {content}
+        </Enter>
+      ),
+    );
+  }
+
   return (
-    <Screen topInset={false} tabBar onRefresh={() => void refresh()} refreshing={refreshing} scrollRef={scroller}>
-      <View style={{ gap: 16 }} testID="home-screen">
-        <HomeHero displayName={displayName} studyCountry={studyCountry} />
-        {showCountryChoice(journey.view !== null) ? (
-          choiceLoad?.state === "loading" ? (
-            <Card>
-              <CardSkeleton label={`${t("timeline").chooseTitle}. ${m("state.loading")}`} lines={3} />
-            </Card>
-          ) : (
-            <CountryChoiceCard readFailed={choiceLoad?.state === "error"} readFailedMessage={choiceLoad?.state === "error" ? choiceLoad.message : ""} />
-          )
-        ) : null}
-        {slots.map((id) => (
-          <View
-            key={id}
-            testID={`slot-${id}`}
-            onLayout={id === "list" || id === "fullPath" ? (event) => placed(id)(event.nativeEvent.layout.y + 16) : undefined}
-          >
-            {slot(id)}
-          </View>
-        ))}
-      </View>
+    <Screen
+      topInset={false}
+      tabBar
+      onRefresh={() => void refresh()}
+      refreshing={refreshing}
+      scrollRef={scroller}
+      stickyHeaderIndices={sticky}
+      onScrollY={(y) => {
+        scrollY.current = y;
+      }}
+    >
+      {blocks}
     </Screen>
   );
 }

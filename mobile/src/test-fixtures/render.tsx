@@ -1,9 +1,9 @@
 import { QueryClient } from "@tanstack/react-query";
 import { render } from "@testing-library/react-native";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { PortalApiProvider, type PortalApi } from "@/api/PortalApi";
+import { createPortalQueryClient, PortalApiProvider, type PortalApi } from "@/api/PortalApi";
 import { LangProvider } from "@/i18n/LangProvider";
 import type { RpcTransport } from "@/lib/rpc";
 import { ThemeProvider } from "@/theme/ThemeProvider";
@@ -34,20 +34,42 @@ export function testApi(transport: RpcTransport, overrides: Partial<PortalApi> =
   };
 }
 
-/** Экран в окружении приложения: тема, язык, кэш чтений без повторов (тест быстрый и честный). */
-export async function renderPortal(ui: ReactElement, api: PortalApi, lang: "ru" | "ky" = "ru") {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
+/**
+ * Кэш чтений для теста. По умолчанию: без повторов, ничего не «стареет» и не выгружается (тест быстрый и честный), а значит
+ * скрывает, как кабинет кэширует на самом деле. `"production"` - настоящие настройки кабинета (`createPortalQueryClient`:
+ * чтения стареют через 30 с, выгружаются через 10 мин). Очищается после каждого теста.
+ */
+export function testClient(kind: "test" | "production" = "test"): QueryClient {
+  const client =
+    kind === "production"
+      ? createPortalQueryClient()
+      : new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
   clients.push(client);
-  const result = await render(
+  return client;
+}
+
+/** Окружение приложения вокруг экрана: тема, язык, кэш чтений. Своя оболочка нужна тестам, что меняют `api` или кэш под рукой (`rerender`). */
+export function PortalShell({ api, client, lang = "ru", children }: { api: PortalApi; client: QueryClient; lang?: "ru" | "ky"; children: ReactNode }) {
+  return (
     <SafeAreaProvider initialMetrics={metrics}>
       <ThemeProvider>
         <LangProvider initial={lang}>
           <PortalApiProvider api={api} client={client}>
-            {ui}
+            {children}
           </PortalApiProvider>
         </LangProvider>
       </ThemeProvider>
-    </SafeAreaProvider>,
+    </SafeAreaProvider>
+  );
+}
+
+/** Экран в окружении приложения: тема, язык, кэш чтений без повторов (тест быстрый и честный). */
+export async function renderPortal(ui: ReactElement, api: PortalApi, lang: "ru" | "ky" = "ru") {
+  const client = testClient();
+  const result = await render(
+    <PortalShell api={api} client={client} lang={lang}>
+      {ui}
+    </PortalShell>,
   );
   return { ...result, client };
 }

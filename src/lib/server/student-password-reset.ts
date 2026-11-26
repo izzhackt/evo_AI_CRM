@@ -6,8 +6,9 @@ import { createPlatformSupabaseServiceClient } from "./platform-supabase-service
 import { newTemporaryPassword } from "./student-account-provisioning";
 
 /**
- * Сброс пароля студента администратором (344, 07.11.2026), порядок как у кабинета 342:
- *   1. authorize_student_password_reset_v1 от имени админа: только admin; студент — тот, кто привязан к делу, а не из формы;
+ * Сброс пароля студента (344, 07.11.2026; с 374 — и куратором этого дела), порядок как у кабинета 342:
+ *   1. authorize_student_password_reset_v1 от имени сотрудника: админ или куратор этого дела, решает база; студент — тот,
+ *      кто привязан к делу, а не из формы;
  *   2. Auth: новый временный пароль и пометка «сначала свой пароль» (app_metadata, её ставит только сервер);
  *   3. complete_student_password_reset_v1 от сервера: одна запись журнала. Пароль показывается только после неё.
  * Пароль нигде не хранится. Без подтверждённой записи журнала пароль не показывается и разрешение закрывается:
@@ -39,12 +40,12 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 export async function resetStudentPassword(
-  adminClient: RpcClient,
+  staffClient: RpcClient,
   organizationId: string,
   requestId: string,
   studentCaseId: string,
 ): Promise<StudentPasswordReset> {
-  const authorized = await adminClient.schema("platform")
+  const authorized = await staffClient.schema("platform")
     .rpc("authorize_student_password_reset_v1", {
       p_organization_id: organizationId, p_request_id: requestId, p_student_case_id: studentCaseId,
     })
@@ -81,5 +82,7 @@ export async function resetStudentPassword(
   if (completed.error && !completed.error.code) completed = await complete();
   if (!completed.error && record(completed.data)?.state === "completed") return { status: "reset", password };
   await fail();
-  return { status: refusal(completed.error) ?? "unavailable" };
+  // Auth already holds the new password, so whatever the database refused (a curator taken off the case meanwhile, 374;
+  // the student unbound), the old one may be dead: the screen says so and offers a new reset (review 25.11).
+  return { status: "unavailable" };
 }

@@ -9,7 +9,8 @@ import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey, useNotifications, useRefetchOnFocus } from "@/api/queries";
 import { unreadNotifications } from "@/domain/inbox-model";
 import { portalNotificationText } from "@/domain/presentation";
-import { dayKey, timeLabel } from "@/features/inbox/format";
+import { CaseHelpCard } from "@/features/inbox/CaseHelpCard";
+import { timeLabel } from "@/features/inbox/format";
 import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -92,7 +93,8 @@ export function InboxScreen() {
   const latestMessage = chat.data?.messages[0] ?? null;
   const updatesPreview = latestUpdate ? portalNotificationText(latestUpdate, admission).title : messages.updatesSubline;
   const chatPreview = latestMessage ? latestMessage.body || latestMessage.attachmentLabel || messages.chatSubline : messages.chatSubline;
-  const chatTime = latestMessage ? (dayKey(latestMessage.createdAt) === dayKey(new Date().toISOString()) ? timeLabel(latestMessage.createdAt, lang) : null) : null;
+  // Время последнего сообщения показывается за любой день, как в вебе (messages/page.tsx: `chatTime`).
+  const chatTime = latestMessage ? timeLabel(latestMessage.createdAt, lang) : null;
   const failed = notifications.status === "error" && notifications.data === undefined ? notifications.error : chat.status === "error" && chat.data === undefined ? chat.error : null;
 
   return (
@@ -102,19 +104,22 @@ export function InboxScreen() {
           {messages.title}
         </Text>
         {failed ? <InlineAlert message={m(loadErrorKey(failed))} retryLabel={m("gate.retry")} onRetry={() => void refresh()} testID="inbox-error" /> : null}
-        <Card>
-          <Row
-            team={false}
-            title={messages.updatesTitle}
-            preview={updatesPreview}
-            badge={unread.length}
-            onPress={() => go("/messages/updates")}
-            testID="inbox-updates"
-            label={`${messages.updatesTitle}. ${updatesPreview}${unread.length > 0 ? `. ${format(messages.unreadCount, { count: String(unread.length) })}` : ""}`}
-          />
-          <View style={{ height: 1, backgroundColor: tokens.line }} />
-          <Row team title={messages.chatTitle} preview={chatPreview} time={chatTime} onPress={() => go("/messages/chat")} testID="inbox-chat" label={`${messages.chatTitle}. ${chatPreview}`} />
-        </Card>
+        <View accessibilityRole="list" accessibilityLabel={messages.listAria}>
+          <Card>
+            <Row
+              team={false}
+              title={messages.updatesTitle}
+              preview={updatesPreview}
+              badge={unread.length}
+              onPress={() => go("/messages/updates")}
+              testID="inbox-updates"
+              label={`${messages.updatesTitle}. ${updatesPreview}${unread.length > 0 ? `. ${format(messages.unreadCount, { count: String(unread.length) })}` : ""}`}
+            />
+            <View style={{ height: 1, backgroundColor: tokens.line }} />
+            <Row team title={messages.chatTitle} preview={chatPreview} time={chatTime} onPress={() => go("/messages/chat")} testID="inbox-chat" label={`${messages.chatTitle}. ${chatPreview}`} />
+          </Card>
+        </View>
+        <CaseHelpCard />
       </View>
     </Screen>
   );

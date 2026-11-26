@@ -222,6 +222,16 @@ test("CODEOWNERS is a governance contract path, not an unknown path", () => {
   assert.equal(result.build, false);
 });
 
+test("the PR template is a governance contract path, not an unknown path", () => {
+  const result = classifyNameStatus(nul("M", ".github/pull_request_template.md"));
+  assert.equal(result.contracts, true);
+  assert.equal(result.unknown, false);
+  assert.equal(result.ordinary_docs, false);
+  assert.equal(result.build, false);
+  // Only that file: another file under .github/ stays unknown.
+  assert.equal(classifyNameStatus(nul("A", ".github/ISSUE_TEMPLATE/bug.md")).unknown, true);
+});
+
 test("the retired Inbox and lead-agent roots accept only removal, never new or edited files", () => {
   const retired = ["agent-lead2-inbox/src/app/page.tsx", "agent-lead2-inbox/package.json", "evo-lead-agent/uv.lock"];
   for (const path of retired) {

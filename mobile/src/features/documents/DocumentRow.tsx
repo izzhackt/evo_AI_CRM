@@ -33,7 +33,7 @@ function fileLabelFor(document: StudentPortalDocument, fallback: string): string
   return document.originalFilename ?? fallback;
 }
 
-export function DocumentRow({ document, io, first = false, highlighted = false }: { document: StudentPortalDocument; io: DocumentsIo; first?: boolean; highlighted?: boolean }) {
+export function DocumentRow({ document, io, country = null, first = false, highlighted = false }: { document: StudentPortalDocument; io: DocumentsIo; /** Страна дела строки: по ней справка «Пример» берёт образцы страны. */ country?: string | null; first?: boolean; highlighted?: boolean }) {
   const { lang, m, t, format } = useLang();
   const { tokens } = useTheme();
   const api = usePortalApi();
@@ -49,8 +49,8 @@ export function DocumentRow({ document, io, first = false, highlighted = false }
   const busy = upload.status === "uploading" || upload.status === "confirming";
   const status = documentStatusLabel(document.status, strings);
   const Icon = ICONS[documentChecklistIcon(document.status)];
-  // Общая подсказка уходит в лист «Что это за документ», если справка есть (веб: DocumentsView.tsx). Своя инструкция куратора остаётся в строке.
-  const guide = guideFor(document.requirementLabel, document.requirementKey, lang);
+  // Общая подсказка уходит в справку «Пример», если справка есть (веб: DocumentsView.tsx). Своя инструкция куратора остаётся в строке.
+  const guide = guideFor(document.requirementLabel, document.requirementKey, lang, country);
   const hint = document.instructions ?? (guide ? null : defaultDocumentHint(document.requirementLabel, lang));
   const deadline = formatPortalDeadline(document.deadline);
   const submitted = formatPortalTimestamp(document.submittedAt);
@@ -98,11 +98,11 @@ export function DocumentRow({ document, io, first = false, highlighted = false }
     setDownloading(false);
   };
 
-  // Принятый документ заменить нельзя: в листе справки у него «Скачать», у остальных «Загрузить» / «Заменить».
+  // Принятый документ заменить нельзя: в листе «Пример» у него «Скачать», у остальных «Загрузить» / «Заменить».
   const guideAction: GuideAction | null =
     document.status === "approved"
       ? document.documentVersionId
-        ? { label: strings.downloadButton, accessibilityLabel: format(strings.downloadAria, { name: fileLabelFor(document, strings.lastFileFallback) }), onPress: () => void onDownload(), testID: `guide-download-${document.documentSlotId}` }
+        ? { label: strings.downloadButton, accessibilityLabel: format(strings.downloadAria, { name: fileLabelFor(document, strings.lastFileFallback) }), onPress: () => void onDownload(), testID: `guide-download-${document.documentSlotId}`, kind: "download" as const }
         : null
       : busy
         ? null
@@ -138,13 +138,14 @@ export function DocumentRow({ document, io, first = false, highlighted = false }
         <Icon size={18} strokeWidth={1.75} color={tokens.accent} />
       </View>
       <View style={{ flex: 1, gap: 6 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
-          <Text variant="body" bold accessibilityRole="header" style={{ flexShrink: 1 }}>
-            {document.requirementLabel}
-          </Text>
-          <DocumentGuideButton label={document.requirementLabel} requirementKey={document.requirementKey} statusLabel={status} statusTone={documentStatusTone(document.status)} action={guideAction} testID={`guide-${document.documentSlotId}`} />
+        <Text variant="body" bold accessibilityRole="header">
+          {document.requirementLabel}
+        </Text>
+        {/* Как на веб-телефоне: статус и «Пример» одной строкой под названием, длинное название не сжимает кнопку. */}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+          <StatusPill label={status} tone={documentStatusTone(document.status)} testID={`status-${document.documentSlotId}`} />
+          <DocumentGuideButton label={document.requirementLabel} requirementKey={document.requirementKey} country={country} statusLabel={status} statusTone={documentStatusTone(document.status)} action={guideAction} io={io} testID={`guide-${document.documentSlotId}`} />
         </View>
-        <StatusPill label={status} tone={documentStatusTone(document.status)} testID={`status-${document.documentSlotId}`} />
         {hint ? (
           <Text variant="secondary" tone="text2">
             {hint}

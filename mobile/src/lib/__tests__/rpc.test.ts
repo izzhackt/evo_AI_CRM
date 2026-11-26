@@ -127,3 +127,50 @@ describe("чтение", () => {
     expect(calls[0]).toEqual({ name: "student_portal_poll_v1", args: { p_limit: 5 }, options: { get: true } });
   });
 });
+
+describe("отказы выбора программы каталога: имя из закрытого списка, а не текст сервера", () => {
+  const fail = (code: string, message: string, status = 409): RpcTransport => () => Promise.resolve({ data: null, error: { code, message } as never, status });
+
+  it.each([
+    ["PT409", "catalog_preparation_stale_publication", "stale_publication"],
+    ["PT409", "catalog_preparation_intake_closed", "intake_closed"],
+    ["PT409", "catalog_preparation_intake_expired", "intake_expired"],
+    ["PT409", "catalog_preparation_case_ineligible", "case_ineligible"],
+    ["PT409", "catalog_preparation_program_unavailable", "program_unavailable"],
+    ["PT409", "catalog_preparation_intake_unavailable", "intake_unavailable"],
+    ["PT409", "catalog_preparation_intake_identity_required", "intake_identity_required"],
+    ["PT409", "catalog_preparation_unsupported_country", "unsupported_country"],
+    ["22023", "catalog_preparation_request_conflict", "request_conflict"],
+    ["22023", "catalog_preparation_invalid_intent", "invalid"],
+  ])("%s %s -> причина %s, вид ошибки прежний", async (code, message, reason) => {
+    const error = await rpcRead(fail(code, message), "student_select_catalog_intake_v1").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(RpcError);
+    expect((error as RpcError).catalog).toBe(reason);
+    expect((error as RpcError).kind).toBe(code === "PT409" ? "conflict" : "invalid");
+    expect((error as RpcError).message).toBe(`rpc:${(error as RpcError).kind}`);
+    expect(JSON.stringify(error)).not.toContain(message);
+  });
+
+  it("чужой PT409, 42501 и неизвестное имя причины не дают: остаётся вид ошибки", async () => {
+    for (const [code, message] of [
+      ["PT409", "learning_something_else"],
+      ["PT409", "catalog_preparation_made_up_by_a_future_server"],
+      ["42501", "catalog_preparation_case_ineligible"],
+      ["55000", "catalog_preparation_case_ineligible"],
+    ] as const) {
+      const error = (await rpcRead(fail(code, message), "x").catch((e: unknown) => e)) as RpcError;
+      expect([code, message, error.catalog]).toEqual([code, message, null]);
+    }
+    const forbidden = (await rpcRead(fail("42501", "catalog_preparation_case_ineligible", 403), "x").catch((e: unknown) => e)) as RpcError;
+    expect(forbidden.kind).toBe("forbidden");
+  });
+
+  it("отказы без причины и прежние названные отказы CSCA не затронуты", async () => {
+    const plain = (await rpcRead(fail("PT409", "no_message_match"), "x").catch((e: unknown) => e)) as RpcError;
+    expect(plain.named).toBeNull();
+    expect(plain.catalog).toBeNull();
+    const csca = (await rpcRead(fail("22023", "learning_test_deadline_passed", 400), "x").catch((e: unknown) => e)) as RpcError;
+    expect(csca.named).toBe("deadline_passed");
+    expect(csca.catalog).toBeNull();
+  });
+});

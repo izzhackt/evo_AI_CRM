@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { View } from "react-native";
 
+import { ApplicantDeletionSection } from "@/features/registration/ApplicantDeletion";
 import { useLang } from "@/i18n/LangProvider";
 import { useSession } from "@/session/SessionProvider";
 import { Button } from "@/ui/Button";
@@ -62,23 +63,27 @@ export default function SetPasswordScreen() {
     <Screen>
       <View style={{ gap: 8, marginBottom: 24 }}>
         <Text variant="display" accessibilityRole="header">
-          {m("setPassword.title")}
+          {m("newPassword.title")}
         </Text>
         <Text variant="body" tone="text2">
-          {m("setPassword.intro")}
+          {m("newPassword.intro")}
         </Text>
       </View>
       <Card>
-        <TextField label={profile.passwordNew} hint={profile.passwordHint} value={password} onChangeText={setPassword} secure showLabel={m("auth.showPassword")} hideLabel={m("auth.hidePassword")} autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={4096} editable={!busy} testID="new-password" />
-        <TextField label={profile.passwordConfirm} value={confirm} onChangeText={setConfirm} secure showLabel={m("auth.showPassword")} hideLabel={m("auth.hidePassword")} autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={4096} editable={!busy} testID="confirm-password" />
+        <TextField label={profile.passwordNew} hint={m("newPassword.hint")} value={password} onChangeText={setPassword} secure showLabel={m("auth.showPassword")} hideLabel={m("auth.hidePassword")} autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={4096} editable={!busy} testID="new-password" />
+        <TextField label={m("newPassword.confirm")} value={confirm} onChangeText={setConfirm} secure showLabel={m("auth.showPassword")} hideLabel={m("auth.hidePassword")} autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={4096} editable={!busy} testID="confirm-password" />
         {problem ? (
           <Text variant="secondary" tone="error" accessibilityRole="alert">
             {text[problem]}
           </Text>
         ) : null}
         <Button label={busy ? m("setPassword.saving") : m("setPassword.submit")} onPress={submit} busy={busy} testID="set-password-submit" />
-        <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} disabled={busy} />
+        <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} disabled={busy} testID="set-password-sign-out" />
       </Card>
+      {/* Экран, на котором можно застрять (временный пароль): аккаунт удаляется и отсюда (Apple 5.1.1(v); рецензия #1554). */}
+      <View style={{ marginTop: 16 }}>
+        <ApplicantDeletionSection />
+      </View>
     </Screen>
   );
 }

@@ -3,6 +3,7 @@ import { View } from "react-native";
 
 import { acceptConsents, consentAcceptWrite } from "@/features/consent/consent-gate";
 import { ConsentChecks } from "@/features/consent/ConsentChecks";
+import { ApplicantDeletionSection } from "@/features/registration/ApplicantDeletion";
 import { useLang } from "@/i18n/LangProvider";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import type { FrozenWrite } from "@/lib/rpc";
@@ -15,7 +16,8 @@ import { Text } from "@/ui/Text";
  * Экран «Конфиденциальность» (решение владельца 09.11.2026, миграция 356): до любого экрана кабинета студент без
  * решения принимает Политику и разрешает ИИ-помощников EVO, обе галочки обязательны. Закрыть экран нельзя; есть
  * «Выйти» и ссылка на Политику. Номер запроса создаётся один раз на показ экрана и повторяется при повторе после
- * сбоя (запись идемпотентна по нему).
+ * сбоя (запись идемпотентна по нему). Здесь можно застрять, поэтому под карточкой есть и «Удалить аккаунт»
+ * (Apple 5.1.1(v): аккаунт удаляется с любого экрана, на котором человек может остаться; рецензия #1554).
  */
 export default function ConsentScreen() {
   const { t } = useLang();
@@ -68,6 +70,9 @@ export default function ConsentScreen() {
         <Button label={busy ? strings.saving : strings.submit} onPress={() => void submit()} busy={busy} disabled={!both} testID="consent-submit" />
         <Button label={strings.logout} variant="ghost" onPress={() => void signOut()} disabled={busy} testID="consent-logout" />
       </Card>
+      <View style={{ marginTop: 16 }}>
+        <ApplicantDeletionSection transport={transport} />
+      </View>
     </Screen>
   );
 }

@@ -236,6 +236,10 @@ test("текст: пояснение «WhatsApp» ушло за «?», пуст�
   assert.match(text(notConnected), /WhatsApp не подключён — подключите в настройках/u);
   assert.match(notConnected, /href="\/settings\?section=integrations"[^>]*>Открыть настройки</u);
   assert.doesNotMatch(notConnected, /<h1[^>]*>WhatsApp\s*<span[^>]*>\d/u, "числа у заголовка нет");
+  // Не администратору — прежняя строка о том, кто подключает; «подключите» и ссылки на настройки у него нет.
+  const notConnectedStaff = page("inbox", "not-connected", "sales-cookie");
+  assert.match(text(notConnectedStaff), /WhatsApp не подключён к CRM — подключает Администратор/u);
+  assert.doesNotMatch(notConnectedStaff, /Открыть настройки|подключите в настройках/u);
   const attention = read("src/components/staff/inbox-next/InboxNextList.tsx");
   assert.match(attention, /role="status" data-testid="v3-inbox-channel-status"/u);
   assert.match(attention, /bg-warn-weak/u);
@@ -325,4 +329,12 @@ test("переписка на телефоне: короткие подписи 
   assert.match(header, /<span aria-hidden="true" className="@2xl:hidden">\{caseChatAwaitChoiceShort\(value\)\}<\/span>/u);
   assert.match(header, /label="Открыть дело" shortLabel="Дело"/u);
   assert.match(read("src/components/staff/chats-next/ChatHeaderLink.tsx"), /<Link href=\{href\} title=\{label\} aria-label=\{label\} data-testid=\{testId\}>/u);
+});
+
+test("переписка на самом узком телефоне (окно уже 22rem, 320–340 px): «Не требуется» влезает, шире 22rem разметка прежняя", () => {
+  // Замер ревью 26.11.2026: слово шире трети ряда (93 px против кнопки 91 и 84 px) и обрезалось. Под `max-[22rem]` ряд делится по ширине слов
+  // (`minmax(max-content, 1fr)`), шрифт 12 px, поля 4 px; высота 44 px и базовые классы (поля 6 px, равные трети при `grid-cols-3`) прежние.
+  const header = read("src/components/staff/case-chat-next/CaseChatNextHeader.tsx");
+  assert.match(header, /className="grid w-full grid-cols-3 gap-0\.5 rounded-ctl border border-border bg-surface-2 p-0\.5 max-\[22rem\]:grid-cols-\[repeat\(3,minmax\(max-content,1fr\)\)\] @2xl:flex @2xl:w-fit"/u);
+  assert.match(header, /cn\("h-11 min-w-0 whitespace-nowrap px-1\.5 text-center aria-pressed:font-semibold max-\[22rem\]:px-1 max-\[22rem\]:text-xs @2xl:px-3", PRESSED/u);
 });

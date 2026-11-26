@@ -442,6 +442,14 @@ export default async function ProfilePart({
   // отдаёт `StudentsNextLazy` и ничего больше (дел и карточек в очереди нет).
   if (queueInput) return <StudentsNextLazy input={queueInput} />;
 
+  // «Сменить куратора» в карточке (`panel=curator`): то же чтение замещения, что у «Нагрузки кураторов», по этому делу.
+  // Куратор — из прочитанного дела, а не из адреса; замещать можно только в активном деле (иначе база откажет).
+  const curatorPanelFor = singleSearchParam(params.panel) === "curator" && view?.details.admissions?.caseState === "active"
+    ? caseWork?.row?.currentCuratorMembershipId ?? undefined : undefined;
+  const curatorChange = caseTarget && curatorPanelFor && studentsQueueActor(actor).coverage ? {
+    coverage: await loadStudentsCoverage(actor, { coverage_curator: curatorPanelFor, coverage_case: caseTarget.studentCaseId }, undefined),
+    requestId: randomUUID(),
+  } : null;
   const caseParts = view && caseTarget && caseWork ? (() => {
     const editor = nextStepEditor(actor);
     return caseWorkParts({
@@ -471,6 +479,7 @@ export default async function ProfilePart({
       closure: caseClosure,
       hrefFor,
       salesDataOpen: singleSearchParam(params.panel) === "sales",
+      curatorChange,
       help: actor.presentationRole !== "sales" ? (
         <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем обращения студента…</p>}>
           <CaseHelpCardWorkspace actor={actor} caseId={caseTarget.studentCaseId} />

@@ -68,7 +68,14 @@ export type CaseOverviewInput = Readonly<{
    */
   directionAction: Readonly<{ current: AdmissionsDirection | null; expectedVersion: string; requestId: string }> | null;
   /** Куратор дела: имя из дела, id — из строки очереди (для «Нагрузки кураторов»). */
-  curator: Readonly<{ name: string | null; membershipId: string | null; coverage: boolean }>;
+  curator: Readonly<{
+    name: string | null; membershipId: string | null; coverage: boolean;
+    /**
+     * «Сменить куратора» в самой карточке: адрес этой же карточки с панелью (`panel=curator`) и сама панель, когда она
+     * открыта (`CuratorChangeSheet`). null — ссылка ведёт в «Нагрузку кураторов», как раньше.
+     */
+    change?: Readonly<{ href: string; sheet: ReactNode }> | null;
+  }>;
   /** Кто и когда передал дело (контекст передачи); null — дело не из продаж. */
   handedOffBy: Readonly<{ name: string; at: string }> | null;
   /** «Доступ к порталу»: состояние словом и прежние формы в группе; null — строки нет. */
@@ -306,11 +313,12 @@ export function caseFactValues(input: CaseOverviewInput, options: Readonly<{ lin
           <span className="inline-flex items-center gap-2"><Initials name={curator.name} decorative />{curator.name}</span>
         ) : null) ?? (input.work.needsCurator ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-2">не назначен</span>)}
         {curator.coverage && !input.work.needsCurator ? (
-          <Link href={curator.membershipId ? coverageHref(curator.membershipId, input.studentCaseId) : COVERAGE_VIEW_HREF}
-            className={FACT_LINK}>
+          <Link href={curator.membershipId ? curator.change?.href ?? coverageHref(curator.membershipId, input.studentCaseId) : COVERAGE_VIEW_HREF}
+            className={FACT_LINK} scroll={curator.change ? false : undefined} aria-haspopup={curator.change ? "dialog" : undefined}>
             {curator.membershipId ? "Сменить куратора" : "Нагрузка кураторов"}
           </Link>
         ) : null}
+        {curator.membershipId && curator.coverage && !input.work.needsCurator ? curator.change?.sheet ?? null : null}
       </>
     ),
     handedOff: input.handedOffBy ? (

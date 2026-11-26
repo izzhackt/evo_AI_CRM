@@ -287,7 +287,9 @@ test("Admin: sales forms and portal access are collapsed groups under «Свед
   assert.match(text, /Доступ к порталу анкета одобрена/u);
   assert.match(text, /Сведения Направление Китай Сменить направление Куратор АО Айгүл Осмонова Сменить куратора Передал Эрмек Токтосунов · 30\.08 12:00 Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
   assert.match(html, /href="tel:\+996000000001"/u);
-  assert.match(html, /href="\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000001&amp;coverage_case=cccccccc-2222-4222-8222-000000000001#curator-coverage"/u);
+  // «Сменить куратора» открывает замещение панелью в этой же карточке (`panel=curator`), а не уводит в «Нагрузку кураторов»; возврат в список сохраняется.
+  assert.match(html, /aria-haspopup="dialog" href="\/profile\?case=cccccccc-2222-4222-8222-000000000001&amp;tab=overview&amp;returnTo=%2Fprofile%3Fview%3Dmine&amp;panel=curator">Сменить куратора</u);
+  assert.doesNotMatch(html, /href="\/profile\?view=curators[^"]*coverage_case=cccccccc-2222-4222-8222-000000000001/u);
 });
 
 test("unread parts say so: no stage, no step editor, no invented task, chat, document numbers or events", () => {
@@ -1011,4 +1013,24 @@ test("статус заявки одним словом во всей карто
     assert.doesNotMatch(read(file), /основной вариант/u, `${file}: «вариант · основной вариант» не повторяется`);
     assert.match(read(file), /application\.primary \? " · основной"/u, file);
   }
+});
+
+test("«Сменить куратора» в карточке: замещение в боковой панели, адрес открывает её, закрытие и сохранение возвращают в карточку", () => {
+  const sheet = read("src/components/staff/profile/CuratorChangeSheet.tsx");
+  assert.match(sheet, /<DetailSheet title="Сменить куратора" open=\{open\} onOpenChange=\{close\}/u);
+  // Пока идёт сохранение, панель не закрывается; Esc в поле не закрывает её (sheetEscape).
+  assert.match(sheet, /if \(!next && pending\) return;/u);
+  assert.match(sheet, /onEscapeKeyDown=\{\(event\) => \{ if \(pending\) \{ event\.preventDefault\(\); return; \} sheetEscape\(event\); \}\}/u);
+  // Неудачное перечитывание не убирает форму с черновиком: остаются последние прочитанные кураторы.
+  assert.match(sheet, /if \(ready && ready\.workspace\.curators !== lastCurators\) setLastCurators\(ready\.workspace\.curators\);/u);
+  assert.match(sheet, /<CuratorCoverageForm preview=\{preview\} curators=\{lastCurators\} requestId=\{requestId\} today=\{today\}\n\s+returnHref=\{closeHref\} onPendingChange=\{setPending\} \/>/u);
+  const form = read("src/components/staff/profile/CuratorCoverageForm.tsx");
+  assert.match(form, /if \(returnHref\) \{ router\.replace\(returnHref, \{ scroll: false \}\); return; \}/u);
+  assert.match(form, /href=\{returnHref\} replace scroll=\{false\}>Отмена<\/Link>/u);
+  assert.match(form, /useEffect\(\(\) => \{ onPendingChange\?\.\(pending\); \}, \[onPendingChange, pending\]\);/u);
+  const page = read("src/app/(staff)/profile/page.tsx");
+  // Куратор — из прочитанного дела, только у активного дела и только у того, кто назначает кураторов.
+  assert.match(page, /singleSearchParam\(params\.panel\) === "curator" && view\?\.details\.admissions\?\.caseState === "active"\n\s+\? caseWork\?\.row\?\.currentCuratorMembershipId \?\? undefined : undefined;/u);
+  assert.match(page, /caseTarget && curatorPanelFor && studentsQueueActor\(actor\)\.coverage \? \{/u);
+  assert.match(read("src/components/staff/profile/CaseWorkParts.tsx"), /change: admissions\.caseState === "active" \? curatorChangeLink\(/u);
 });

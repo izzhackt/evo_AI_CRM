@@ -284,13 +284,21 @@ test("no invented numbers: a band counts only when every read writing into it is
   assert.deepEqual(failed.notices[0], { source: "tasks", kind: "error", text: "Задачи не загрузились.", link: { label: "Повторить", href: "/main" } });
   assert.equal(failed.applicable, true);
 
-  // «Нужен ответ» не снимается ответом сотрудника (разбор 26.09): число группы с перепиской было бы
-  // завышенным — его нет и при полном чтении, а группа говорит почему. Строки остаются.
+  // С миграции 245 ответ сотрудника снимает «Нужен ответ»: у группы с перепиской честное число и нет оговорки.
   const withChats = buildTodayQueue([read("tasks", tasks), read("requests", requests), read("chats", chats)], NOW);
-  assert.deepEqual(bandOf(withChats, "waiting").count, null);
+  assert.deepEqual(bandOf(withChats, "waiting").count, 2);
   assert.equal(bandOf(withChats, "waiting").items.length, 2);
-  assert.equal(bandOf(withChats, "waiting").note, "Числа нет: часть переписок могла получить ответ.");
-  assert.equal(bandOf(withChats, "waiting").note, TODAY_UNCOUNTED.chats);
+  assert.equal(bandOf(withChats, "waiting").note, null);
+  assert.deepEqual(TODAY_UNCOUNTED, {});
+  // Строка переписки: заголовок — кто ждёт, под ним «Переписка» (не «Ответить в переписке» и не «нужен ответ»).
+  const chatRow = bandOf(withChats, "waiting").items.find((item) => item.source === "chats");
+  assert.equal(chatRow.reason, "Переписка");
+  assert.equal(chatRow.who, null);
+  assert.equal(chatRow.title, "Студент 1");
+  // Имя ссылки строки называет и причину: «Открыть: Студент 1 — Переписка» (куда ведёт, без «кто»).
+  assert.match(readFileSync(new URL("../src/components/staff/today/TodayRow.tsx", import.meta.url), "utf8"),
+    /aria-label=\{`Открыть: \$\{item\.title\} — \$\{item\.who\?\.name \?\? item\.reason\}`\}/u);
+  assert.notEqual(chatRow.title, "Ответить в переписке");
   assert.equal(bandOf(withChats, "overdue").count, 1, "other bands keep their numbers");
   assert.equal(withChats.complete, true, "rows are all read: «На сегодня всё» is not blocked by the missing number");
   // Неполное чтение уже названо над очередью: у группы без числа своей строки нет.

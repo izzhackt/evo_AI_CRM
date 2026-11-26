@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { UNIVERSITY_PHOTOS, universityIntakeLabel } from "../src/lib/platform-university-catalog.ts";
+import { matchesSearch, searchPrograms } from "../src/lib/portal/university-search.ts";
 import { universityListItem } from "../src/lib/university-list-item.ts";
 import {
   UNIVERSITY_PAGE_SIZE,
@@ -203,6 +204,8 @@ test("«Университеты»: one dense table of 30 rows with the photo, t
 test("«Университеты»: search runs by itself after a pause and without scripts is a plain GET form; filters are links with removable chips", () => {
   // «Новый вид» (#1327) заменил строку из двух `select` и «Найти» (прежний `UniversityToolbar`): поиск `ListSearch` с `liveMs`, фильтры ссылками.
   const html = page("universities-list-filtered");
+  // 25.11.2026: в заголовках таблицы нет стрелок сортировки (они переставляли 30 строк страницы); порядок — меню «Порядок».
+  assert.doesNotMatch(html.slice(html.indexOf("<thead"), html.indexOf("</thead>")), /aria-sort=/u);
   assert.match(html, /<form role="search" aria-label="Поиск университетов"[^>]*action="\/universities" method="get">/u, "works without scripts: a GET form");
   assert.match(html, /<input type="hidden" name="country" value="MY"\/><input type="hidden" name="level" value="bachelor"\/>/u, "the chosen filters ride along with a search");
   assert.match(html, /data-testid="list-filters"/u);
@@ -239,32 +242,57 @@ test("catalogue read (364): one light read per page, no paging of full cards, th
   assert.doesNotMatch(reader, /CATALOGUE_SORT_PAGES|CatalogueChangedError|readWholeCatalogue/u, "no batched reading of full cards");
 });
 
-test("university page: programmes and intakes first, then the overview; the photo smaller at the side with one Russian credit line", () => {
+const LEVEL_ORDER = ["language", "foundation", "diploma", "bachelor", "master", "doctorate"];
+
+test("university page: the overview with the photo first, then programmes and intakes; the photo smaller at the side with one Russian credit line", () => {
   const html = page("universities-detail");
-  // «Новый вид»: каждая программа — своя секция с таблицей наборов, затем «Об университете», фото — боковая колонка (`aside`) последним в разметке.
+  const utmCount = catalogueCards.find((card) => card.key === "utm").content.programs.length;
+  // 25.11.2026: «Об университете» с фото сбоку — сверху (у вуза с 53 программами оно уходило в самый низ), затем программы.
   const programs = html.indexOf('<section id="program-');
   const about = html.indexOf('id="university-about"');
   const photo = html.indexOf('aria-label="Фото кампуса"');
-  assert.ok(programs > 0 && about > programs && photo > about, "programmes → overview → photo");
+  assert.ok(about > 0 && photo > 0 && programs > Math.max(about, photo), "overview card with the photo → programmes");
+  // Длинный список (9+ программ) — поиск по названию и свёрнутые группы по уровню со счётчиком, в порядке уровней каталога.
+  const levels = [...html.matchAll(/<details[^>]*data-program-level="([a-z]+)"/gu)].map((match) => match[1]);
+  if (utmCount >= 9) {
+    assert.match(html, /<h2 id="university-programs"[^>]*>Программы<\/h2>/u);
+    assert.match(html, /<label for="university-program-search" class="sr-only">Поиск по названию и описанию программы<\/label>/u);
+    assert.deepEqual(levels, [...new Set(catalogueCards.find((card) => card.key === "utm").content.programs.map((program) => program.level))].sort((a, b) => LEVEL_ORDER.indexOf(a) - LEVEL_ORDER.indexOf(b)));
+    assert.doesNotMatch(html, /<details[^>]*data-program-level="[a-z]+"[^>]* open/u, "несколько уровней — все свёрнуты");
+  } else assert.equal(levels.length, 0);
   // Name and place read as one unit: the place is the line under the h1, the Admin links come after it.
-  const utm = catalogueCards.find((card) => card.key === "utm").content.programs.length;
+  const utm = utmCount;
   const h1 = html.indexOf("<h1");
   const place = html.indexOf(`<p class="t-meta basis-full text-fg-3">Малайзия · Johor Bahru · ${utm} программ</p>`);
-  assert.ok(h1 > 0 && place > h1 && html.indexOf(">Бланки университета</a>") > place && programs > place, "h1 → place → Admin links → programmes");
+  assert.ok(h1 > 0 && place > h1 && html.indexOf('data-testid="university-manage-menu"') > place && programs > place, "h1 → place → Admin menu «⋯» → programmes");
   assert.equal([...html.matchAll(/Малайзия · Johor Bahru/gu)].length, 1, "the place once");
   assert.match(html, /<a class="inline-flex min-h-11[^"]*" href="\/universities">(?:<svg[\s\S]*?<\/svg>)?Все университеты<\/a>/u);
   assert.match(html, /data-photo-credit="">Фото: <a[^>]*>[^<]+<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>CC BY-SA 4\.0<span/u);
-  assert.match(html, /<aside aria-label="Фото кампуса" class="min-w-0 @max-4xl:max-w-80">/u, "the photo is a side column, at most 20 rem on a phone");
-  assert.match(html, /aspect-\[4\/3\]/u);
+  assert.match(html, /<aside aria-label="Фото кампуса" class="hidden min-w-0 has-\[\.v3-uni-photo\]:block">/u, "the photo is the cover of the overview card, gone when there is no photo");
+  assert.match(html, /aspect-\[16\/9\][^"]*@3xl:aspect-\[5\/2\]/u, "the photo is the full-width cover of the overview card");
   assert.match(html, /<th [^>]*>Срок подачи<\/th>/u);
   assert.match(html, /<span[^>]*data-cell="deadline"[^>]*><span[^>]*><time dateTime="2026-07-17"[^>]*>17\.07<\/time>/u);
   assert.match(html, />Приём закрыт по данным источника</u);
   const [year, month, day] = catalogueCards.find((card) => card.key === "utm").content.verifiedOn.split("-");
-  assert.match(html, new RegExp(`>Карточка проверена <time dateTime="${year}-${month}-${day}"[^>]*>${day}\\.${month}</time>`, "u"), "the card's own verification day");
+  assert.match(html, new RegExp(`>Данные проверены <time dateTime="${year}-${month}-${day}"[^>]*>${day}\\.${month}</time>`, "u"), "the card's own verification day");
   assert.match(html, />проверено <time dateTime="2026-09-10"[^>]*>10\.09<\/time>/u, "the intake's verification day in its state cell");
-  assert.match(html, />Бланки университета<\/a>/u);
-  assert.match(html, />Предложить обновление<\/a>/u);
+  // 25.11.2026: «Бланки университета» и «Предложить обновление» — пункты меню «⋯» рядом с названием (в разметке меню закрыто).
+  assert.match(html, /<button[^>]*aria-label="Действия с карточкой университета"[^>]*data-testid="university-manage-menu"/u);
   assert.doesNotMatch(html.slice(html.indexOf("<main"), html.indexOf("</main>")), /(?<![:\w-])bg-accent(?![\w-])/u, "no solid red on the reference page");
+});
+
+test("university page: the programme search reads the Russian description as well as the English title", () => {
+  // utm — карточка с длинным списком, поле поиска есть. Названия программ английские, описания русские.
+  const programs = catalogueCards.find((card) => card.key === "utm").content.programs;
+  for (const query of ["компьютер", "магистратура"]) {
+    assert.equal(programs.filter((program) => matchesSearch(program.title, query)).length, 0, `${query}: no title has the word, the title alone finds nothing`);
+    const found = searchPrograms(programs, query);
+    assert.ok(found.length > 0, `${query}: found through the description`);
+    assert.deepEqual(found, programs.filter((program) => matchesSearch(program.summary, query)), `${query}: exactly the programmes whose description has it, in the card's order`);
+  }
+  assert.ok(searchPrograms(programs, programs[0].title).includes(programs[0]), "a programme is still found by its own title");
+  assert.deepEqual(searchPrograms(programs, "компьютер zzzz"), [], "every word of the query has to be there");
+  assert.match(source("src/components/staff/universities-next/UniversityProgramGroups.tsx"), /deferred \? searchPrograms\(programs, deferred\) : programs/u, "the search box runs this search");
 });
 
 test("university page: each intake state is main's label — no deadline or zone reads «Срок приёма нужно уточнить»; the credit line is Russian (review #1079)", () => {

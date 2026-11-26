@@ -314,10 +314,45 @@ test("payment card lines: paid events and open tranches in one list, archived pa
   assert.equal(editable[0].tranche.id, id(1));
   const partial = view.casePaymentLines(agreement({ tranches: [tranche(1, "60000", "USD", "20000")], payments: [payment(1, "40000", "USD")] }), "2026-09-23");
   assert.deepEqual(partial.lines.map((line) => `${line.kind}:${line.kind === "payment" ? line.canEdit : "-"}`), ["payment:false", "plan:-"], "оплаты не закрытого платежа без своего «Изменить»: у него строка графика");
+  // Строка остатка частично оплаченного платежа — «остаток из 600 USD», а не второй платёж с тем же названием.
+  assert.equal(plain(partial.lines.find((line) => line.kind === "plan").remainderOf), "600 USD");
+  assert.deepEqual(lines.lines.filter((line) => line.kind === "plan").map((line) => line.remainderOf), [null], "неоплаченный платёж — не остаток");
+  // Оплата целиком возвращена: `totalPaidMinor` без возвратов, но ничего не оплачено — строка не «остаток из» своей же суммы.
+  const refunded = view.casePaymentLines(agreement({
+    tranches: [{ ...tranche(1, "150000", "USD", "150000"), totalPaidMinor: "50000" }],
+    payments: [payment(1, "50000", "USD"), { ...payment(2, "50000", "USD"), eventType: "refund" }],
+  }), "2026-09-23");
+  assert.equal(refunded.lines.find((line) => line.kind === "plan").remainderOf, null);
+  const partlyRefunded = view.casePaymentLines(agreement({
+    tranches: [{ ...tranche(1, "150000", "USD", "120000"), totalPaidMinor: "50000" }],
+    payments: [payment(1, "50000", "USD"), { ...payment(2, "20000", "USD"), eventType: "refund" }],
+  }), "2026-09-23");
+  assert.equal(plain(partlyRefunded.lines.find((line) => line.kind === "plan").remainderOf), "1 500 USD");
+  const table = read("src/components/staff/profile/PaymentTable.tsx");
+  assert.match(table, /line\.kind === "plan" && line\.remainderOf \? <> · \{caseMoneyWords\.schedule\.remainderOf\} /u);
   assert.equal(view.casePaidPercent(same), 40);
   assert.equal(view.casePaidPercent({ ...same, currencyMismatch: true, remainingMinor: null }), null);
   assert.equal(view.casePaidPercent({ ...same, costMinor: null, costCurrency: null, remainingMinor: null }), null);
   const archived = view.casePaymentLines({ ...same, payments: [{ ...payment(1, "40000", "USD"), obligationId: id(99) }] }, "2026-09-23");
   assert.equal(archived.archived.length, 1, "a payment of an archived tranche stays visible");
   assert.equal(view.caseSaleCostHref("/profile?id=1&tab=overview#sale-conditions"), "/profile?id=1&tab=overview#sale-cost");
+});
+
+test("«Обязательства» и «Обзор»: тот же вид суммы, что в таблице, оплаченная часть платежа и строка по id", () => {
+  const source = read("src/lib/v3/profile-source.ts");
+  // Один вид денег на карточку: «3 500 USD», а не «3 500,00 $».
+  assert.match(source, /function formatMoney\(amountMinor: number, currency: string\): string \{\n\s+return moneyAmount\(String\(amountMinor\), currency\);/u);
+  assert.doesNotMatch(source, /style: "currency"/u);
+  assert.match(source, /id: obligation\.paymentObligationId,/u);
+  assert.match(source, /paidPart: obligation\.outstandingMinor > 0 && obligation\.totalPaidMinor - obligation\.totalRefundedMinor > 0/u);
+  for (const file of ["src/components/staff/profile/next/tabs/MoneyObligations.tsx", "src/components/staff/profile/tabs.tsx"]) {
+    const panel = read(file);
+    // Два платежа «Первый платёж» — две строки: ключ — id обязательства, а не название.
+    assert.match(panel, /key=\{payment\.id\}/u, file);
+    assert.doesNotMatch(panel, /key=\{payment\.name\}/u, file);
+    assert.match(panel, /payment\.paidPart \? <>оплачено <span className="tabular-nums">\{payment\.paidPart\}<\/span>/u, file);
+  }
+  const obligations = text(sheet(pages.get("admin-same-currency")));
+  assert.match(obligations, /1 500 USD/u, "итог «Обязательств» — тем же видом, что таблица");
+  assert.doesNotMatch(obligations, /\d \$/u);
 });

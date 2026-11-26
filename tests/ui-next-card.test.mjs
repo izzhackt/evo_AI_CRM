@@ -162,7 +162,7 @@ test("«Новый вид» страницы единственный (#1327), �
   // Части прежнего вида строятся одним и тем же вызовом, признак в них не передаётся.
   assert.match(source, /caseWorkParts\(\{\s*actor,/u);
   assert.doesNotMatch(source, /nextUi[^;\n]*caseWorkParts|caseWorkParts\([^)]*nextUi/u);
-  assert.match(source, /const nextParts = caseParts\?\.next \? caseNextParts\(caseParts\.next, caseParts\.actions\) : leadParts \? leadNextParts\(leadParts\.next\) : null;/u);
+  assert.match(source, /const nextParts = caseParts\?\.next \? caseNextParts\(caseParts\.next, caseParts\.actions, tab\) : leadParts \? leadNextParts\(leadParts\.next\) : null;/u);
   assert.match(source, /nextUi=\{nextParts !== null\}/u);
   // «Новый вид» рисует рамку и у закрытого лида и «не найден» (поток «card-tabs»).
   assert.match(source, /const nextCard = nextParts !== null \|\| closedLead !== null \|\| invalidIdentityShape \|\| missing;/u);
@@ -265,4 +265,14 @@ test("«Ещё N»: ссылка строки на место страницы �
   assert.match(read("src/components/staff/profile/Profile.tsx"), /<SectionTabs\s+label="Разделы профиля"\s+focusable\s+value=\{current\}/u);
   assert.match(read("src/components/kit/SectionTabs.tsx"), /<QueueViewTabs\s+label=\{label\}\s+focusable=\{focusable\}/u);
   assert.match(read("src/components/staff/queue/QueueViewTabs.tsx"), /<QueueTabStrip id=\{id\} label=\{label\} focusable=\{focusable\}>/u);
+});
+
+test("шапка дела на телефоне: строка «Документы · Оплата» скрыта только на «Обзоре», где те же числа есть в «Сведениях»", () => {
+  const card = readFileSync(new URL("../src/components/staff/profile/next/SummaryCard.tsx", import.meta.url), "utf8");
+  assert.match(card, /summaryFromSm \? "border-t border-border py-3 max-sm:hidden" : "border-t border-border py-3"/u);
+  const caseNext = readFileSync(new URL("../src/components/staff/profile/next/CaseNext.tsx", import.meta.url), "utf8");
+  assert.match(caseNext, /export const CASE_SUMMARY_REPEATED_ON = \["overview"\] as const;/u);
+  assert.match(caseNext, /summaryFromSm=\{tab !== null && \(CASE_SUMMARY_REPEATED_ON as readonly string\[\]\)\.includes\(tab\)\}/u);
+  const page = readFileSync(new URL("../src/app/(staff)/profile/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /caseNextParts\(caseParts\.next, caseParts\.actions, tab\)/u);
 });

@@ -43,7 +43,9 @@ export function NextAgentTabs({ agentKey, title, tab, draftsPending, bare = fals
                 href={aiAgentHref(agentKey, { tab: one.key })}
                 scroll={false}
                 aria-current={current ? "page" : undefined}
-                className="v3-choice group/tab inline-flex min-h-11 min-w-11 items-center justify-center gap-2 max-sm:gap-1.5 whitespace-nowrap rounded-ctl px-3 max-sm:px-2.5 t-label text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg motion-reduce:transition-none"
+                // `relative` — опора для `sr-only` у числа черновиков: без неё скрытая подпись ставится от страницы, а не от
+                // прокручиваемого ряда, и на телефоне растягивает страницу вбок (406 px на 390, 26.11.2026).
+                className="v3-choice group/tab relative inline-flex min-h-11 min-w-11 items-center justify-center gap-2 max-sm:gap-1.5 whitespace-nowrap rounded-ctl px-3 max-sm:px-2.5 t-label text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg motion-reduce:transition-none"
               >
                 <Icon aria-hidden="true" className={`size-4 shrink-0 ${current ? "text-fg" : "text-fg-3 group-hover/tab:text-fg-2"}`} />
                 {/* Телефон (25.11.2026): у каждой вкладки подпись, короткая где есть; ряд прокручивается вбок, а не прячет имена за значками. */}

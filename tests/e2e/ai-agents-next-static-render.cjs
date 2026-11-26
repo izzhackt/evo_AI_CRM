@@ -309,7 +309,10 @@ async function main() {
       const label = `${key}/${scene.name}`;
       const { context, page, errors } = await open(scene.name, key);
       await shot(page, `agents-${scene.name}-${key}`, { fullPage: scene.name !== "chat" });
-      report(`${label}: no horizontal scroll`, await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]));
+      // Ширина — заданная окну, а не `innerWidth`: у телефона (`isMobile`) окно само растягивается под содержимое, и сравнение с
+      // `innerWidth` пропускало страницу в 406 px на 390 (#1549, скрытая подпись числа черновиков за краем ряда вкладок).
+      const width = VIEWPORTS[key].viewport.width;
+      report(`${label}: no horizontal scroll`, await page.evaluate((w) => document.documentElement.scrollWidth <= w + 1, width), await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]));
       const small = await page.evaluate(smallTargets, ROOT_SELECTOR);
       report(`${label}: targets >= 44px`, small.length === 0, small);
       const axe = await new AxeBuilder({ page }).include(ROOT_SELECTOR).analyze();
@@ -408,7 +411,7 @@ async function main() {
       } else {
         report(`${key}/hub[${label}]: no «Ждут решения» block`, (await page.locator("[data-testid=v3-aia-pending]").count()) === 0 && (await page.locator("[data-testid=v3-aia-pending-partial]").count()) === 0, null);
       }
-      report(`${key}/hub[${label}]: no horizontal scroll`, await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), null);
+      report(`${key}/hub[${label}]: no horizontal scroll`, await page.evaluate((w) => document.documentElement.scrollWidth <= w + 1, VIEWPORTS[key].viewport.width), null);
       report(`${key}/hub[${label}]: targets >= 44px`, (await page.evaluate(smallTargets, ROOT_SELECTOR)).length === 0, await page.evaluate(smallTargets, ROOT_SELECTOR));
       const axe = await new AxeBuilder({ page }).include(ROOT_SELECTOR).analyze();
       report(`${key}/hub[${label}]: axe`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));

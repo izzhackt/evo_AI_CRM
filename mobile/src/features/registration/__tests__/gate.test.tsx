@@ -76,7 +76,9 @@ describe("needsApplication", () => {
     mockState = { kind: "needsApplication", entry: { signedInEmail: "me@example.test", resume: false } };
     await renderGate();
     expect(await screen.findByTestId("wizard-step-label")).toHaveTextContent("Шаг 1 из 7");
-    expect(mockCalls).toHaveLength(0);
+    // Мастер сам ничего не отправляет и не читает; единственное чтение - статус запроса на удаление аккаунта (секция внизу, как на вебе).
+    await screen.findByTestId("deletion-start");
+    expect(mockCalls.map((c) => c.name)).toEqual(["own_account_deletion_request_v1"]);
   });
 
   it("resume: валидный черновик из метаданных отправляется с expected_revision 0, потом согласие и очистка, затем обновление маршрута", async () => {

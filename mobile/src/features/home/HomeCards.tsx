@@ -13,7 +13,7 @@ import { nearestUniversityIntake, universityDateLabel, universityMonthLabel } fr
 import { applicationSteps, caseRows, homeDueStatus, type HomeApplication, type HomeNewsView } from "@/domain/home-model";
 import type { StudentPortalAction, StudentPortalEvoAction, StudentPortalOverview } from "@/domain/portal-source";
 import {
-  actionTarget,
+  actionHref,
   actionTitle,
   evoActionDueLabel,
   evoActionStatusLabel,
@@ -96,7 +96,7 @@ function DueStatus({ dueAt, now, testID }: { dueAt: string; now: Date; testID?: 
 }
 
 export function CaseCard({ overview, load, now }: { overview: StudentPortalOverview | null; load: Load | null; now: Date }) {
-  const { t, format } = useLang();
+  const { lang, t, format } = useLang();
   const { tokens } = useTheme();
   const home = t("home");
   const admission = t("admission");
@@ -151,7 +151,7 @@ export function CaseCard({ overview, load, now }: { overview: StudentPortalOverv
           {/* Красная кнопка только у первого дела: следующие - строками ниже. */}
           <Button
             label={primary.kind === "payment" ? admission.openPayment : admission.openDocument}
-            onPress={() => go(actionTarget(primary).route)}
+            onPress={() => go(actionHref(primary))}
             testID="case-open"
           />
         </View>
@@ -163,12 +163,14 @@ export function CaseCard({ overview, load, now }: { overview: StudentPortalOverv
           {next.map((action, index) => {
             const due = action.dueAt ? studentActionDueLabel(action) : null;
             const title = actionTitle(action, admission);
+            // Читалка слышит и дату, и слова пилюли («Срок 12.09.2026, через 4 дня»): веб читает оба (`pt-sr-only` и пилюля).
+            const status = action.dueAt ? homeDueStatus(action.dueAt, now, lang, home) : null;
             return (
               <Pressable
                 key={action.kind === "payment" ? `payment-${index}` : action.documentSlotId}
                 accessibilityRole="button"
-                accessibilityLabel={`${title}${due ? `. ${admission.dueTerm} ${due}` : ""}`}
-                onPress={() => go(actionTarget(action).route)}
+                accessibilityLabel={`${title}${due ? `. ${admission.dueTerm} ${due}${status ? `, ${status.label}` : ""}` : ""}`}
+                onPress={() => go(actionHref(action))}
                 testID={`case-next-${index}`}
                 style={{ minHeight: MIN_TARGET, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderTopWidth: index === 0 ? 0 : 1, borderTopColor: tokens.line }}
               >
@@ -271,13 +273,29 @@ export function EvoTaskCard({ action }: { action: StudentPortalEvoAction }) {
 
 // ---- Ближайший набор (общий текст для «Мой список» и дат) ----------------------------
 
-export function nearestIntakeText(item: PublishedUniversity, lang: "ru" | "ky", now: Date, strings: { intakeDatesPending: string; intakeDeadlineByDate: string; intakeStartFromDate: string }): string {
-  const nearest = nearestUniversityIntake(item.content, now);
-  if (nearest === null) return strings.intakeDatesPending;
+type IntakeStrings = { intakeDatesPending: string; intakeDeadlineByDate: string; intakeStartFromDate: string };
+
+/** Ближайший набор вуза словами («Подача до 1 мая 2027 г.»): тот же текст, что `intakeText` карточек каталога (веб). */
+function intakeSentence(nearest: NonNullable<ReturnType<typeof nearestUniversityIntake>>, lang: "ru" | "ky", strings: IntakeStrings): string {
   if (nearest.kind === "deadline") return formatPortalString(strings.intakeDeadlineByDate, { date: universityDateLabel(nearest.value, lang) });
   return formatPortalString(strings.intakeStartFromDate, {
     date: nearest.kind === "start" ? universityDateLabel(nearest.value, lang) : universityMonthLabel(nearest.value, lang),
   });
+}
+
+/** Ближайший набор вуза; нет открытого набора - «Даты уточняются у источника» (таблица сравнения, веб FavoritesView). */
+export function nearestIntakeText(item: PublishedUniversity, lang: "ru" | "ky", now: Date, strings: IntakeStrings): string {
+  const nearest = nearestUniversityIntake(item.content, now);
+  return nearest === null ? strings.intakeDatesPending : intakeSentence(nearest, lang, strings);
+}
+
+/**
+ * Строка набора на карточке «Мои вузы» (веб HomeFavorites: `intake ? <span> : null`): нет открытого набора - строки нет
+ * совсем, «даты уточняются» на карточке веб не пишет.
+ */
+export function nearestIntakeLine(item: PublishedUniversity, lang: "ru" | "ky", now: Date, strings: IntakeStrings): string | null {
+  const nearest = nearestUniversityIntake(item.content, now);
+  return nearest === null ? null : intakeSentence(nearest, lang, strings);
 }
 
 // ---- Ближайшие даты --------------------------------------------------------------

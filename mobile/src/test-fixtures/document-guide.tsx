@@ -100,6 +100,26 @@ export const touch = (x: number, y: number): Finger => ({ locationX: x, location
 /** Палец, севший НЕ на рамку (поле карточки, подпись): `locationX/Y` - от его цели, `pageX/Y` - от экрана. */
 export const outside = (pageX: number, pageY: number, target: { x: number; y: number } = { x: pageX - 7, y: pageY - 9 }): Finger => ({ locationX: pageX - target.x, locationY: pageY - target.y, pageX, pageY });
 
+// ---- касания карточки просмотра: поверхность жестов - вся карточка, цель любого пальца не на кнопке - сама карточка ----
+/** Где карточка стоит на экране, и где в ней рамка (то, что на устройстве сообщает `onLayout`): поле 16, шапка 44, зазор 12. */
+export const CARD_AT = { x: 8, y: 220 };
+export const FRAME_IN_CARD = { x: 16, y: 72 };
+/** Начало рамки на экране. */
+export const FRAME_ORIGIN = { x: CARD_AT.x + FRAME_IN_CARD.x, y: CARD_AT.y + FRAME_IN_CARD.y };
+/** Палец в точке `x, y` КАРТОЧКИ (поле, шапка, подпись, страница - цель одна): `locationX/Y` от карточки, `pageX/Y` от экрана. */
+export const onCard = (x: number, y: number): Finger => ({ locationX: x, locationY: y, pageX: CARD_AT.x + x, pageY: CARD_AT.y + y });
+/** Палец в точке `x, y` РАМКИ; вне рамки (отрицательные или больше её размера) - это поле карточки. Цель всё равно карточка. */
+export const inFrame = (x: number, y: number): Finger => onCard(FRAME_IN_CARD.x + x, FRAME_IN_CARD.y + y);
+/** Размер элемента из его стиля (в Jest раскладки нет: размеры задаёт сам компонент). */
+export function sizeOf(testID: string): { width: number; height: number } {
+  const style = Object.assign({}, ...[screen.getByTestId(testID).props.style].flat(3).filter(Boolean)) as { width?: number; height?: number };
+  return { width: style.width ?? 0, height: style.height ?? 0 };
+}
+/** Рамка сообщает, где она стоит в карточке: на устройстве это делает раскладка, в Jest - этот вызов. */
+export async function layoutFrame(zoomId: string) {
+  await fireEvent.layout(screen.getByTestId(zoomId), { ...FRAME_IN_CARD, ...sizeOf(zoomId) });
+}
+
 const at = (time: number) => ({ timestamp: time });
 export async function press(zoomId: string, fingers: Finger[], time: number) {
   await fireEvent(screen.getByTestId(zoomId), "responderGrant", { nativeEvent: { touches: fingers, changedTouches: [fingers[0]], ...at(time) } });
@@ -112,6 +132,17 @@ export async function move(zoomId: string, fingers: Finger[], time: number) {
 }
 export async function lift(zoomId: string, time: number) {
   await fireEvent(screen.getByTestId(zoomId), "responderRelease", { nativeEvent: { touches: [], changedTouches: [], ...at(time) } });
+}
+/**
+ * Одно касание так, как его даёт платформа: захват ответчика, «начало» (то же касание), «конец» (пальцев не осталось) и
+ * отпускание; между двумя касаниями двойного ответчик свободен (каждое - свой захват). Время - то, что в событиях.
+ */
+export async function wholeTap(targetId: string, finger: Finger, down: number, up: number) {
+  const target = screen.getByTestId(targetId);
+  await fireEvent(target, "responderGrant", { nativeEvent: { touches: [finger], changedTouches: [finger], ...at(down) } });
+  await fireEvent(target, "responderStart", { nativeEvent: { touches: [finger], changedTouches: [finger], ...at(down) } });
+  await fireEvent(target, "responderEnd", { nativeEvent: { touches: [], changedTouches: [finger], ...at(up) } });
+  await fireEvent(target, "responderRelease", { nativeEvent: { touches: [], changedTouches: [finger], ...at(up) } });
 }
 export async function drag(zoomId: string, from: [number, number], to: [number, number], start = 1000, duration = 120) {
   await press(zoomId, [touch(...from)], start);

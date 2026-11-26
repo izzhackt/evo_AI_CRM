@@ -1,4 +1,5 @@
 // Реальные зависимости маршрутизатора: RPC платформы и сессия Supabase.
+import { isApplicationStatus } from "@/domain/own-application";
 import { parseConsentStatus } from "@/features/consent/consent-contract";
 
 import type { AppSupabase } from "@/lib/supabase";
@@ -64,7 +65,7 @@ export function decodeOwnApplication(value: unknown): OwnApplication | null {
   if (value === null || value === undefined) return null;
   if (!isRow(value)) return malformed();
   const status = value.status;
-  if (status !== "pending" && status !== "approved" && status !== "rejected") return malformed();
+  if (!isApplicationStatus(status)) return malformed();
   return { status };
 }
 

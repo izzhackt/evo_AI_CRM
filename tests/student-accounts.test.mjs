@@ -97,6 +97,27 @@ function provisioning({ authorize = { data: { provisioning_id: PERMISSION, state
   return { calls, run: (input = { ...NAME, email: null }, caseId) => subject.provisionStudentAccount(admin, ORG, REQUEST, input, caseId) };
 }
 
+test("a temporary password is six digits, the first not zero, and the pattern accepts nothing else (26.11)", () => {
+  const generator = compile("src/lib/server/student-account-provisioning.ts", {
+    "node:crypto": crypto,
+    "../student-account-contract": contract,
+    "../student-login": compile("src/lib/student-login.ts"),
+    "./platform-supabase-backend-config": {},
+    "./platform-supabase-service-client": {},
+  }).newTemporaryPassword;
+  const seen = new Set();
+  for (let index = 0; index < 5000; index += 1) {
+    const password = generator();
+    assert.match(password, /^[1-9][0-9]{5}$/u, password);
+    assert.match(password, contract.TEMPORARY_PASSWORD_PATTERN);
+    seen.add(password);
+  }
+  assert.ok(seen.size > 4900, `random enough: ${seen.size} different of 5000`);
+  for (const bad of ["012345", "12345", "1234567", "abcd-efgh-jkmn", "12 456", "12345a", ""]) {
+    assert.doesNotMatch(bad, contract.TEMPORARY_PASSWORD_PATTERN, JSON.stringify(bad));
+  }
+});
+
 test("a created account: the admin's permission, then Auth with the flag, then the login and the journal", async () => {
   const run = provisioning();
   const result = await run.run();

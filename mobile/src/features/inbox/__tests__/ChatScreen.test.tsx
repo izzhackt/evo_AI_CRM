@@ -13,13 +13,13 @@ import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
-// Стек «Входящих» под беседой: по умолчанию список лежит внизу (вход из списка); тесты стрелки «назад» меняют его на «вход снаружи».
-const mockBack = jest.fn();
-let mockStack: { index: number; routes: { name: string }[] } = { index: 1, routes: [{ name: "index" }, { name: "chat" }] };
+// Стрелка «назад» (`useInboxBack`) читает состояние настоящего навигатора, которого в этом тесте нет: она проверена на настоящем
+// expo-router в `src/__tests__/app-layout-inbox-back.test.tsx` (подмена состояния навигации прежде и скрывала ошибку подписи).
+// Здесь нужна только кнопка, поэтому хук заменён.
+jest.mock("@/features/inbox/useInboxBack", () => ({ useInboxBack: () => ({ label: "Назад", onPress: () => undefined }) }));
 jest.mock("expo-router", () => ({
   router: { navigate: jest.fn() },
-  useRouter: () => ({ back: mockBack, canGoBack: () => true, navigate: jest.fn() }),
-  useNavigation: () => ({ getState: () => mockStack }),
+  useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }),
   usePathname: () => "/messages/chat",
 }));
 jest.mock("@/features/inbox/visibility", () => ({ useScreenVisible: jest.fn(() => true) }));
@@ -32,8 +32,6 @@ const queued = AccessibilityInfo.announceForAccessibilityWithOptions as unknown 
 beforeEach(() => {
   visible.mockReturnValue(true);
   queued.mockClear();
-  mockBack.mockClear();
-  mockStack = { index: 1, routes: [{ name: "index" }, { name: "chat" }] };
 });
 
 describe("Чат: чтение", () => {
@@ -77,27 +75,6 @@ describe("Чат: чтение", () => {
       now,
     );
     expect(entries.filter((e) => e.kind === "day").map((e) => (e as { label: string }).label)).toEqual(["6 сентября", "Сегодня"]);
-  });
-});
-
-describe("Чат: стрелка «назад» говорит о том, куда ведёт", () => {
-  const open = () => renderPortal(<ChatScreen />, testApi(fakeTransport({ portal_case_chat_page_v1: PAGE, mark_own_case_chat_notifications_read_v1: null }).transport));
-
-  it("список лежит под беседой (вошли из списка): «Все чаты», возврат на шаг назад", async () => {
-    await open();
-    const arrow = await screen.findByTestId("chat-back");
-    expect(arrow.props.accessibilityLabel).toBe("Все чаты");
-    await fireEvent.press(arrow);
-    expect(mockBack).toHaveBeenCalledTimes(1);
-  });
-
-  it("беседу открыли снаружи («Написать EVO»): списка под ней нет, стрелка «Назад» и ведёт туда, откуда пришли", async () => {
-    mockStack = { index: 0, routes: [{ name: "chat" }] };
-    await open();
-    const arrow = await screen.findByTestId("chat-back");
-    expect(arrow.props.accessibilityLabel).toBe("Назад");
-    await fireEvent.press(arrow);
-    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 });
 

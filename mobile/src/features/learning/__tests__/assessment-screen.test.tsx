@@ -707,6 +707,186 @@ describe("повтор в полёте не прячет плашку и «Вы�
     noticeShown();
     expect(screen.getByTestId("assessment-leave-anyway")).toBeTruthy();
   });
+
+  // Блок сбоя стоит наверху страницы, а «Сохранить и выйти» и «Завершить» внизу: блок показывается, если его верх выше видимой части
+  // (QA 24, N2). Раскладки в Jest нет, телефон сообщает её событием: раннер лежит на 16 от начала содержимого, блок на 108 от раннера.
+  describe("блок сбоя в видимой части (QA 24, N2)", () => {
+    const BLOCK_Y = 108;
+    const shown = { y: 16 + BLOCK_Y - 12, animated: false }; // верх раннера + верх блока - запас над блоком
+    const scrollTo900 = () => fireEvent.scroll(screen.getByTestId("assessment-screen-scroll"), { nativeEvent: { contentOffset: { y: 900 } } });
+    const layout = (id: string, y: number) => fireEvent(screen.getByTestId(id), "layout", { nativeEvent: { layout: { x: 0, y, width: 370, height: 200 } } });
+
+    it("блок появился, пока студент внизу страницы: страница идёт к нему один раз; круги повтора её не двигают, читалка говорит один раз", async () => {
+      // `announceForAccessibility` в Jest уже общий мок: вызовы прошлых тестов копятся, поэтому счёт начинается с нуля.
+      const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+      announce.mockClear();
+      const g = gate();
+      await openOffline(g.handler);
+      await layout("assessment-runner", 16);
+      await scrollTo900();
+      scrollTo.mockClear();
+      await tick(ASSESSMENT_SAVE_MS); // отправка 1 идёт
+      await g.fail(); // не удалась: блок появился, его раскладка ещё не пришла
+      noticeShown();
+      expect(scrollTo).not.toHaveBeenCalled();
+      await layout("assessment-error", BLOCK_Y);
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenLastCalledWith(shown);
+      // Сбой держится, студент читает вопросы ниже: круги повтора не должны уводить его от них.
+      for (let cycle = 0; cycle < 4; cycle += 1) {
+        await scrollTo900();
+        await tick(ASSESSMENT_RETRY_MS);
+        await g.fail();
+      }
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(announce.mock.calls.map((call) => String(call[0])).filter((text) => text.includes(notice))).toHaveLength(1);
+      announce.mockRestore();
+    });
+
+    it("страница вверху или верх блока ниже верха окна: блок на виду, страница не двигается", async () => {
+      const g = gate();
+      await openOffline(g.handler);
+      await layout("assessment-runner", 16);
+      scrollTo.mockClear(); // возврат наверх при «Начать» (D3) здесь не предмет
+      await tick(ASSESSMENT_SAVE_MS);
+      await g.fail();
+      await layout("assessment-error", BLOCK_Y);
+      noticeShown();
+      expect(scrollTo).not.toHaveBeenCalled();
+      await fireEvent.scroll(screen.getByTestId("assessment-screen-scroll"), { nativeEvent: { contentOffset: { y: 100 } } });
+      await tick(ASSESSMENT_RETRY_MS);
+      await g.fail();
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    it("«Сохранить и выйти» с низа страницы: блок со строкой «Сначала сохраним ответы…» показан; нажатие снова после прокрутки вниз показывает снова, а когда блок на виду, страница стоит", async () => {
+      const g = gate();
+      await openOffline(g.handler);
+      await layout("assessment-runner", 16);
+      scrollTo.mockClear();
+      await tick(ASSESSMENT_SAVE_MS);
+      await g.fail(); // блок появился, страница вверху: он на виду
+      await layout("assessment-error", BLOCK_Y);
+      expect(scrollTo).not.toHaveBeenCalled();
+      const pressExit = async () => {
+        await fireEvent.press(screen.getByTestId("assessment-exit"));
+        expect(g.pending()).toBe(1); // выход шлёт повтор и ждёт ответа
+        await g.fail();
+      };
+
+      await scrollTo900(); // студент долистал до «Сохранить и выйти»
+      await pressExit();
+      expect(screen.getByTestId("assessment-error")).toHaveTextContent(/Сначала сохраним ответы/);
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenLastCalledWith(shown);
+
+      await scrollTo900(); // ушёл вниз и нажал ещё раз: строки те же, но нажатие ответа ждёт
+      await pressExit();
+      expect(scrollTo).toHaveBeenCalledTimes(2);
+
+      await pressExit(); // блок на виду (страница там, куда её привела прокрутка): страница стоит
+      expect(scrollTo).toHaveBeenCalledTimes(2);
+    });
+
+    /** Тест английского: 35 ответов есть, последний выбран, открыт шаг «Готовы завершить?». */
+    async function openReview(handlers: Handlers) {
+      await open("english36", { start_student_assessment_v1: attemptFixture("english36", { answers: answersFor("english36", 35) }), ...handlers });
+      await begin();
+      await fireEvent.press(screen.getByTestId("assessment-option-e36-a"));
+      await fireEvent.press(screen.getByTestId("assessment-next"));
+      expect(await screen.findByText("Готовы завершить?")).toBeTruthy();
+      await layout("assessment-runner", 16);
+      scrollTo.mockClear();
+    }
+
+    it("«Завершить» не удалось и блок появился, пока студент внизу страницы: страница идёт к нему (блок появляется заново, телефон снова сообщает его раскладку)", async () => {
+      await openReview({
+        [SAVE]: attemptFixture("english36", { revision: 2, answers: answersFor("english36", 36) }),
+        complete_student_assessment_v1: () => failure(null, 0),
+      });
+      await scrollTo900();
+      await fireEvent.press(screen.getByTestId("assessment-complete"));
+      await screen.findByTestId("assessment-error");
+      expect(scrollTo).not.toHaveBeenCalled(); // раскладки блока ещё нет
+      await layout("assessment-error", BLOCK_Y);
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenLastCalledWith(shown);
+    });
+
+    it("сохранение не идёт, блок держится всё время, студент нажал «Завершить» с низа страницы и снова получил отказ: блок показан снова (строки те же, нажатия ответа ждут)", async () => {
+      await openReview({ [SAVE]: () => failure(null, 0) });
+      await tick(ASSESSMENT_SAVE_MS);
+      await screen.findByTestId("assessment-error");
+      await layout("assessment-error", BLOCK_Y); // страница вверху: блок на виду
+      expect(scrollTo).not.toHaveBeenCalled();
+      await scrollTo900();
+      await fireEvent.press(screen.getByTestId("assessment-complete"));
+      await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
+      expect(scrollTo).toHaveBeenLastCalledWith(shown);
+    });
+
+    it("блок исчез (связь вернулась) и появился снова: показ идёт по его новому положению, а не по прежнему", async () => {
+      const g = gate();
+      await openOffline(g.handler);
+      await layout("assessment-runner", 16);
+      await tick(ASSESSMENT_SAVE_MS);
+      await g.fail();
+      await layout("assessment-error", BLOCK_Y);
+      await tick(ASSESSMENT_RETRY_MS);
+      await g.succeed(attemptFixture("orvis92", { revision: 2 })); // сохранилось: блока нет
+      expect(screen.queryByTestId("assessment-error")).toBeNull();
+
+      await fireEvent.press(screen.getByTestId("assessment-option-o2-4"));
+      await tick(ASSESSMENT_SAVE_MS);
+      await scrollTo900();
+      scrollTo.mockClear();
+      await g.fail(); // сбой снова, блок появился уже в другом месте (выше стала карточка)
+      await layout("assessment-error", 130);
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenLastCalledWith({ y: 16 + 130 - 12, animated: false });
+    });
+
+    it("строка «Сначала сохраним ответы…» ушла (студент подтвердил «Выйти без сохранения», экран остался), а блок остался: страница не двигается, потому что ничего не добавилось и отказа не было", async () => {
+      const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+      const g = gate();
+      await openOffline(g.handler);
+      await layout("assessment-runner", 16);
+      await failThreeTimes(g);
+      await layout("assessment-error", BLOCK_Y);
+      scrollTo.mockClear();
+      await scrollTo900();
+      await fireEvent.press(screen.getByTestId("assessment-exit"));
+      expect(g.pending()).toBe(1);
+      await g.fail(); // выход не удался: к блоку прибавилась строка, страница идёт к нему
+      expect(screen.getByTestId("assessment-error")).toHaveTextContent(/Сначала сохраним ответы/);
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+
+      await scrollTo900(); // студент ушёл вниз и выбрал «Выйти без сохранения»
+      await fireEvent.press(screen.getByTestId("assessment-leave-anyway"));
+      const buttons = (alert.mock.calls[0] as [string, string, { onPress?: () => void }[]])[2];
+      await act(async () => buttons[1].onPress?.()); // в Jest экран остаётся (`dismissTo` - заглушка): строка уходит, блок на месте
+      expect(screen.getByTestId("assessment-error")).not.toHaveTextContent(/Сначала сохраним ответы/);
+      expect(screen.getByTestId("assessment-error")).toBeTruthy();
+      expect(scrollTo).toHaveBeenCalledTimes(1); // строки не прибавилось, отказа не было: тот же блок, страница стоит
+      alert.mockRestore();
+    });
+
+    it("«Завершить» нажато, когда блок уже на экране: пока отправка идёт, страница стоит; отказ пришёл - блок показан один раз (начало завершения не повод)", async () => {
+      const g = gate();
+      await openReview({ [SAVE]: g.handler });
+      await tick(ASSESSMENT_SAVE_MS); // отправка 1 идёт
+      await g.fail(); // не удалась: блок появился
+      await layout("assessment-error", BLOCK_Y); // страница вверху: блок на виду
+      expect(scrollTo).not.toHaveBeenCalled();
+      await scrollTo900(); // студент ушёл вниз, блок выше видимой части и его раскладка известна
+      await fireEvent.press(screen.getByTestId("assessment-complete")); // «Завершить»: сначала досылается несохранённое, отправка повисла
+      expect(g.pending()).toBe(1);
+      expect(scrollTo).not.toHaveBeenCalled(); // отказа ещё нет: страница стоит
+      await g.fail(); // отправка не прошла: «Завершить» не удалось
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenLastCalledWith(shown);
+    });
+  });
 });
 
 describe("жест назад и квитанция, которую не удалось прочитать (ревью #1581)", () => {

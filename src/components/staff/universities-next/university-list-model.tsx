@@ -18,8 +18,8 @@ const STALE_CARD_DAYS = 45;
 const DAY_MS = 86_400_000;
 
 /** Адрес каталога с фильтрами; пустые не пишутся, страница — смещением. */
-export function universitiesHref(filters: Readonly<{ query: string; country: string; level: string }>, offset = 0): string {
-  const params = new URLSearchParams({ ...(filters.query ? { q: filters.query } : {}), ...(filters.country ? { country: filters.country } : {}), ...(filters.level ? { level: filters.level } : {}) });
+export function universitiesHref(filters: Readonly<{ query: string; country: string; level: string; sort?: string }>, offset = 0): string {
+  const params = new URLSearchParams({ ...(filters.query ? { q: filters.query } : {}), ...(filters.country ? { country: filters.country } : {}), ...(filters.level ? { level: filters.level } : {}), ...(filters.sort ? { sort: filters.sort } : {}) });
   if (offset > 0) params.set("offset", String(offset));
   const tail = params.toString();
   return tail ? `${BASE}?${tail}` : BASE;
@@ -53,11 +53,18 @@ export function universityListRows(page: CataloguePage, level: UniversityFilters
   }));
 }
 
-export function universityFilterBar(filters: UniversityFilters, countries: readonly string[]): LinkFilterBarData {
+const SORT_LABELS = { deadline: "Ближайший срок", name: "По названию", programs: "Больше программ" } as const;
+
+/**
+ * Меню фильтров каталога. «Порядок» (25.11.2026) — тоже ссылка: сортирует сервер весь прочитанный каталог, а не строки страницы;
+ * у каталога длиннее предела полного чтения (`sortable: false`) порядок только по названию, и меню нет.
+ */
+export function universityFilterBar(filters: UniversityFilters, countries: readonly string[], sortable = true): LinkFilterBarData {
   const country = staffUniversityCountryOptions(countries, filters.country)
     .map((option) => ({ code: option.code, label: `${universityCountry(option.code)}${option.unavailable ? " — нет опубликованных карточек" : ""}` }))
     .sort((a, b) => a.label.localeCompare(b.label, "ru"));
-  const href = (next: Partial<Pick<UniversityFilters, "country" | "level">>) => universitiesHref({ query: filters.query, country: filters.country, level: filters.level, ...next });
+  const href = (next: Partial<Pick<UniversityFilters, "country" | "level" | "sort">>) => universitiesHref({ query: filters.query, country: filters.country, level: filters.level, sort: filters.sort, ...next });
+  const sort = filters.sort ?? "deadline";
   return {
     menus: [
       { key: "country", label: "Страна", valueLabel: filters.country ? country.find((option) => option.code === filters.country)?.label ?? filters.country : null,
@@ -66,8 +73,10 @@ export function universityFilterBar(filters: UniversityFilters, countries: reado
       { key: "level", label: "Уровень", valueLabel: filters.level ? UNIVERSITY_LEVEL_LABELS[filters.level] : null,
         options: [{ key: "all", label: "Все уровни", href: href({ level: "" }), selected: filters.level === "" },
           ...UNIVERSITY_LEVELS.map((level) => ({ key: level, label: UNIVERSITY_LEVEL_LABELS[level], href: href({ level }), selected: filters.level === level }))] },
+      ...(sortable ? [{ key: "sort", label: "Порядок", valueLabel: filters.sort ? SORT_LABELS[filters.sort].toLowerCase() : null,
+        options: (["deadline", "name", "programs"] as const).map((key) => ({ key, label: SORT_LABELS[key], href: href({ sort: key === "deadline" ? undefined : key }), selected: sort === key })) }] : []),
     ],
-    resetHref: filters.query || filters.country || filters.level ? BASE : null,
+    resetHref: filters.query || filters.country || filters.level || filters.sort ? BASE : null,
   };
 }
 
@@ -82,8 +91,8 @@ export function universityListProps(page: CataloguePage, filters: UniversityFilt
     rows: universityListRows(page, filters.level, today, directory),
     page: paging,
     query: filters.query,
-    searchHidden: { country: filters.country || null, level: filters.level || null },
-    filters: universityFilterBar(filters, countries),
+    searchHidden: { country: filters.country || null, level: filters.level || null, sort: filters.sort ?? null },
+    filters: universityFilterBar(filters, countries, page.order !== "name"),
     canManage,
     empty: {
       title: page.first === 0 && page.previousOffset !== null ? "На этой странице университетов нет" : "Пока нет опубликованных карточек по этому запросу",

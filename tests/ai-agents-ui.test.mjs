@@ -18,6 +18,7 @@ import { AI_AGENT_CATALOG, AI_AGENT_TOOL_ERROR_CODES, AI_AGENTS_MCP_FILE_PATH_PA
 import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
 import { FIXED_ROLE_ROUTES, fixedRoleCanAccessRoute } from "../src/lib/fixed-role-policy.ts";
 import { isConnectedPlatformApi, isConnectedPlatformPage, isConnectedPlatformPrivateApi } from "../src/lib/platform-route-contract.ts";
+import { AI_CONSENT_TEXT_VERSION, AI_ERROR_COPY } from "../src/lib/v3/ai-agent.ts";
 import { buildV3Navigation, v3SectionTitle } from "../src/lib/v3/navigation.ts";
 import { LINK_ICONS } from "../src/lib/v3/shell-tabs.ts";
 import {
@@ -368,6 +369,23 @@ test("доступ: раздел и пункт меню — право ai.agent.
   assert.equal(v3SectionTitle("/ai-agents/director"), "ИИ-агенты");
   assert.equal(v3SectionTitle("/ai-agent"), "Помощник в чате WhatsApp", "вкладка Gemini-страницы называет саму страницу так же, как хаб");
   assert.match(read("src/app/(staff)/access-denied/page.tsx"), /"\/ai-agents": "ИИ-агенты",/u);
+});
+
+test("раздел «Помощник в чате WhatsApp»: сообщение о согласии называет его как вкладка, а текст согласия на Gemini остаётся прежним", () => {
+  // Сообщение отправляет администратора в раздел: имя раздела берёт из того же `v3SectionTitle`, что вкладка и меню.
+  assert.equal(AI_ERROR_COPY.consent_required, `ИИ-агента включает администратор в разделе «${v3SectionTitle("/ai-agent")}».`);
+  // Карточка согласия — текст, на который администратор отвечает «да»; журнал записывает его под версией `AI_CONSENT_TEXT_VERSION`.
+  // Переименование раздела этот текст не меняет (решение владельца 27.11.2026): сменили слова в карточке — сначала новая версия текста.
+  assert.equal(AI_CONSENT_TEXT_VERSION, "gemini-v1-2026-10-06");
+  const notices = read("src/components/staff/ai-agent-next/AiNotices.tsx").replace(/\s+/gu, " ");
+  for (const text of [
+    "<WidgetCard title=\"Включить ИИ-агента\">",
+    "ИИ-агент готовит черновики ответов в чате продаж с помощью Google Gemini (платный проект Google Cloud EVO). Для этого в Gemini передаются последние 20 сообщений диалога, имя, интерес и этап лида и материалы «Информации для агента». Телефон, email и документы клиентов не передаются.",
+    "Отправляет ответ всегда сотрудник. Согласие записывается в журнал с вашим именем; отозвать его можно в «Расходах».",
+    "label=\"Включить ИИ-агента\"",
+    "saved: \"Согласие записано. ИИ-агент включён.\"",
+    "ИИ-агента включает администратор: до этого окно «Помочь с ответом» в чате не готовит ответы.",
+  ]) assert.ok(notices.includes(text), text);
 });
 
 /* ------------------------------------------------------------ рендер разметки */

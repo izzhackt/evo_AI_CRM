@@ -252,7 +252,7 @@ export function parseAiStreamEvent(event: string, data: string): AiStreamEvent |
  */
 export const AI_ERROR_COPY: Readonly<Record<string, string>> = Object.freeze({
   ai_agent_off: "ИИ-агент не подключён к CRM — подключает администратор.",
-  consent_required: "ИИ-агента включает администратор в разделе «ИИ-агент».",
+  consent_required: "ИИ-агента включает администратор в разделе «Помощник в чате WhatsApp».",
   agent_unavailable: "ИИ-агент сейчас недоступен.",
   rate_limited: "Слишком много запросов. Подождите минуту.",
   budget_exhausted: "Месячный лимит расходов на ИИ исчерпан. Его можно поднять в «Расходах».",

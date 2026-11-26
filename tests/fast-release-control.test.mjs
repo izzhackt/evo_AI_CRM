@@ -990,8 +990,8 @@ test("active platform CI executes only the root successor product", () => {
   assert.equal((fastPr.match(/uses: actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6\.1\.0\n        with:\n          path: node_modules\n          key: node-modules-\$\{\{ runner\.os \}\}-\$\{\{ hashFiles\('\.nvmrc', 'package-lock\.json'\) \}\}/gu) ?? []).length, 6);
   assert.equal((fastPr.match(/if: \$\{\{ steps\.deps\.outputs\.cache-hit != 'true' \}\}\n        run: npm ci/gu) ?? []).length, 6);
   assert.doesNotMatch(fastPr, /inbox_|lead_agent_/u);
-  // Mobile is a separate product lane: only its steps may leave the repository root (`npm ci` and the Jest run through the React Compiler).
-  assert.deepEqual(fastPr.match(/working-directory: .*/gu), ["working-directory: mobile", "working-directory: mobile"]);
+  // Mobile is a separate product lane: only its two steps may leave the repository root.
+  assert.deepEqual(fastPr.match(/working-directory: .*/gu), ["working-directory: mobile"]);
   // Inspect command invocations, not source paths such as supabase/migrations/.
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:(?:npx|pnpm\s+(?:exec|dlx)|yarn\s+(?:exec|dlx)|npm\s+exec(?:\s+--)?)\s+)?(?:playwright|supabase)(?:@[^\s/]+)?(?:\s|$)/imu);
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:npm|pnpm|yarn)\s+(?:run\s+)?test:(?:database:local|security|unit)(?:\b|:)/imu);

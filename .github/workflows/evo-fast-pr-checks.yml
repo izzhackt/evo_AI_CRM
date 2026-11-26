@@ -305,6 +305,7 @@ jobs:
     needs: changed-range
     if: ${{ needs.changed-range.outputs.mobile == 'true' && needs.changed-range.outputs.unknown != 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -344,11 +345,11 @@ jobs:
       # Приложение выходит скомпилированным (`experiments.reactCompiler`), а проверка выше гоняет тесты без компилятора: `jest-expo` не ставит
       # признак, который ставит Metro. Поэтому ошибка, которая есть только в скомпилированном коде, её проходит: N3 (26.11.2026) -
       # `navigation.getState()` в теле хука, который компилятор запомнил на всю жизнь экрана. Этот шаг гоняет те же тесты через компилятор
-      # так, как приложение собирает Metro (`mobile/jest.compiler.transform.js`). Команда записана здесь, а не в `scripts` файла
-      # `mobile/package.json`: раздел `scripts` входит в нативный отпечаток (шаг «Check the native fingerprint lock» выше).
+      # так, как приложение собирает Metro (`mobile/jest.compiler.transform.js`). Команда - шаг `mobile-compiled` в `scripts/ci/verify.mjs`
+      # (простой `npm run verify` на ноутбуке запускает тот же), а не строка в `scripts` файла `mobile/package.json`: раздел `scripts`
+      # входит в нативный отпечаток (шаг «Check the native fingerprint lock» выше).
       - name: Run the mobile Jest suite through the React Compiler
-        working-directory: mobile
-        run: npx jest -c jest.compiler.config.js --ci --maxWorkers=2
+        run: npm run verify -- --only mobile-compiled
 
   # «Кабинет и приложение идут вместе» (AGENTS.md, правило владельца 25.11.2026): PR, который меняет то, что студент видит
   # (кабинет, вход, заявка; список путей в AGENTS.md и в scripts/ci/mobile-parity-check.mjs), меняет и приложение либо одной

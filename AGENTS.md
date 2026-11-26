@@ -55,12 +55,14 @@
   по симулятору перед выпуском делают владелец или Claude.
 - **Тесты приложения идут и через компилятор React.** Приложение выходит скомпилированным (`experiments.reactCompiler`), а `npm test` и `npm run check`
   гоняют код без компилятора (`jest-expo` не ставит признак Metro): так N3 (26.11.2026) прошёл зелёный CI. «Mobile app» запускает те же тесты ещё раз
-  через компилятор (шаг «Run the mobile Jest suite through the React Compiler»); локально: `cd mobile && npx jest -c jest.compiler.config.js --maxWorkers=2
-  [путь]`. Команда записана в workflow, а не в `scripts` файла `mobile/package.json`: этот раздел входит в нативный отпечаток. Набор, который не проходит
-  скомпилированным по свойству самого теста, записан с причиной в `COMPILED_SKIP` (`mobile/jest.compiler.config.js`); подмена хука в тесте должна быть
-  реактивной (`mobile/src/test-fixtures/reactive-signal.ts`). **Правило для хуков и компонентов:** при отрисовке не читать изменяемое внешнее состояние
-  (`navigation.getState()`, `ref.current`, `Date.now()`, `PixelRatio.getFontScale()`): компилятор запомнит прочитанное на всю жизнь экрана. Читать через
-  подписку (`useNavigationState`, `useSyncExternalStore`, `useWindowDimensions`) или в обработчике и эффекте.
+  через компилятор (шаг «Run the mobile Jest suite through the React Compiler»); локально: `npm run verify -- --only mobile-compiled` (входит и в простой
+  `npm run verify`) или `cd mobile && npx jest -c jest.compiler.config.js --maxWorkers=2 [путь]`. Команда записана в `scripts/ci/verify.mjs`, а не в `scripts`
+  файла `mobile/package.json`: этот раздел входит в нативный отпечаток. Целых наборов в пропуск не вносят: тест, который считает вызовы чистой функции за
+  отрисовки (скомпилированный вызов запоминается), помечают `itUncompiledOnly` (`mobile/src/test-fixtures/uncompiled-only.ts`) с причиной рядом, а подмену
+  хука, которую тест «меняет» перерисовкой родителя, делают реактивной (`mobile/src/test-fixtures/reactive-signal.ts`). **Правило для хуков и компонентов:** при
+  отрисовке не читать изменяемое внешнее состояние (`navigation.getState()`, `Date.now()`, `PixelRatio.getFontScale()`): компилятор запомнит прочитанное на всю жизнь
+  экрана, а компонент, читающий `ref.current` при отрисовке, не компилирует совсем («Cannot access refs during render»). Читать через подписку
+  (`useNavigationState`, `useSyncExternalStore`, `useWindowDimensions`) или в обработчике и эффекте.
 - **Сборки и магазины.** Не запускайте `eas build`, `eas submit`, `eas update` и не трогайте App Store, Google Play и
   TestFlight: только владелец или Claude по его команде. EAS Update Claude выкатывает только по постоянному разрешению
   владельца и после проверки (QA).

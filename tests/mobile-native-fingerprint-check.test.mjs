@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -1035,22 +1036,59 @@ test("PR workflow: the lock is its own named step of «Mobile app», right after
   assert.doesNotMatch(read("mobile/package.json"), /fingerprint-check|native-fingerprint/u);
 });
 
-test("PR workflow: the compiled Jest run is its own named step of «Mobile app», after the app check, started from mobile/ and not through mobile/package.json", () => {
+test("PR workflow: the compiled Jest run is its own named step of «Mobile app», after the app check, the same `npm run verify` lane as on a laptop, and not through mobile/package.json", () => {
   const step = stepBlock(mobileJob, COMPILED_STEP);
   assert.ok(mobileJob.indexOf("      - name: Check the mobile app\n") < mobileJob.indexOf(`      - name: ${COMPILED_STEP}\n`), "after the ordinary app check");
-  assert.match(step, /\n        working-directory: mobile\n        run: npx jest -c jest\.compiler\.config\.js --ci --maxWorkers=2\n?$/u);
-  // Nothing that could make the step pass without running.
-  assert.doesNotMatch(step, /\n        (?:if|continue-on-error|timeout-minutes):/u);
+  assert.match(step, /\n        run: npm run verify -- --only mobile-compiled\n?$/u);
+  // Nothing that could make the step pass without running, and no other folder: verify runs from the repository root, as for the ordinary check.
+  assert.doesNotMatch(step, /\n        (?:if|continue-on-error|timeout-minutes|working-directory):/u);
   assert.doesNotMatch(step, /secrets\.|\|\| true|exit 0/u);
+  // The job has a timeout like its siblings (Types 15 minutes, Tests and Preview 20): it runs two Jest suites now.
+  assert.match(mobileJob, /\n    runs-on: ubuntu-latest\n    timeout-minutes: 20\n/u);
   // The step runs the config and the transform it names, and none of it goes through the scripts of mobile/package.json: they are part of the
   // native fingerprint, so a script added there would give a build no student has and an EAS Update that reaches nobody.
   for (const file of ["mobile/jest.compiler.config.js", "mobile/jest.compiler.transform.js"]) assert.ok(statSync(join(root, file)).isFile(), file);
-  assert.match(read("mobile/jest.compiler.config.js"), /jest\.compiler\.transform\.js/u, "the config uses the transform");
   assert.match(read("mobile/jest.compiler.transform.js"), /const compiled = make\(\{ supportsReactCompiler: true \}\);/u, "app code goes through the compiler, as in Metro");
-  // The canary test (mobile/src/__tests__/react-compiler-canary.test.tsx) fails when the compiled run does not compile; it only runs when the config sets its flag.
-  assert.match(read("mobile/jest.compiler.config.js"), /globals: \{ \.\.\.pkg\.jest\.globals, __EVO_REACT_COMPILER__: true \}/u, "the config sets the flag the canary reads");
-  assert.match(read("mobile/src/__tests__/react-compiler-canary.test.tsx"), /__EVO_REACT_COMPILER__/u);
   assert.doesNotMatch(read("mobile/package.json"), /jest\.compiler|test:compiled/u);
+});
+
+test("compiled Jest config: the project's own `jest` block plus the transform and the flag, with no list of skipped suites", () => {
+  const config = createRequire(import.meta.url)("../mobile/jest.compiler.config.js");
+  const base = JSON.parse(read("mobile/package.json")).jest;
+  // Nothing but the transform and the flag differs from `npm test`: the same roots, the same ignore patterns. A suite skipped here would drop out of
+  // the compiled run silently (the review of 26.11.2026 found a list that could grow with every other root test and the canary still green).
+  assert.deepEqual(Object.keys(config).sort(), [...Object.keys(base), "globals", "transform"].sort());
+  assert.deepEqual(config.testPathIgnorePatterns, base.testPathIgnorePatterns, "no suite is skipped in the compiled run");
+  assert.deepEqual(config.roots, base.roots);
+  assert.deepEqual(config.transform, { "\\.[jt]sx?$": "<rootDir>/jest.compiler.transform.js" });
+  // The flag the canary test and `itUncompiledOnly` read. The canary (src/__tests__/react-compiler-canary.test.tsx) fails when the compiled run does not
+  // compile, but it only runs when the flag is set.
+  assert.equal(config.globals.__EVO_REACT_COMPILER__, true);
+  assert.match(read("mobile/src/__tests__/react-compiler-canary.test.tsx"), /__EVO_REACT_COMPILER__/u);
+  assert.match(read("mobile/src/test-fixtures/uncompiled-only.ts"), /__EVO_REACT_COMPILER__/u);
+});
+
+test("compiled Jest run: the only tests it skips are the marked `itUncompiledOnly` ones, each with its reason in the comment right above (four today, in two files)", () => {
+  const found = {};
+  const walk = (directory) => {
+    for (const entry of readdirSync(join(root, directory), { withFileTypes: true })) {
+      const path = `${directory}/${entry.name}`;
+      if (entry.isDirectory()) walk(path);
+      else if (/\.test\.tsx?$/u.test(entry.name)) {
+        const lines = read(path).split("\n");
+        lines.forEach((line, index) => {
+          if (!/^\s*itUncompiledOnly\(/u.test(line)) return;
+          found[path] = (found[path] ?? 0) + 1;
+          assert.match(lines[index - 1] ?? "", /^\s*\/\/ \S/u, `${path}:${index + 1} needs its reason in the comment right above`);
+        });
+      }
+    }
+  };
+  walk("mobile/src");
+  assert.deepEqual(found, {
+    "mobile/src/features/learning/__tests__/csca-test-navigator.test.tsx": 2,
+    "mobile/src/features/universities/__tests__/tile-memo.test.tsx": 2,
+  });
 });
 
 test("PR workflow: the job that holds the lock runs exactly when the pull request changes mobile/ or what the app shares with the web, and is never skipped for such a pull request", () => {

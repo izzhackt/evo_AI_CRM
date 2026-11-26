@@ -114,7 +114,7 @@ export function requestTabs(selection: RequestSelection, queue: RequestsQueue | 
     .map((source) => ({
       key: source,
       label: REQUEST_TAB_LABELS[source],
-      href: requestsHref({ ...selection, source, cursor: null }),
+      href: requestsHref({ ...selection, source, cursor: null, page: undefined }),
       count: queue ? requestTabCount(queue.counts, source) : null,
       current: selection.source === source,
     }));

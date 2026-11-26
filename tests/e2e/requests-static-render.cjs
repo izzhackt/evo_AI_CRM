@@ -216,7 +216,7 @@ function queueResponse(rows, states, source, status, limit, calls = false) {
     .slice(0, limit);
   const latestAt = ofSource.length ? ofSource.map((row) => row.sortAt).sort().at(-1) : null;
   return {
-    version: 3, organizationId: ORG, source, status, limit, states, phoneCalls, counts, latestAt,
+    version: 4, offset: 0, organizationId: ORG, source, status, limit, states, phoneCalls, counts, latestAt,
     rows: picked.map((row) => row.raw), nextCursor: null, previousCursor: null,
   };
 }

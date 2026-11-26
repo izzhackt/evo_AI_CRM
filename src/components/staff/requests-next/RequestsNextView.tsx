@@ -11,6 +11,7 @@ import type { ViewProps } from "../requests/RequestsQueueView";
 import { TakeFeedback, TakeStatus } from "../requests/TakeLead";
 import { RequestsNextEmpty } from "./RequestsNextEmpty";
 import { RequestsNextTable } from "./RequestsNextTable";
+import { RequestsPager } from "./RequestsPager";
 import { requestSheetContent } from "./RequestSheetBody";
 import { buildRequestRow } from "./requests-next-rows";
 
@@ -26,7 +27,7 @@ export function RequestsNextView(props: ViewProps) {
   const queue = read.status === "ready" ? read.queue : null;
   const tabs = requestTabs(selection, queue).map((tab) => ({ key: tab.key, label: tab.label, href: tab.href, count: tab.count }));
   const status = (["waiting", "all"] as const).map((key) => ({
-    key, title: REQUEST_STATUS_LABELS[key], count: null, href: requestsHref({ ...selection, status: key, cursor: null }), active: selection.status === key,
+    key, title: REQUEST_STATUS_LABELS[key], count: null, href: requestsHref({ ...selection, status: key, cursor: null, page: undefined }), active: selection.status === key,
   }));
   const openKey = props.open ? requestOpenKey(props.open) : null;
   const openRow = queue && openKey ? queue.rows.find((row) => requestOpenKey(row) === openKey) ?? null : null;
@@ -46,7 +47,7 @@ export function RequestsNextView(props: ViewProps) {
               title={read.status === "forbidden" ? "У вашей роли нет доступа к заявкам."
                 : read.status === "invalid" ? "Эта страница очереди больше не открывается." : "Заявки не загрузились. Список и числа сейчас неизвестны."}
               action={read.status === "forbidden" ? undefined : (
-                <Button variant="outline" asChild><Link href={read.status === "invalid" ? requestsHref({ ...selection, cursor: null }) : listHref}>Повторить</Link></Button>
+                <Button variant="outline" asChild><Link href={read.status === "invalid" ? requestsHref({ ...selection, cursor: null, page: undefined }) : listHref}>Повторить</Link></Button>
               )}
             />
           </div>
@@ -62,12 +63,7 @@ export function RequestsNextView(props: ViewProps) {
               toolbar={<BoardSegments label="Состояние" items={status} />}
               empty={<RequestsNextEmpty queue={queue} props={props} now={now} />}
             />
-            {queue.previousCursor || queue.nextCursor ? (
-              <nav aria-label="Страницы заявок" className="flex flex-wrap gap-2">
-                {queue.previousCursor ? <Button variant="outline" asChild><Link href={requestsHref({ ...selection, cursor: queue.previousCursor })}>Предыдущая страница</Link></Button> : null}
-                {queue.nextCursor ? <Button variant="outline" asChild><Link href={requestsHref({ ...selection, cursor: queue.nextCursor })}>Следующая страница</Link></Button> : null}
-              </nav>
-            ) : null}
+            <RequestsPager selection={selection} queue={queue} />
           </>
         )}
       </div>

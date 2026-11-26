@@ -237,7 +237,7 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
   for (const key of ["d1280", "m390"]) {
     const { context, page } = await open("inbox-not-connected", key);
     const text = await page.locator("[data-testid=v3-inbox-not-connected]").innerText();
-    report(`not connected ${key}: honest state and the settings link for the administrator`, /WhatsApp не подключён к CRM — подключает Администратор/u.test(text) && await page.locator("[data-testid=v3-inbox-settings]").getAttribute("href") === "/settings?section=integrations", text);
+    report(`not connected ${key}: honest state and the settings link for the administrator`, /WhatsApp не подключён — подключите в настройках/u.test(text) && await page.locator("[data-testid=v3-inbox-settings]").getAttribute("href") === "/settings?section=integrations", text);
     report(`not connected ${key}: no count in the title`, !/\d/u.test(await page.locator("h1").innerText()), await page.locator("h1").innerText());
     await context.close();
   }
@@ -388,7 +388,7 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
     const { context, page } = await open("messages-thread", key);
     const facts = await page.locator("[data-testid=case-chat-case-facts]").innerText();
     report(`thread ${key}: direction and stage`, facts.replace(/\s+/gu, " ").trim() === "Китай · Документы", facts);
-    const awaitControl = await page.locator("[data-testid=case-chat-await-control] button").evaluateAll((buttons) => buttons.map((b) => `${b.textContent.trim()}${b.getAttribute("aria-pressed") === "true" ? "*" : ""}`));
+    const awaitControl = await page.locator("[data-testid=case-chat-await-control] button").evaluateAll((buttons) => buttons.map((b) => `${b.getAttribute("aria-label") ?? b.textContent.trim()}${b.getAttribute("aria-pressed") === "true" ? "*" : ""}`));
     report(`thread ${key}: the await control has three states, «Нужен ответ» pressed`, awaitControl.join("|") === "Нужен ответ*|Ждём студента|Не требуется", awaitControl);
     const tone = await page.locator("[data-testid=case-chat-await-control] button[aria-pressed=true]").getAttribute("data-tone");
     report(`thread ${key}: the pressed state is a warning tone, not red`, tone === "warn", tone);
@@ -399,8 +399,8 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
     report(`thread ${key}: the page itself does not scroll`, (await metrics(page)).overflowY <= 0, null);
     // Переключатель состояния — прежняя команда `set_await`, список перечитывается: 3·2 → 2·3.
     await page.evaluate(() => { window.__harness.actions.length = 0; });
-    await page.locator("[data-testid=case-chat-await-control] button", { hasText: "Ждём студента" }).click();
-    await page.waitForFunction(() => document.querySelector('[data-testid="case-chat-await-control"] button[aria-pressed="true"]')?.textContent === "Ждём студента");
+    await page.locator('[data-testid=case-chat-await-control] button[aria-label="Ждём студента"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="case-chat-await-control"] button[aria-pressed="true"]')?.getAttribute("aria-label") === "Ждём студента");
     if (key === "d1280") await page.waitForFunction(() => document.querySelector('[data-queue-count="needs_reply"]')?.textContent === "2", null, { timeout: 5_000 }).catch(() => {});
     const done = await harness(page);
     report(`thread ${key}: the await control calls the previous command and the list is re-read`, done.actions[0] === `await:awaiting_student:${fx.caseId(1)}` && done.actions.some((action) => action.startsWith("load:")), done.actions);

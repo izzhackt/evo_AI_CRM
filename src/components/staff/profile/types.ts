@@ -19,6 +19,7 @@ import type {
 import type { PlatformCaseVisa } from "@/lib/platform-case-operations-contract";
 import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import type { CaseDirectionChange } from "@/lib/platform-case-direction-change";
+import type { CasePaymentDetail } from "@/lib/platform-case-payment-detail";
 import type {
   PlatformCaseContractWorkspace,
   PlatformContractRetryOperation,
@@ -129,6 +130,8 @@ export type ProfileEvent = Readonly<{
    * неизвестен; подпись со словами строит `journalEventText`.
    */
   directionChange?: CaseDirectionChange;
+  /** Сумма и название записанного платежа (376) — только у `finance.payment.record`; подпись строит `journalEventText`. */
+  paymentDetail?: CasePaymentDetail;
 }>;
 
 /** Настоящие данные. */
@@ -294,8 +297,12 @@ export type ProfileSalesRequestIds = Readonly<{
 }>;
 
 export type Payment = Readonly<{
+  /** id обязательства: названия у разных платежей бывают одинаковыми («Первый платёж» дважды). */
+  id: string;
   name: string;
   amount: string;
+  /** Оплаченная часть частично оплаченного платежа («500 USD»); null — не оплачен или оплачен полностью. */
+  paidPart: string | null;
   /** Оплачен, ждёт срока, просрочен. */
   state: "paid" | "due" | "overdue";
   /** Момент последней оплаты (оплачен) или срок (иначе); null — не указан. Дату рисует вкладка («ДД.ММ» по Бишкеку). */

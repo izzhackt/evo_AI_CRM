@@ -11,14 +11,17 @@ const TONE: Readonly<Record<TelephonyTone, StatusTone>> = { ok: "ok", warn: "war
 function Line({ line }: Readonly<{ line: TelephonyStatusLine }>) {
   const attention = line.tone === "warn" || line.tone === "blocked";
   return (
-    <li data-line={line.id} data-tone={line.tone} className="grid gap-x-4 gap-y-1 py-3 sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+    // 26.11.2026: строка состояния — одной линией: что, значение и действие рядом; последствие — мелко под ней.
+    <li data-line={line.id} data-tone={line.tone} className="grid gap-x-4 gap-y-0.5 py-1.5 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] sm:items-baseline">
       <span className="t-body-compact text-fg-2">{line.label}</span>
       <span className="min-w-0">
-        <StatusBadge tone={TONE[line.tone]} label={line.value} wrap />
+        <span className="flex flex-wrap items-center gap-x-3">
+          <StatusBadge tone={TONE[line.tone]} label={line.value} wrap />
+          {attention && line.id === "directory" ? <a href="#tel-extensions-title" className="inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4 hover:text-fg-2 sm:min-h-0">Сопоставить</a> : null}
+        </span>
         {line.note ? <span className="mt-0.5 block t-meta text-fg-2">{line.note}</span> : null}
         {/* Что не работает из-за строки и кто это чинит — рядом с ней, а не в другом месте страницы. */}
         {attention && line.without ? <span className="block t-meta text-fg-2" data-testid="v3-telephony-without">{line.without}.</span> : null}
-        {attention && line.id === "directory" ? <a href="#tel-extensions-title" className="inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4 hover:text-fg-2">Сопоставить</a> : null}
         {attention && line.handoff ? <span className={`block t-meta font-medium ${line.tone === "blocked" ? "text-danger" : "text-fg"}`} data-testid="v3-telephony-handoff">{line.handoff}</span> : null}
       </span>
     </li>
@@ -38,7 +41,7 @@ export function TelephonyStatus({ lines }: Readonly<{ lines: readonly TelephonyS
       title="Состояние"
       headingLevel={3}
       actions={rest.length > 0 ? (
-        <DetailSheet title="Все строки состояния" trigger={<Button variant="outline"><ListIcon aria-hidden="true" />{attention.length > 0 ? `Остальные строки: ${rest.length}` : `Показать все ${lines.length}`}</Button>}>
+        <DetailSheet title="Все строки состояния" trigger={<Button variant="ghost"><ListIcon aria-hidden="true" />{attention.length > 0 ? `Остальные строки: ${rest.length}` : `Показать все ${lines.length}`}</Button>}>
           <ul className="divide-y divide-border" data-testid="v3-telephony-status-rest">{rest.map((line) => <Line key={line.id} line={line} />)}</ul>
         </DetailSheet>
       ) : undefined}
@@ -47,7 +50,7 @@ export function TelephonyStatus({ lines }: Readonly<{ lines: readonly TelephonyS
         <p className="t-body-compact text-fg" data-testid="v3-telephony-verdict">
           {attention.length > 0 ? `Требует внимания: ${attention.length} из ${lines.length}` : "Замечаний нет"}
         </p>
-        {attention.length > 0 ? <ul className="divide-y divide-border">{attention.map((line) => <Line key={line.id} line={line} />)}</ul> : null}
+        {attention.length > 0 ? <ul className="mt-1">{attention.map((line) => <Line key={line.id} line={line} />)}</ul> : null}
       </div>
     </WidgetCard>
   );

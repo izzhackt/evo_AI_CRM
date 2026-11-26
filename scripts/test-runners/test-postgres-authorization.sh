@@ -6303,6 +6303,35 @@ SQL
       exit 1
     fi
   fi
+  # «История» дела называет записанный платёж суммой и названием (migration 376, 27.11.2026). Matched by name, not number. The
+  # migration patches two bodies by checked fragments (first the knowledge-base export, then the case history read): right
+  # after it a second apply refuses (a376_export_anchor_drift), then the suite, insisting on its marker. The suite proves: the
+  # history read gives `payment_detail` to the administrator and to the reader with finance.read.summary and to nobody else; the
+  # knowledge-base export page «История дела» stays what it was before 376 (the history events without that one key, on one page
+  # and on two, no amount and no title of a payment); posture of both functions.
+  if [[ "$(basename "$migration")" == *_platform_case_history_payment_detail.sql ]]; then
+    t376_again_log="$(mktemp -t evo-t376-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t376_again_log" 2>&1; then
+      echo "migration 376 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a376_export_anchor_drift" "$t376_again_log"; then
+      echo "a second apply of migration 376 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t376_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t376_again_log"
+    case_history_payment_detail_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_history_payment_detail.sql </dev/null)"
+    printf '%s\n' "$case_history_payment_detail_log"
+    if ! grep -q 'A376_CASE_HISTORY_PAYMENT_DETAIL_SUITE_PASSED' <<<"$case_history_payment_detail_log"; then
+      echo "platform_case_history_payment_detail.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
@@ -6377,6 +6406,23 @@ BEGIN
   END LOOP;
 END
 $a375_end_of_chain$;
+SQL
+
+# «История» дела называет платёж суммой и названием (migration 376): the knowledge-base export must stay without the amount and the
+# title of a payment (owner decision of 27.11.2026). The 376 suite ran right after 376; this check, on the LATEST chain, fails
+# when a later migration replaces the export function from an older copy (203) and the key `payment_detail` is no longer
+# removed from the events of the page «История дела». A later migration must patch the body by fragment, as 376 does.
+docker exec -i "$container_name" \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" <<'SQL'
+DO $a376_end_of_chain$
+BEGIN
+  IF to_regprocedure('platform_private.kb_canonical_snapshots(uuid,jsonb)') IS NULL
+    OR strpos(pg_get_functiondef(to_regprocedure('platform_private.kb_canonical_snapshots(uuid,jsonb)')), '- ''payment_detail''') = 0 THEN
+    RAISE EXCEPTION 'a376_export_strip_lost_at_end_of_chain: the knowledge-base export no longer removes payment_detail from the history events'
+      USING ERRCODE = '55000';
+  END IF;
+END
+$a376_end_of_chain$;
 SQL
 
 # P7A journal contract (fix for PLAN_CHANGES 29.09.2026 — «Журнал действий»:

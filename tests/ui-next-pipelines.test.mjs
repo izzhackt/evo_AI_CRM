@@ -475,3 +475,13 @@ test("«Воронка поступления» (25.11.2026): «Направле
   assert.match(page, /label: "Все направления"/u);
   assert.doesNotMatch(page, /NavigateSelect|BoardFilters|label="Страна"/u);
 });
+
+test("«Воронка поступления» (26.11.2026): длинная колонка — первые 20 дел и «Показать ещё»; страна · вуз и куратор кругом — одной строкой", () => {
+  const column = read("src/components/staff/admissions-pipeline-next/AdmissionsColumnNext.tsx");
+  assert.match(column, /const COLUMN_STEP = 20;/u);
+  assert.match(column, /\{rows\.slice\(0, limit\)\.map\(/u);
+  assert.match(column, /data-testid="v3-admissions-column-more"/u);
+  assert.match(column, /useDroppable\(\{ id: stage/u, "бросить можно и на свёрнутую колонку");
+  const card = read("src/components/staff/admissions-pipeline-next/AdmissionsCardNext.tsx");
+  assert.match(card, /<span className="sr-only">Куратор: \{shortPersonName\(curator\)\}<\/span>/u, "имя куратора — для читалки и в подсказке");
+});

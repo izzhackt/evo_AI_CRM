@@ -206,18 +206,19 @@ test("AI consent (320): the header chip is only the «не разрешено» 
   const header = surfaces.get("ai-consent-declined").match(/<section id="case-header"[\s\S]*?<\/section>/u)?.[0] ?? "";
   assert.ok(header.includes('data-testid="v3-case-ai-consent"'), "the warning is inside the case header");
   assert.doesNotMatch(header, /data-tone="danger"/u, "a declined consent is never a red pill");
-  // «Сведения»: то же состояние словами и следствие для помощников.
+  // «Сведения»: то же состояние одним словом; следствие для помощников — за «?» (чек-лист 23.11: без повтора строкой ниже).
   const fact = (name) => {
     const html = surfaces.get(name);
-    const match = html.match(/ИИ-помощники<\/dt><dd[^>]*><span data-testid="v3-case-ai-consent-fact">([^<]*)<span class="block t-meta text-fg-2">([^<]*)<\/span>/u);
-    return match ? { words: match[1], hint: match[2] } : null;
+    const match = html.match(/ИИ-помощники<\/dt><dd[^>]*><span data-testid="v3-case-ai-consent-fact" class="inline-flex items-center gap-1\.5">([^<]*)<button type="button" aria-label="Пояснение: ИИ-помощники"/u);
+    return match ? { words: match[1] } : null;
   };
   assert.equal(fact("ai-consent-granted").words, "Студент разрешил");
   assert.equal(fact("ai-consent-declined").words, "Студент не разрешил");
   assert.equal(fact("ai-consent-none").words, "Студент ещё не решил");
   assert.equal(fact("ai-consent-none-no-portal").words, "У студента нет кабинета");
-  assert.match(fact("ai-consent-none").hint, /пока он не разрешит/u);
-  assert.match(fact("ai-consent-none-no-portal").hint, /нет кабинета/u);
+  // Пояснение то же, что было строкой: теперь текст «?» (`aiConsentLine().hint`).
+  assert.match(read("src/components/staff/profile/CaseOverview.tsx"), /<HelpTip label="Пояснение: ИИ-помощники">\{line\.hint\}<\/HelpTip>/u);
+  assert.doesNotMatch(texts(surfaces.get("ai-consent-granted")), /Студент разрешил ИИ-помощников: помощники могут читать/u);
   for (const name of ["ai-consent-granted", "ai-consent-declined", "ai-consent-none", "ai-consent-none-no-portal"]) {
     assert.doesNotMatch(texts(surfaces.get(name)), /не спрашивали/u, `${name}: the empty chip wording is gone`);
   }

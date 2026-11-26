@@ -478,8 +478,54 @@ test("«Воронка продаж»: пустой поиск по видимо
   assert.match(board, /const handedFound = noResults && filteredStage !== "handed_off" && leads\.some/u);
   assert.match(board, /const resetHref = href\(\{ q: null, due: null, assignment: null, owner: null, lead: null \}\);/u);
   assert.match(board, /\{readFiltered \? pipelineWords\.leadFiltered : pipelineWords\.leadMissing\}/u);
-  // Нынешняя передача — запись в «Отчёте продаж» (215), этап она не проверяет: значка «условий» у «Квалифицирован» нет.
+  // Нынешняя передача — запись в «Отчёте продаж» (миграции 174 и 181), этап она не проверяет: значка «условий» у «Квалифицирован» нет.
   const column = read("src/components/staff/pipeline-next/PipelineColumn.tsx");
   assert.doesNotMatch(column, /marker=\{stage\.gate/u);
   assert.doesNotMatch(column, /title="Есть условия"/u);
+});
+
+test("«Воронка продаж»: поиск на вкладке этапа не говорит «лидов нет», когда лид на другом этапе; «передан» не названо причиной пропавшего лида (настоящая страница)", async () => {
+  const wording = await import("../src/lib/v3/wording.ts");
+  assert.equal(wording.pipelineWords.noResultsInStage("QA", false), "На этом этапе по запросу «QA» лидов нет");
+  assert.equal(wording.pipelineWords.noResultsInStage("QA", true), "На этом этапе по запросу «QA» с выбранными фильтрами лидов нет");
+  assert.equal(wording.pipelineWords.showAllStages, "Показать все этапы");
+  // Блок пустого поиска настоящей страницы: его слова и ссылки (`&amp;` в адресах разобран).
+  const block = (name) => {
+    const html = nextBoards.get(name);
+    assert.ok(html, name);
+    const at = html.indexOf('data-testid="v3-pipeline-no-results"');
+    assert.ok(at > 0, `${name}: показано пустое состояние поиска`);
+    assert.doesNotMatch(html, /data-testid="v3-pipeline-board"/u, `${name}: вместо колонок`);
+    const part = html.slice(html.lastIndexOf("<div", at), html.indexOf("</div>", at) + 6);
+    return { text: text(part), links: [...part.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gu)].map((match) => [text(match[2]), match[1].replace(/&amp;/gu, "&")]) };
+  };
+  const q = (word) => `q=${encodeURIComponent(word)}`;
+  // Ревью 26.11.2026: `?stage=meeting_scheduled&q=Айжан` — «Айжан» есть на «Новых», а доска говорила «лидов нет». Ссылка сохраняет запрос и снимает этап.
+  const other = block("next-sales-stage-search-other");
+  assert.ok(other.text.startsWith("На этом этапе по запросу «Айжан» лидов нет "), other.text);
+  assert.deepEqual(other.links, [["Показать все этапы", `/pipeline?${q("Айжан")}`], ["Сбросить поиск", "/pipeline?stage=meeting_scheduled"]]);
+  // Срок, назначение и ответственный сохраняются в ссылке и названы в сообщении.
+  const filtered = block("next-sales-stage-search-filtered");
+  assert.ok(filtered.text.startsWith("На этом этапе по запросу «Айжан» с выбранными фильтрами лидов нет "), filtered.text);
+  assert.deepEqual(filtered.links, [["Показать все этапы", `/pipeline?${q("Айжан")}&due=overdue`], ["Сбросить поиск и фильтры", "/pipeline?stage=meeting_scheduled"]]);
+  // Нигде никого нет: прежние слова и никакого «Показать все этапы».
+  const nobody = block("next-sales-stage-search-nobody");
+  assert.equal(nobody.text, "По запросу «Яблоко» лидов нет Сбросить поиск");
+  assert.deepEqual(nobody.links, [["Сбросить поиск", "/pipeline?stage=meeting_scheduled"]]);
+  // Совпал только переданный лид: «Все этапы» его не показывает, поэтому предлагается вкладка «Переданы», а не «Показать все этапы».
+  const handedTab = block("next-sales-stage-search-handed");
+  assert.ok(handedTab.text.startsWith("На этом этапе по запросу «Алина» лидов нет "), handedTab.text);
+  assert.deepEqual(handedTab.links, [["Найдены среди переданных", `/pipeline?stage=handed_off&${q("Алина")}`], ["Сбросить поиск", "/pipeline?stage=meeting_scheduled"]]);
+  // «Все этапы»: прежние слова (вкладки этапа нет) и вход в «Переданы».
+  const handedAll = block("next-sales-search-handed");
+  assert.ok(handedAll.text.startsWith("По запросу «Алина» лидов нет "), handedAll.text);
+  assert.deepEqual(handedAll.links.map(([label]) => label), ["Найдены среди переданных", "Сбросить поиск"]);
+  // `?lead=` на лида, которого в чтении нет: причины — закрыт или ссылка устарела; переданный лид на доске есть, его «передан» не называет.
+  assert.doesNotMatch(wording.pipelineWords.leadMissing, /передан/u);
+  const missing = nextBoards.get("next-sales-lead-missing");
+  const missingAt = missing.indexOf('data-testid="v3-pipeline-lead-missing"');
+  assert.ok(missingAt > 0, "строка о пропавшем лиде");
+  const missingBlock = missing.slice(missing.lastIndexOf("<p", missingAt), missing.indexOf("</p>", missingAt) + 4);
+  assert.equal(text(missingBlock), "Лид не найден на доске — возможно, закрыт или ссылка устарела. Закрытые");
+  assert.match(missingBlock, /href="\/pipeline\?view=closed"/u);
 });

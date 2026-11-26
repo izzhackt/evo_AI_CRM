@@ -72,6 +72,10 @@ export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, owner
   const query = search?.get("q")?.trim() ?? "";
   const filtered = ["due", "assignment", "owner"].some((key) => { const value = search?.get(key)?.trim(); return Boolean(value) && value !== "all"; });
   const noResults = query !== "" && columns.every((column) => column.inStage.length === 0);
+  // Этап — вид, а не фильтр чтения (доска читает все этапы): если на выбранной вкладке пусто, а лиды по запросу есть, они на других этапах.
+  // «Все этапы» ведёт к рабочим этапам, а переданных там нет — для них своя ссылка.
+  const stageEmpty = noResults && filteredStage !== "all" && leads.length > 0;
+  const workingElsewhere = stageEmpty && leads.some((lead) => lead.stageKey !== "handed_off");
   const handedFound = noResults && filteredStage !== "handed_off" && leads.some((lead) => lead.stageKey === "handed_off");
   const resetHref = href({ q: null, due: null, assignment: null, owner: null, lead: null });
   // `?lead=` указывает на лида, которого на доске нет. С поиском или фильтрами он мог просто не подойти под них.
@@ -121,7 +125,8 @@ export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, owner
       ) : null}
       {noResults ? (
         <div className="grid justify-items-start gap-2 py-6" data-testid="v3-pipeline-no-results">
-          <p role="status" className="t-body text-fg">{pipelineWords.noResults(query, filtered)}</p>
+          <p role="status" className="t-body text-fg">{stageEmpty ? pipelineWords.noResultsInStage(query, filtered) : pipelineWords.noResults(query, filtered)}</p>
+          {workingElsewhere ? <Link href={href({ stage: null, lead: null })} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{pipelineWords.showAllStages}</Link> : null}
           {handedFound ? <Link href={href({ stage: "handed_off", lead: null })} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{pipelineWords.foundHanded}</Link> : null}
           <Link href={filtered ? resetHref : href({ q: null, lead: null })} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{pipelineWords.resetSearch(filtered)}</Link>
         </div>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import { HelpTip } from "@/components/kit/HelpTip";
 import { btnCls } from "@/components/ui";
 import type { TelephonyServerFacts } from "@/lib/v3/telephony-health";
 import {
@@ -14,7 +15,6 @@ import {
   TELEPHONY_FLAG_KEYS,
   TELEPHONY_NUMBER_LABEL,
   normalizeTelephonySaveReceipt,
-  parseTelephonyPrefixes,
   telephonyDraftFrom,
   telephonyDraftIssues,
   telephonyErrorMessage,
@@ -41,22 +41,21 @@ const fieldCls = "h-11 min-w-0 rounded-ctl border border-control-edge bg-surface
 const NUMBER_GRID = "mt-3 grid grid-cols-2 items-start gap-x-4 gap-y-3 @2xl:grid-cols-4";
 const SAVE_IDLE = "aria-disabled:cursor-not-allowed aria-disabled:border-border aria-disabled:bg-surface-2 aria-disabled:text-fg-3 aria-disabled:shadow-none aria-disabled:hover:border-border aria-disabled:hover:bg-surface-2 aria-disabled:active:scale-100";
 
-function Row({ title, hint, children, testId }: Readonly<{ title: string; hint?: ReactNode; children: ReactNode; testId?: string }>) {
+function Row({ title, hint, children, testId, disabled }: Readonly<{ title: string; hint?: ReactNode; children: ReactNode; testId?: string; disabled: boolean }>) {
   const id = useId();
   return (
-    <fieldset
-      className="grid gap-x-8 gap-y-3 border-t border-border py-5 first:border-t-0 first:pt-0 @4xl:grid-cols-[13rem_minmax(0,1fr)]"
-      aria-describedby={hint ? `${id}-hint` : undefined}
-      data-testid={testId}
-    >
-      <legend className="contents">
-        <span className="block">
-          <span className="block t-item text-fg">{title}</span>
-          {hint ? <span id={`${id}-hint`} className="mt-1 block t-meta text-fg-3">{hint}</span> : null}
-        </span>
-      </legend>
-      <div className="min-w-0">{children}</div>
-    </fieldset>
+    <div className="grid gap-x-8 gap-y-3 border-t border-border py-5 first:border-t-0 first:pt-0 @4xl:grid-cols-[13rem_minmax(0,1fr)]" data-testid={testId}>
+      {/* 26.11.2026: пояснение раздела — за «?», а не серой строкой под каждым заголовком; читалка слышит его из описания группы.
+          27.11.2026: заголовок и «?» стоят рядом с группой полей, а не внутри её рамки: `disabled` на рамке (просмотр роли, идёт
+          сохранение) отключает всё внутри неё, и «?» не нажимался бы — пояснение в просмотре роли нельзя было бы открыть. */}
+      <span className="flex items-center gap-1.5">
+        <span id={`${id}-title`} className="t-item text-fg">{title}</span>
+        {hint ? <><span id={`${id}-hint`} className="sr-only">{hint}</span><HelpTip label={`Пояснение: ${title}`}>{hint}</HelpTip></> : null}
+      </span>
+      <fieldset disabled={disabled} aria-labelledby={`${id}-title`} aria-describedby={hint ? `${id}-hint` : undefined} className="min-w-0">
+        {children}
+      </fieldset>
+    </div>
   );
 }
 
@@ -103,13 +102,22 @@ export function TelephonySettingsForm({
   const statusRef = useRef<HTMLParagraphElement>(null);
   const issues = useMemo(() => telephonyDraftIssues(draft), [draft]);
   const shown = tried ? issues : [];
+  const moreOpen = shown.some((issue) => !(TELEPHONY_FLAG_KEYS as readonly string[]).includes(issue.field)) || Boolean(overview.escalation && !overview.escalation.allowed);
+  // 27.11.2026: свёрнутый раздел не пересоздаётся (прежний `key` создавал элемент заново свёрнутым, когда уходила последняя ошибка, и
+  // фокус из поля падал на страницу). Предупреждение, известное при загрузке, раскрывает раздел сразу (`open` в первой отдаче);
+  // новая ошибка — эффект ниже; ушла ошибка — раздел остаётся как есть, закрыть его может только человек.
+  const moreRef = useRef<HTMLDetailsElement>(null);
+  const [moreOpenAtLoad] = useState(moreOpen);
+  useEffect(() => {
+    if (moreOpen && moreRef.current) moreRef.current.open = true;
+  }, [moreOpen]);
+  const locked = readOnly || pending;
   const patch = useMemo(() => (issues.length === 0 ? telephonyPatchFrom(settings, draft) : null), [issues, settings, draft]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const opening = useMemo(() => telephonyOpeningFlags(settings, draft), [settings, draft]);
   // Отметка «понимаю» относится к тому набору, что открывается сейчас: изменился набор — отметка снимается.
   const openingKey = opening.join(",");
   const understood = opening.length > 0 && confirmedKey === openingKey;
-  const prefixes = parseTelephonyPrefixes(draft.prefixes);
   const managers = staff.filter((option) => option.canManage || option.membershipId === settings.escalationMembershipId);
 
   const update = (next: Partial<TelephonyDraft>) => { setDraft((current) => ({ ...current, ...next })); setResult(null); };
@@ -196,14 +204,18 @@ export function TelephonySettingsForm({
       noValidate
       aria-busy={pending}
       onSubmit={(event) => { event.preventDefault(); void save(); }}
-      className="rounded-card border border-border bg-surface px-4 py-5 sm:px-6"
+      className="min-w-0"
       data-testid="v3-telephony-settings"
       data-dirty={dirty || undefined}
     >
-      <fieldset disabled={readOnly || pending} className="@container min-w-0">
-        <Row title="Включатели" hint="Пока включатель не включён здесь, сотрудникам ничего не показывается" testId="v3-telephony-flags">
+      <div className="@container min-w-0">
+        {/* 26.11.2026 («ещё минималистичнее»): одно «?» на все включатели — что каждый делает, — а не «?» у каждого. */}
+        <Row title="Включатели" testId="v3-telephony-flags" disabled={locked} hint={<>
+          Пока включатель не включён здесь, сотрудникам ничего не показывается.
+          {TELEPHONY_FLAG_KEYS.map((key) => <span key={key} className="mt-1.5 block"><b className="font-semibold">{TELEPHONY_FLAG_COPY[key].title}.</b> {TELEPHONY_FLAG_COPY[key].hint}</span>)}
+        </>}>
           {/* Светлая подложка формы: ручка включённого переключателя — цвета листа, иначе она сливается с тёмной дорожкой. */}
-          <ul className="space-y-3" style={{ "--switch-thumb-on": "var(--surface)" } as CSSProperties}>
+          <ul className="grid gap-x-6 @2xl:grid-cols-2" style={{ "--switch-thumb-on": "var(--surface)" } as CSSProperties}>
             {TELEPHONY_FLAG_KEYS.map((key) => {
               const copy = TELEPHONY_FLAG_COPY[key];
               const note = flagServerNote(key, server);
@@ -213,20 +225,23 @@ export function TelephonySettingsForm({
                 <li key={key} data-flag={key} data-on={on || undefined}>
                   {/* Настоящий переключатель (тот же `v3-switch`, что у автоответчика): дорожка и слово «Включено»/«Выключено»,
                       а не квадратик флажка. Нажатие на слова тоже переключает. */}
-                  <label htmlFor={id} className="flex min-h-11 cursor-pointer items-start gap-3">
+                  {/* 26.11.2026: пояснение включателя — в общем «?» раздела, читалка слышит его из описания переключателя; замечание
+                      сервера (`note`) — предупреждение, оно остаётся на виду. Слова тоже переключают. */}
+                  <div className="flex min-h-11 items-start gap-3">
                     <button id={id} type="button" role="switch" aria-checked={on} onClick={() => setFlag(key, !on)}
                       aria-labelledby={`${id}-title`} aria-describedby={`${id}-hint`} className="v3-switch -mt-1.5">
                       <span className="v3-switch-track" aria-hidden="true" />
                     </button>
                     <span className="min-w-0">
-                      <span className="flex flex-wrap items-baseline gap-x-2">
-                        <span id={`${id}-title`} className="t-body text-fg">{copy.title}</span>
-                        <span className={`t-meta font-medium ${on ? "text-fg" : "text-fg-3"}`} data-testid="v3-telephony-flag-state">{on ? "Включено" : "Выключено"}</span>
+                      <span className="flex flex-wrap items-center gap-x-2">
+                        <label htmlFor={id} id={`${id}-title`} className="cursor-pointer t-body text-fg">{copy.title}</label>
+                        {/* Положение видно по самому переключателю (и читалка слышит его из role="switch"): слово рядом было лишним шумом. */}
+                        <span className="sr-only" data-testid="v3-telephony-flag-state">{on ? "Включено" : "Выключено"}</span>
                       </span>
-                      <span id={`${id}-hint`} className="block t-meta text-fg-3">{copy.hint}</span>
+                      <span id={`${id}-hint`} className="sr-only">{copy.hint}</span>
                       {note ? <span className="mt-0.5 block t-meta text-fg-2">{note}</span> : null}
                     </span>
-                  </label>
+                  </div>
                   <FieldIssues messages={issuesFor(shown, key)} />
                 </li>
               );
@@ -234,7 +249,14 @@ export function TelephonySettingsForm({
           </ul>
         </Row>
 
-        <Row title="Рабочее время и перезвон" hint="По Бишкеку; от этого считается срок задачи «Перезвонить»" testId="v3-telephony-hours">
+        {/* 26.11.2026 («минималистичнее»): рабочее время, набор, потолки и эскалации меняют редко — они свёрнуты под одной строкой.
+            Раскрываются сами, если в них ошибка проверки или у получателя эскалаций пропало право (предупреждения не прячем). */}
+        <details ref={moreRef} open={moreOpenAtLoad || undefined} className="group border-t border-border" data-testid="v3-telephony-more">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 py-2 hover:text-fg [&::-webkit-details-marker]:hidden">
+            <span className="t-item text-fg">Время, набор и пределы</span>
+            <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+          </summary>
+        <Row title="Рабочее время и перезвон" hint="По Бишкеку; от этого считается срок задачи «Перезвонить»" testId="v3-telephony-hours" disabled={locked}>
           <div role="group" aria-label="Рабочие дни" className="flex flex-wrap gap-1.5">
             {[1, 2, 3, 4, 5, 6, 7].map((day) => (
               <label key={day} className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 has-[:checked]:border-fg has-[:checked]:bg-accent-weak has-[:checked]:text-fg has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus-ring">
@@ -262,14 +284,11 @@ export function TelephonySettingsForm({
           <FieldIssues messages={issuesFor(shown, "workFrom", "workTo")} />
         </Row>
 
-        <Row title="Набор из CRM" hint="Страны и лимиты набора из CRM; направления ограничивает и сама ВАТС" testId="v3-telephony-dial">
+        <Row title="Набор из CRM" hint="Страны и лимиты набора из CRM; направления ограничивает и сама ВАТС" testId="v3-telephony-dial" disabled={locked}>
           <label htmlFor="tel-prefixes" className="t-label text-fg-2">Разрешённые коды стран</label>
           <input id="tel-prefixes" type="text" value={draft.prefixes} autoComplete="off" spellCheck={false} placeholder="+996, +7"
             aria-invalid={issuesFor(shown, "dialPrefixes").length > 0 || undefined}
             className={`${fieldCls} mt-1 block w-full max-w-md`} onChange={(event) => update({ prefixes: event.target.value })} />
-          <span className="mt-0.5 block t-meta text-fg-3">
-            Через запятую или пробел. Сейчас: {prefixes.invalid.length === 0 && prefixes.list.length > 0 ? prefixes.list.join(" ") : "—"}.
-          </span>
           <FieldIssues messages={issuesFor(shown, "dialPrefixes")} />
           <div className={NUMBER_GRID}>
             {numberField("limitUserDay", undefined, true)}
@@ -279,7 +298,7 @@ export function TelephonySettingsForm({
           </div>
         </Row>
 
-        <Row title="Потолки автоматики" hint="Защита от лавины лидов и задач: при превышении автоматика выключается сама" testId="v3-telephony-ceilings">
+        <Row title="Потолки автоматики" hint="Защита от лавины лидов и задач: при превышении автоматика выключается сама" testId="v3-telephony-ceilings" disabled={locked}>
           <div className={NUMBER_GRID}>
             {numberField("ceilingLeadsHour")}
             {numberField("ceilingLeadsDay")}
@@ -288,7 +307,7 @@ export function TelephonySettingsForm({
           </div>
         </Row>
 
-        <Row title="Эскалации" hint="Получатель обращений без владельца: администратор или руководитель телефонии" testId="v3-telephony-escalation">
+        <Row title="Эскалации" hint="Получатель обращений без владельца: администратор или руководитель телефонии" testId="v3-telephony-escalation" disabled={locked}>
           <label htmlFor="tel-escalation" className="sr-only">Получатель эскалаций</label>
           <select id="tel-escalation" value={draft.escalationMembershipId} className={`${fieldCls} w-full max-w-sm`}
             onChange={(event) => update({ escalationMembershipId: event.target.value })}>
@@ -306,7 +325,8 @@ export function TelephonySettingsForm({
             </p>
           ) : null}
         </Row>
-      </fieldset>
+        </details>
+      </div>
 
       {readOnly ? (
         <p className="mt-2 flex items-start gap-1.5 border-t border-border pt-4 t-body-compact text-fg-2">

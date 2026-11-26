@@ -267,11 +267,11 @@ test("«Ещё N»: ссылка строки на место страницы �
   assert.match(read("src/components/staff/queue/QueueViewTabs.tsx"), /<QueueTabStrip id=\{id\} label=\{label\} focusable=\{focusable\}>/u);
 });
 
-test("шапка дела на телефоне: строка «Документы · Оплата» скрыта только там, где её повторяет вкладка", () => {
+test("шапка дела на телефоне: строка «Документы · Оплата» скрыта только на «Обзоре», где те же числа есть в «Сведениях»", () => {
   const card = readFileSync(new URL("../src/components/staff/profile/next/SummaryCard.tsx", import.meta.url), "utf8");
   assert.match(card, /summaryFromSm \? "border-t border-border py-3 max-sm:hidden" : "border-t border-border py-3"/u);
   const caseNext = readFileSync(new URL("../src/components/staff/profile/next/CaseNext.tsx", import.meta.url), "utf8");
-  assert.match(caseNext, /export const CASE_SUMMARY_REPEATED_ON = \["overview", "documents", "money"\] as const;/u);
+  assert.match(caseNext, /export const CASE_SUMMARY_REPEATED_ON = \["overview"\] as const;/u);
   assert.match(caseNext, /summaryFromSm=\{tab !== null && \(CASE_SUMMARY_REPEATED_ON as readonly string\[\]\)\.includes\(tab\)\}/u);
   const page = readFileSync(new URL("../src/app/(staff)/profile/page.tsx", import.meta.url), "utf8");
   assert.match(page, /caseNextParts\(caseParts\.next, caseParts\.actions, tab\)/u);

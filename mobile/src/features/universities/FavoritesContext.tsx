@@ -1,7 +1,7 @@
 // Избранное для карточек экрана: известно ли состояние (сердечко прячется, если чтение
 // избранного не удалось - каталог от этого не падает, веб PORT-3b) и переключатель.
 import { Alert } from "react-native";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useLang } from "@/i18n/LangProvider";
 
@@ -19,8 +19,10 @@ export function useFavoriteState() {
     clearFailed();
   }, [failedId, clearFailed, strings.favoriteError]);
   const set = ids.data === undefined ? null : new Set(ids.data);
+  // Одна и та же функция между отрисовками: карточки каталога (`UniversityTileView`) сравнивают её и не перерисовываются зря.
+  const toggleFavorite = useCallback((id: string, next: boolean) => void toggle(id, next), [toggle]);
   return {
     isFavored: (id: string): boolean | null => (set === null ? null : set.has(id)),
-    toggle: (id: string, next: boolean) => void toggle(id, next),
+    toggle: toggleFavorite,
   };
 }

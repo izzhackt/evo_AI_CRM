@@ -3,37 +3,31 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react-nativ
 import { router, useLocalSearchParams } from "expo-router";
 
 import { HomeScreen } from "@/features/home/HomeScreen";
-import { NOTIFICATION_ROW, OVERVIEW_ROW, OVERVIEW_ROW_EMPTY, PAYMENT_ROW } from "@/test-fixtures/rpc-rows";
+import { preparationHref } from "@/features/preparations/routes";
+import { OVERVIEW_ROW_EMPTY } from "@/test-fixtures/rpc-rows";
+import { APPLICATION_ROW, favorites, homeHandlers, restoreNow, saved, setNow } from "@/test-fixtures/home";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport, preparationRow, universityRow, uuidN } from "@/test-fixtures/universities";
 
 jest.mock("@/config", () => ({ getConfig: () => ({ supabaseUrl: "http://localhost:46421", supabasePublishableKey: "k", portalBaseUrl: "http://localhost:46430" }) }));
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
+jest.mock("expo-file-system", () => jest.requireActual("@/test-fixtures/memory-file-system").memoryFileSystem());
 
 const navigate = router.navigate as jest.Mock;
 const params = useLocalSearchParams as jest.Mock;
-const saved = (country: string) => ({ country, source: "saved", savedAt: "2026-11-01T08:00:00+00:00" });
-const favorites = (n: number) => Array.from({ length: n }, (_, i) => ({ institutionId: uuidN(i + 1), createdAt: "2026-10-01T00:00:00+00:00" }));
-const byIds = (args?: Record<string, unknown>) => ({ items: ((args?.p_institution_ids as string[]) ?? []).map((id) => universityRow(Number(id.slice(-12)))), nextOffset: null });
 
 function handlers(country = "MY", extra: Record<string, unknown> = {}) {
-  return {
-    student_portal_overview_v2: [OVERVIEW_ROW],
-    student_portal_finance_v2: [PAYMENT_ROW],
-    student_portal_notifications_v2: [NOTIFICATION_ROW],
-    student_country_choice_v1: saved(country),
-    student_university_favorites_v1: favorites(2),
-    student_university_catalog_by_ids_v1: byIds,
-    student_catalog_preparations_v1: [preparationRow(1)],
-    ...extra,
-  };
+  return homeHandlers(country, { student_catalog_preparations_v1: [preparationRow(1)], ...extra });
 }
 
 beforeEach(async () => {
+  jest.requireMock("expo-file-system").__files.clear(); // копия индекса каталога с диска не переходит между тестами
   await AsyncStorage.clear();
   navigate.mockClear();
   params.mockReturnValue({});
+  setNow("2026-09-08T05:00:00Z");
 });
+afterEach(restoreNow);
 
 describe("Главная: задача EVO и анкета (бывшая сводка «Поступления»)", () => {
   it("нет отдельного заголовка «Моё поступление» и плиток: числа стоят во вкладках «Мой список»; задача EVO есть", async () => {
@@ -48,19 +42,36 @@ describe("Главная: задача EVO и анкета (бывшая сво�
     expect(screen.getByText("Срок: 13.09.2026")).toBeTruthy();
   });
 
-  it("approved: ровно одна карточка «Ваша анкета», без задачи EVO и без чтений дела", async () => {
-    const { transport, calls } = fakeTransport(handlers());
+  it("approved: ровно одна карточка «Ваша анкета» с отметками и датами, без задачи EVO и без чтений дела", async () => {
+    const { transport, calls } = fakeTransport(handlers("MY", { own_student_application_v1: APPLICATION_ROW }));
     await renderPortal(<HomeScreen />, testApi(transport, { tier: "approved" }));
     expect(screen.getAllByText("Ваша анкета")).toHaveLength(1);
-    expect(screen.getByText("Менеджер свяжется с вами.")).toBeTruthy();
+    // отметки из своей анкеты: отправлена и одобрена с датами, затем текущий шаг без срока
+    expect(await screen.findByText("Анкета одобрена")).toBeTruthy();
+    expect(within(screen.getByTestId("application-steps")).getByText("10 нояб.")).toBeTruthy();
+    expect(within(screen.getByTestId("application-steps")).getByText("18 нояб.")).toBeTruthy();
+    expect(screen.getByText("Анкета отправлена")).toBeTruthy();
+    expect(screen.getByText("Менеджер свяжется с вами")).toBeTruthy();
+    expect(screen.getAllByTestId(/^application-step-/).map((node) => node.props.testID)).toEqual(["application-step-done", "application-step-done", "application-step-current"]);
     await screen.findByTestId("journey-fold");
     expect(screen.queryByTestId("evo-title")).toBeNull();
     expect(screen.queryByTestId("chat-fab")).toBeNull();
-    expect(calls.map((c) => c.name)).not.toContain("student_portal_overview_v2");
-    // без дела прогресса нет: строки «Сейчас:» нет, весь путь виден сразу
+    const names = calls.map((c) => c.name);
+    expect(names).not.toContain("student_portal_overview_v2");
+    expect(names).toContain("own_student_application_v1");
+    // без дела прогресса нет: строки текущего шага нет, путь свёрнут до шапки, «Все шаги» стоят рядом со «Сменить страну»
     expect(screen.queryByTestId("journey-now")).toBeNull();
-    expect(screen.getByTestId("journey-body")).toBeTruthy();
-    expect(screen.queryByTestId("meter-current", { hidden: true })).toBeNull();
+    expect(screen.queryByTestId("journey-body")).toBeNull();
+    expect(screen.queryByTestId("meter-current", { includeHiddenElements: true })).toBeNull();
+  });
+
+  it("approved: анкета не прочиталась - только текущий шаг; assisted анкету не читает", async () => {
+    const approved = fakeTransport(handlers("MY", { own_student_application_v1: failure(null, 503) }));
+    await renderPortal(<HomeScreen />, testApi(approved.transport, { tier: "approved" }));
+    expect(await screen.findByText("Менеджер свяжется с вами")).toBeTruthy();
+    await waitFor(() => expect(approved.calls.map((c) => c.name)).toContain("own_student_application_v1"));
+    expect(screen.queryByText("Анкета отправлена")).toBeNull();
+    expect(screen.getAllByTestId(/^application-step-/)).toHaveLength(1);
   });
 
   it("сбой обзора: плашка с повтором в «Что сделать сейчас», остальное на месте", async () => {
@@ -74,19 +85,33 @@ describe("Главная: задача EVO и анкета (бывшая сво�
 });
 
 describe("Главная: весь «Путь поступления»", () => {
-  it("assisted: «Сейчас:» с текущим шагом, полоса с маркером, путь свёрнут", async () => {
+  it("assisted: строка текущего шага с кругом, полоса шагов, «Все шаги» в её конце; путь свёрнут до шапки", async () => {
     const { transport } = fakeTransport(handlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
-    expect(await screen.findByText("Путь поступления: Малайзия")).toBeTruthy();
     const now = await screen.findByTestId("journey-now");
     expect(now.props.accessibilityLabel).toContain("Договор и документы");
     expect(now.props.accessibilityLabel).toContain("Шаг 2 из 7");
-    // полоса есть и на карточке пути, и в полном пути (как на вебе): по одному набору на каждую
-    expect(screen.getAllByTestId("meter-done", { hidden: true })).toHaveLength(2);
-    expect(screen.getAllByTestId("meter-current", { hidden: true })).toHaveLength(2);
-    expect(screen.getAllByTestId("meter-upcoming", { hidden: true })).toHaveLength(10);
-    expect(screen.queryByTestId("journey-body")).toBeNull(); // свёрнут, пока есть текущий шаг
+    expect(within(now).getByText("2", { includeHiddenElements: true })).toBeTruthy(); // круг с номером шага
+    // одна полоса на всю страницу (карточки «Путь: страна» с полосой больше нет)
+    expect(screen.getAllByTestId("meter-done", { includeHiddenElements: true })).toHaveLength(1);
+    expect(screen.getAllByTestId("meter-current", { includeHiddenElements: true })).toHaveLength(1);
+    expect(screen.getAllByTestId("meter-upcoming", { includeHiddenElements: true })).toHaveLength(5);
+    expect(screen.queryByTestId("journey-body")).toBeNull(); // свёрнут
     expect(screen.getByText("Все шаги")).toBeTruthy();
+    // строка стоит под шапкой с «Сменить страну»
+    expect(screen.getByTestId("journey-now-row")).toBeTruthy();
+    expect(screen.getByTestId("change-country")).toBeTruthy();
+  });
+
+  it("дело завершено: «Поступление завершено» без полосы, «Все шаги» в той же строке", async () => {
+    const { transport } = fakeTransport(handlers("MY", { student_portal_overview_v2: [{ ...OVERVIEW_ROW_EMPTY, operational_stage: "completed" }], student_portal_finance_v2: [] }));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const done = await screen.findByTestId("journey-complete");
+    expect(within(done).getByText("Поступление завершено")).toBeTruthy();
+    expect(screen.queryByTestId("journey-now")).toBeNull();
+    expect(screen.queryByTestId("meter-done", { includeHiddenElements: true })).toBeNull(); // у завершённого дела отметок по шагам нет
+    expect(screen.getAllByTestId("journey-fold")).toHaveLength(1);
+    expect(within(screen.getByTestId("journey-now-row")).getByTestId("journey-fold")).toBeTruthy();
   });
 
   it("«Все шаги» раскрывает путь; пройденные в одной строке; шаг раскрывается в пункты", async () => {
@@ -163,18 +188,25 @@ describe("Главная: весь «Путь поступления»", () => {
     expect(navigate).toHaveBeenCalledWith("/csca");
   });
 
-  it("без дела на сопровождении (план не опубликован) путь без прогресса", async () => {
+  it("без дела на сопровождении (план не опубликован) путь без прогресса, свёрнут до шапки", async () => {
     const { transport } = fakeTransport(handlers("MY", { student_portal_overview_v2: [], student_portal_finance_v2: [] }));
     await renderPortal(<HomeScreen />, testApi(transport));
     await screen.findByTestId("journey-fold");
     await waitFor(() => expect(screen.queryByTestId("journey-now")).toBeNull());
-    expect(screen.getByTestId("journey-body")).toBeTruthy();
+    // веб (18.11.2026): путь на «Главной» сначала свёрнут у всех, кнопка «Все шаги» стоит в шапке
+    expect(screen.queryByTestId("journey-body")).toBeNull();
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    expect(await screen.findByTestId("journey-body")).toBeTruthy();
+    expect(screen.getByText("Свернуть")).toBeTruthy();
   });
 
-  it("«Пока не решил»: общий путь без названия страны", async () => {
+  it("«Пока не решил»: общий путь без названия страны в шапке", async () => {
     const { transport } = fakeTransport(handlers("UNDECIDED"));
     await renderPortal(<HomeScreen />, testApi(transport));
-    expect((await screen.findAllByText("Путь поступления")).length).toBeGreaterThan(0);
+    expect(await screen.findByTestId("journey-now")).toBeTruthy();
+    expect(screen.queryByTestId("hero-sub")).toBeNull();
+    // нет страны - нет и фото столицы
+    expect(screen.queryByTestId("hero-photo")).toBeNull();
   });
 
   it("смена страны: выбор открывается, пишет запрос и обновляет путь", async () => {
@@ -190,9 +222,25 @@ describe("Главная: весь «Путь поступления»", () => {
     const my = await screen.findByTestId("country-MY");
     expect(my.props.accessibilityState).toMatchObject({ selected: true });
     await fireEvent.press(screen.getByTestId("country-AE"));
-    await screen.findByText("Путь поступления: ОАЭ");
+    expect(await screen.findByTestId("hero-sub")).toHaveTextContent(/^ОАЭ · /);
     expect(screen.queryByTestId("country-AE")).toBeNull(); // выбор закрылся
     expect(calls.find((c) => c.name === "set_student_country_choice_v1")?.args).toMatchObject({ p_country: "AE" });
+  });
+
+  it("«Отмена» закрывает выбор страны, ничего не записывая; у первого выбора страны кнопки «Отмена» нет", async () => {
+    const { transport, calls } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("change-country"));
+    await fireEvent.press(await screen.findByTestId("country-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("country-MY")).toBeNull());
+    expect(calls.map((c) => c.name)).not.toContain("set_student_country_choice_v1");
+  });
+
+  it("первый выбор страны без кнопки «Отмена»", async () => {
+    const { transport } = fakeTransport(handlers("MY", { student_country_choice_v1: { country: null, source: "none", savedAt: null } }));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("country-MY");
+    expect(screen.queryByTestId("country-cancel")).toBeNull();
   });
 
   it("повторный выбор уже сохранённой страны ничего не пишет", async () => {
@@ -204,7 +252,7 @@ describe("Главная: весь «Путь поступления»", () => {
     expect(calls.map((c) => c.name)).not.toContain("set_student_country_choice_v1");
   });
 
-  it("страна из анкеты: подпись источника; выбор той же страны всё же сохраняется", async () => {
+  it("страна из анкеты: подпись источника стоит в подсказке выбора, не в шапке; выбор той же страны всё же сохраняется", async () => {
     const { transport, calls } = fakeTransport(
       handlers("MY", {
         student_country_choice_v1: { country: "MY", source: "application", savedAt: null },
@@ -212,8 +260,10 @@ describe("Главная: весь «Путь поступления»", () => {
       }),
     );
     await renderPortal(<HomeScreen />, testApi(transport));
-    expect(await screen.findByText("Страна из вашей анкеты.")).toBeTruthy();
+    await screen.findByTestId("hero-sub");
+    expect(screen.queryByText(/Страна из вашей анкеты/)).toBeNull(); // на шапке подписи нет (веб, 19.11.2026)
     await fireEvent.press(screen.getByTestId("change-country"));
+    expect(await screen.findByText("Страна из вашей анкеты. Путь обновится сразу после выбора.")).toBeTruthy();
     await fireEvent.press(await screen.findByTestId("country-MY"));
     await waitFor(() => expect(calls.map((c) => c.name)).toContain("set_student_country_choice_v1"));
   });
@@ -238,13 +288,61 @@ describe("Главная: «Мой список»", () => {
     const { transport } = fakeTransport(handlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByTestId(`fav-${uuidN(1)}`)).toBeTruthy();
-    expect(screen.getByTestId("tab-universities").props.accessibilityState).toMatchObject({ checked: true });
+    // вкладки раздела (веб: `nav` с подписью «Вузы и программы» и текущей вкладкой), а не переключатель вида
+    expect(screen.getByTestId("tab-group").props).toMatchObject({ accessibilityRole: "tablist", accessibilityLabel: "Вузы и программы" });
+    expect(screen.getByTestId("tab-universities").props).toMatchObject({ accessibilityRole: "tab", accessibilityState: { selected: true } });
     await fireEvent.press(screen.getByTestId("tab-programs"));
     const row = await screen.findByTestId(`program-${uuidN(1, "bbbbbbbb")}`);
     expect(within(row).getByText("Информатика")).toBeTruthy();
     expect(within(row).getByText("Осень 2027")).toBeTruthy();
     expect(within(row).getByText("Сроки этого набора нужно подтвердить с куратором.")).toBeTruthy();
+    expect(within(row).getByText("Университет 1")).toBeTruthy();
     expect(screen.getByText("Мои программы 1")).toBeTruthy();
+  });
+
+  it("«Мои программы»: заголовок, ссылка в каталог, пояснение (веб PreparationList)", async () => {
+    const { transport } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent.press(screen.getByTestId("tab-programs"));
+    await screen.findByTestId(`program-${uuidN(1, "bbbbbbbb")}`);
+    expect(screen.getByText("Здесь программы, которые вы добавили, и документы по каждой из них.")).toBeTruthy();
+    // выбор открыт: ссылка зовёт добавить программу, ведёт в каталог
+    const link = screen.getByTestId("programs-catalog");
+    expect(link).toHaveTextContent("Добавить программу");
+    await fireEvent.press(link);
+    expect(navigate).toHaveBeenCalledWith("/universities");
+  });
+
+  it("выбор программ закрыт для дела: ссылка в шапке - «Каталог университетов», и она есть всегда, даже когда список пуст", async () => {
+    const { transport } = fakeTransport(handlers("MY", { student_catalog_preparations_v1: [] }));
+    await renderPortal(<HomeScreen />, testApi(transport, { canSelectPrograms: false }));
+    await fireEvent.press(screen.getByTestId("tab-programs"));
+    expect(await screen.findByTestId("programs-empty")).toHaveTextContent(/^Пока здесь пусто\./);
+    expect(screen.getByTestId("programs-catalog")).toHaveTextContent("Каталог университетов");
+  });
+
+  it("строка программы открывается: название и «Открыть» ведут на экран программы (preparationHref)", async () => {
+    const id = uuidN(1, "bbbbbbbb");
+    const { transport } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent.press(screen.getByTestId("tab-programs"));
+    const open = await screen.findByTestId(`program-open-${id}`);
+    // веб: aria-label «Открыть: <название программы>»
+    expect(open.props.accessibilityLabel).toBe("Открыть: Информатика");
+    await fireEvent.press(open);
+    expect(navigate).toHaveBeenLastCalledWith(preparationHref(id));
+    await fireEvent.press(screen.getByTestId(`program-link-${id}`));
+    expect(navigate).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenLastCalledWith({ pathname: "/preparations/[applicationId]", params: { applicationId: id } });
+  });
+
+  it("кыргызский: слова вкладок и «Открыть» из общего словаря", async () => {
+    const { transport } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport), "ky");
+    await fireEvent.press(await screen.findByTestId("tab-programs"));
+    const open = await screen.findByTestId(`program-open-${uuidN(1, "bbbbbbbb")}`);
+    expect(open.props.accessibilityLabel).toBe("Ачуу: Информатика");
+    expect(screen.getByTestId("programs-catalog")).toHaveTextContent("Программа кошуу");
   });
 
   it("«Мои вузы»: карточки с названием и «город · страна», фото только из бакета, без фото - подложка", async () => {
@@ -265,24 +363,25 @@ describe("Главная: «Мой список»", () => {
     // фото: адрес только из нашего бакета (render/image), у вуза без фото картинки нет и надписи нет
     // у карточки с фото кроме кнопки есть картинка (та же подпись), у карточки без фото - только кнопка
     // Фото в карточке скрыто от читалки (название читает сама карточка), поэтому ищем узел с source.
-    expect(screen.getAllByLabelText("Университет 1")).toHaveLength(1);
+    expect(screen.getAllByLabelText(/^Университет 1\. Куала-Лумпур · Малайзия/)).toHaveLength(1);
     const photo = screen.getAllByTestId(/^fav-photo-/, { includeHiddenElements: true })[0];
     const source = (photo.props as { source: { uri: string } | { uri: string }[] }).source;
     const uri = [source].flat()[0].uri;
     expect(uri).toMatch(/^http:\/\/localhost:46421\/storage\/v1\/render\/image\/public\/portal-university-photos\/sunway\.jpg\?/);
-    expect(screen.getAllByLabelText("Университет 2")).toHaveLength(1);
+    expect(screen.getAllByLabelText(/^Университет 2\. Куала-Лумпур · Малайзия/)).toHaveLength(1);
     expect(within(second).queryByText(/Фото/)).toBeNull();
-    // две карточки - всё избранное уже видно, ссылки «Всё избранное» нет
-    expect(screen.queryByTestId("favorites-all")).toBeNull();
+    // «Всё избранное» есть и при двух карточках (веб: `total > 0`); полный список со сравнением - в HomeFavoritesAll.test.tsx
+    expect(screen.getByTestId("favorites-all")).toHaveTextContent("Всё избранное");
   });
 
-  it("больше четырёх вузов: четыре карточки и «Всё избранное» открывает полный список", async () => {
+  it("больше четырёх вузов: на ленте четыре карточки, остальные - в «Всё избранное»", async () => {
     const { transport } = fakeTransport(handlers("MY", { student_university_favorites_v1: favorites(6) }));
     await renderPortal(<HomeScreen />, testApi(transport));
     await screen.findByTestId(`fav-${uuidN(1)}`);
     expect(screen.queryByTestId(`fav-${uuidN(5)}`)).toBeNull();
     await fireEvent.press(screen.getByTestId("favorites-all"));
-    expect(await screen.findByTestId(`fav-${uuidN(5)}`)).toBeTruthy();
+    expect(await screen.findByTestId(`tile-${uuidN(5)}`)).toBeTruthy();
+    expect(screen.getByTestId(`tile-${uuidN(6)}`)).toBeTruthy();
     expect(screen.queryByTestId("favorites-all")).toBeNull();
   });
 
@@ -333,7 +432,7 @@ describe("Главная: переходы из старых ссылок и к�
     const { transport } = fakeTransport(handlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByTestId(`program-${uuidN(1, "bbbbbbbb")}`)).toBeTruthy();
-    expect(screen.getByTestId("tab-programs").props.accessibilityState).toMatchObject({ checked: true });
+    expect(screen.getByTestId("tab-programs").props.accessibilityState).toMatchObject({ selected: true });
   });
 
   it("строка избранного ведёт на карточку вуза", async () => {
@@ -346,7 +445,7 @@ describe("Главная: переходы из старых ссылок и к�
   it("карточки «Есть вопрос?» на «Главной» нет: вход в чат живёт в плавающей кнопке оболочки", async () => {
     const { transport } = fakeTransport(handlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
-    await screen.findByTestId("journey-strip");
+    await screen.findByTestId("journey-now-row");
     expect(screen.queryByText("Есть вопрос?")).toBeNull();
     expect(screen.queryByTestId("write-evo")).toBeNull();
   });

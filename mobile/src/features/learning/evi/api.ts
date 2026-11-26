@@ -1,13 +1,16 @@
-// «Подбор с Эви»: один вызов POST {portal}/api/portal/mobile/evi с Bearer-токеном (веб: серверное действие askEviAction).
-// Ответ сервера - тот же EviActionResult; здесь он строго разбирается, а все сбои транспорта сводятся к тем же шести
-// исходам (EviFailure), что и на вебе: экран показывает ту же строку и то же одно действие. Тексты ответов сервера и
-// ошибок наружу не отдаются.
+// «Подбор с Эви»: два вызова одного маршрута {portal}/api/portal/mobile/evi с Bearer-токеном. POST - ход разговора (веб: серверное
+// действие askEviAction): ответ сервера - тот же EviActionResult; здесь он строго разбирается, а все сбои транспорта сводятся к тем же
+// шести исходам (EviFailure), что и на вебе: экран показывает ту же строку и то же одно действие. Тексты ответов сервера и ошибок
+// наружу не отдаются. GET - «есть ли у сервера ключ Эви» (`{ available }`, веб: `eviOnline` на странице «Профессий»): приложение
+// спрашивает его один раз за сеанс, чтобы не предлагать разговор, который заведомо не ответит; не узнали - `null`, как прежде.
 import { isEviMood, type EviActionResult, type EviAnswer, type EviProgress, type EviResult, type EviTurn } from "@web/lib/portal/evi";
 
 export type EviFetch = (input: string, init: RequestInit) => Promise<Response>;
 
 /** Модель может думать до 4 минут (итог со сверкой каталога): ждём чуть дольше серверного предела. */
 const TIMEOUT_MS = 250_000;
+/** Флаг «Эви отвечает» - чтение окружения сервера, не модель: долго ждать нечего. */
+const STATUS_TIMEOUT_MS = 10_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -55,8 +58,18 @@ export function parseEviActionResult(value: unknown): EviActionResult | null {
   return { ok: true, answer: parsed };
 }
 
+/** Ответ GET: ровно один флаг; чужая форма - `null` (не узнали). */
+export function parseEviAvailability(value: unknown): boolean | null {
+  return isRecord(value) && typeof value.available === "boolean" ? value.available : null;
+}
+
 export type EviApi = Readonly<{
   ask: (history: EviTurn[], lang: "ru" | "ky") => Promise<EviActionResult>;
+  /**
+   * Есть ли у сервера ключ Эви. `null` - не узнали (старый сервер без GET, сбой сети, чужой ответ, сессия не обновилась): экран
+   * ведёт себя как раньше. Нет в подменах `{ ask }` из проверок - то же, что `null`.
+   */
+  available?: () => Promise<boolean | null>;
 }>;
 
 /**
@@ -71,6 +84,20 @@ export function createEviApi(options: {
 }): EviApi {
   const base = options.baseUrl.replace(/\/+$/, "");
   const doFetch: EviFetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+
+  async function status(token: string): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS);
+    try {
+      return await doFetch(`${base}/api/portal/mobile/evi`, {
+        method: "GET",
+        headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   async function send(token: string, body: string): Promise<Response> {
     const controller = new AbortController();
@@ -88,6 +115,28 @@ export function createEviApi(options: {
   }
 
   return {
+    async available() {
+      try {
+        let token = await options.getToken();
+        if (!token) return null;
+        let response = await status(token);
+        if (response.status === 401 && options.refreshToken) {
+          token = await options.refreshToken();
+          if (!token) return null;
+          response = await status(token);
+        }
+        if (response.status !== 200) return null;
+        let json: unknown = null;
+        try {
+          json = await response.json();
+        } catch {
+          json = null;
+        }
+        return parseEviAvailability(json);
+      } catch {
+        return null;
+      }
+    },
     async ask(history, lang) {
       const body = JSON.stringify({ history, locale: lang });
       try {

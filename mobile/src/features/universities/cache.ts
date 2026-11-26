@@ -4,6 +4,8 @@
 // обёртка = удаление. Удаляется при выходе и при 42501.
 import { Directory, File, Paths } from "expo-file-system";
 
+import { clearPendingIntents } from "./pending-intents";
+
 const PREFIX = "university-index-v1-";
 
 export type IndexDisk = Readonly<{
@@ -55,7 +57,10 @@ export const fileDisk: IndexDisk = {
   },
 };
 
-/** Выход из аккаунта: копии каталога всех пользователей на устройстве удаляются. */
+/**
+ * Выход из аккаунта: копии каталога всех пользователей на устройстве удаляются, как и неотправленные до конца запросы выбора
+ * программ (`pending-intents.ts`): по ним видно, какую программу студент собирался добавить.
+ */
 export async function clearUniversityCaches(): Promise<void> {
   try {
     const dir = directory();
@@ -63,4 +68,5 @@ export async function clearUniversityCaches(): Promise<void> {
   } catch {
     // нечего удалять
   }
+  await clearPendingIntents();
 }

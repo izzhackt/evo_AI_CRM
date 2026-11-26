@@ -66,6 +66,30 @@ export function newestSequenceId(messages: readonly PortalCaseMessage[]): string
   return messages.length === 0 ? null : messages[messages.length - 1]!.sequenceId;
 }
 
+/** `a` позже `b` по номеру в переписке (BIGINT приходит строкой, сравнение только через BigInt, как у веба); при сбое разбора - нет. */
+function sequenceAfter(a: string, b: string): boolean {
+  try {
+    return BigInt(a) > BigInt(b);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Имя автора нового входящего сообщения, если обновление принесло его после уже показанных (веб MessagesThread, PORT-6a,
+ * WCAG 4.1.3: обновление добавляет сообщения молча, поэтому новое входящее объявляется). Сравнивается номер САМОГО НОВОГО
+ * сообщения, а не число сообщений: в приложении лента - последняя страница сервера (30 сообщений), которую каждое обновление
+ * заменяет целиком, и при полном окне новое сообщение вытесняет самое старое, а длина остаётся прежней. Объявляется, если
+ * самое новое сообщение стало новее прежнего самого нового и оно не своё. Первый показ (прежней ленты нет), пустая лента, своё
+ * сообщение, подгрузка более ранних и то же самое содержимое дают `null`.
+ */
+export function newIncomingAuthor(previous: readonly PortalCaseMessage[], current: readonly PortalCaseMessage[]): string | null {
+  const before = previous[previous.length - 1];
+  const newest = current[current.length - 1];
+  if (!before || !newest || newest.mine) return null;
+  return sequenceAfter(newest.sequenceId, before.sequenceId) ? newest.authorName : null;
+}
+
 /** Нужно ли слать «прочитано»: чат виден, приложение на переднем плане, есть что отметить и это ещё не отправлено. */
 export function shouldMarkRead(input: { visible: boolean; foreground: boolean; newest: string | null; lastSent: string | null }): boolean {
   return input.visible && input.foreground && input.newest !== null && input.newest !== input.lastSent;

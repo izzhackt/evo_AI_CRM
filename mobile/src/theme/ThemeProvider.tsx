@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useColorScheme } from "react-native";
 
+import { hydrateFromStorage } from "@/lib/storage-hydration";
 import { darkTokens, lightTokens, menuTokens } from "@/theme/tokens.generated";
 
 export type ThemeChoice = "light" | "dark" | "system";
@@ -31,31 +32,49 @@ type ThemeContextValue = Readonly<{
   setChoice: (choice: ThemeChoice) => void;
   scheme: Scheme;
   tokens: Tokens;
+  /**
+   * Выбор студента с устройства уже применён (или его нет, или чтение сорвалось). До этого первая отрисовка идёт с темой по
+   * умолчанию; экраны, которые могут появиться первыми (сбой, «не настроено»), ждут этого флага (рецензия #1568).
+   */
+  hydrated: boolean;
 }>;
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children, initial = "system" }: { children: ReactNode; initial?: ThemeChoice }) {
+/**
+ * Тема по умолчанию светлая, как на вебе (решение владельца 02.10 и 25.11.2026): тема ОС не читается, пока студент сам не выбрал
+ * «Как в системе» в «Профиле». Выбор студента (кнопка «солнце/луна» вверху или три варианта в «Профиле») хранится на устройстве.
+ */
+export const DEFAULT_THEME_CHOICE: ThemeChoice = "light";
+
+export function ThemeProvider({ children, initial = DEFAULT_THEME_CHOICE }: { children: ReactNode; initial?: ThemeChoice }) {
   const [choice, setChoiceState] = useState<ThemeChoice>(initial);
+  const [hydrated, setHydrated] = useState(false);
+  // Студент уже выбрал сам (кнопка «солнце/луна», «Профиль»): его выбор новее того, что лежало на устройстве.
+  const chosenNow = useRef(false);
   const system = useColorScheme();
 
-  useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => {
-        if (isThemeChoice(stored)) setChoiceState(stored);
-      })
-      .catch(() => undefined);
-  }, []);
+  useEffect(
+    () =>
+      hydrateFromStorage(STORAGE_KEY, (stored) => {
+        // Выбор и флаг ставятся одним обновлением: кадра «готово, но тема ещё не та» не бывает. Запоздавшее чтение (дольше
+        // предела ожидания) не перебивает выбор, сделанный за это время (рецензия #1579).
+        if (isThemeChoice(stored) && !chosenNow.current) setChoiceState(stored);
+        setHydrated(true);
+      }),
+    [],
+  );
 
   const setChoice = useCallback((next: ThemeChoice) => {
+    chosenNow.current = true;
     setChoiceState(next);
     AsyncStorage.setItem(STORAGE_KEY, next).catch(() => undefined);
   }, []);
 
   const scheme = resolveScheme(choice, system === "dark" ? "dark" : "light");
   const value = useMemo<ThemeContextValue>(
-    () => ({ choice, setChoice, scheme, tokens: tokensFor(scheme) }),
-    [choice, setChoice, scheme],
+    () => ({ choice, setChoice, scheme, tokens: tokensFor(scheme), hydrated }),
+    [choice, setChoice, scheme, hydrated],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

@@ -19,7 +19,6 @@ export const REGISTRATION_RU = {
   "wizard.question.educationLevels": "Расскажите об образовании",
   "wizard.step.nationalityEnglish": "Гражданство и английский",
   "wizard.question.nationalityEnglish": "Гражданство и английский",
-  "wizard.next": "Далее",
   "wizard.draftHint": "Ответы сохраняются на этом телефоне. Пароль не сохраняется.",
   "wizard.emailNote": "На эту почту придёт письмо со ссылкой подтверждения.",
   "wizard.err.firstName": "Укажите имя и фамилию.",
@@ -53,6 +52,15 @@ export const REGISTRATION_RU = {
   "status.resubmitHint": "Исправьте ответы и отправьте анкету повторно.",
   "status.refreshing": "Обновляем…",
   "status.loadFailed": "Не удалось загрузить ответы анкеты.",
+  // Экран «Придумайте свой пароль» после входа с временным паролем: слова веба слово в слово
+  // (src/components/student-application/NewPasswordForm.tsx; там они лежат внутри компонента, а не в общем словаре).
+  // Подтверждение выхода из мастера анкеты: выход стирает ответы, сохранённые на этом телефоне (рецензия #1554).
+  "wizard.signOutTitle": "Выйти из аккаунта?",
+  "wizard.signOutNote": "Ответы анкеты, сохранённые на этом телефоне, будут стёрты. После входа анкету можно будет заполнить заново.",
+  "newPassword.title": "Придумайте свой пароль",
+  "newPassword.intro": "Вы вошли с временным паролем. Придумайте свой — дальше входите с ним.",
+  "newPassword.confirm": "Повторите пароль",
+  "newPassword.hint": "Не короче 12 знаков.",
 } as const;
 
 export type RegistrationStringKey = keyof typeof REGISTRATION_RU;
@@ -73,7 +81,6 @@ export const REGISTRATION_KY: Readonly<Record<RegistrationStringKey, string>> = 
   "wizard.question.educationLevels": "Билиминиз жөнүндө айтып бериңиз",
   "wizard.step.nationalityEnglish": "Жарандык жана англис тили",
   "wizard.question.nationalityEnglish": "Жарандык жана англис тили",
-  "wizard.next": "Кийинки",
   "wizard.draftHint": "Жооптор ушул телефондо сакталат. Сырсөз сакталбайт.",
   "wizard.emailNote": "Ушул почтага ырастоо шилтемеси бар кат келет.",
   "wizard.err.firstName": "Атыңызды жана фамилияңызды жазыңыз.",
@@ -107,4 +114,10 @@ export const REGISTRATION_KY: Readonly<Record<RegistrationStringKey, string>> = 
   "status.resubmitHint": "Жоопторуңузду оңдоп, анкетаны кайра жөнөтүңүз.",
   "status.refreshing": "Жаңыртылууда…",
   "status.loadFailed": "Анкетанын жоопторун жүктөй алган жокпуз.",
+  "wizard.signOutTitle": "Аккаунттан чыгасызбы?", // KY: needs native proofreading
+  "wizard.signOutNote": "Бул телефондо сакталган анкетанын жооптору өчүрүлөт. Кирген соң анкетаны кайра толтурууга болот.", // KY: needs native proofreading
+  "newPassword.title": "Өз сырсөзүңүздү ойлоп табыңыз", // KY: needs native proofreading (текст веба NewPasswordForm.tsx)
+  "newPassword.intro": "Сиз убактылуу сырсөз менен кирдиңиз. Өзүңүздүкүн ойлоп табыңыз — мындан ары аны менен кириңиз.", // KY: needs native proofreading
+  "newPassword.confirm": "Сырсөздү кайталаңыз", // KY: needs native proofreading
+  "newPassword.hint": "12 белгиден кем эмес.", // KY: needs native proofreading
 };

@@ -1,0 +1,6 @@
+{
+  "ios": "ce95ec0be4d7e40741ef650fc6df42c890882c0a",
+  "android": "009631b2b9a69dfccc15812028ec192c7b6ef87f",
+  "builtAt": "2026-11-25",
+  "note": "Отпечатки Expo (runtimeVersion) сборки 2.1.0 (6), которая стоит у студентов; значения совпали с main 4e7a17ea3. EAS Update доходит только до сборок с таким же отпечатком: менять замок только вместе с новой сборкой в магазинах. / Fingerprints (runtimeVersion) of the store build 2.1.0 (6) students have installed; the values matched main 4e7a17ea3. Change only together with a new store build. AGENTS.md, «Кабинет и приложение идут вместе»."
+}

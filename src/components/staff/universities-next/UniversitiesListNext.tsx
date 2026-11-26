@@ -13,10 +13,11 @@ import { UniversityGeoTabs } from "./UniversityGeoTabs";
 import { DeadlineCell, UniversityCell } from "./UniversityListCells";
 import type { UniversityListProps, UniversityListRow } from "./university-list-types";
 
+// Без стрелок в заголовках (25.11.2026): они переставляли только 30 строк страницы. Порядок всего каталога — меню «Порядок».
 const COLUMNS: DataTableColumn<UniversityListRow>[] = [
-  { id: "name", header: "Университет", accessorFn: (row) => row.name, sortFn: "text", enableHiding: false, meta: { label: "Университет", mobile: "title", opensRow: true }, cell: ({ row }) => <UniversityCell row={row.original} /> },
-  { id: "programs", header: "Программы", accessorFn: (row) => row.programs, sortFn: "basic", meta: { label: "Программы" }, cell: ({ row }) => <span className="tabular-nums t-body-compact text-fg">{row.original.programs}</span> },
-  { id: "deadline", header: "Ближайший срок", accessorFn: (row) => row.deadline?.dateTime ?? "9999", sortFn: "text", meta: { label: "Ближайший срок" }, cell: ({ row }) => <DeadlineCell row={row.original} /> },
+  { id: "name", header: "Университет", accessorFn: (row) => row.name, enableSorting: false, enableHiding: false, meta: { label: "Университет", mobile: "title", opensRow: true }, cell: ({ row }) => <UniversityCell row={row.original} /> },
+  { id: "programs", header: "Программы", accessorFn: (row) => row.programs, enableSorting: false, meta: { label: "Программы" }, cell: ({ row }) => <span className="tabular-nums t-body-compact text-fg">{row.original.programs}</span> },
+  { id: "deadline", header: "Ближайший срок", accessorFn: (row) => row.deadline?.dateTime ?? "9999", enableSorting: false, meta: { label: "Ближайший срок" }, cell: ({ row }) => <DeadlineCell row={row.original} /> },
 ];
 
 /**
@@ -32,7 +33,7 @@ export function UniversitiesListNext({ rows, page, query, searchHidden, filters,
       count={page.total}
       testId="v3-universities-next"
       tabs={<UniversityGeoTabs current="all" />}
-      help={page.order === "name" ? "Каталог длиннее предела полного чтения: порядок — по названию, страницы ведёт сервер." : "Сначала ближайший подтверждённый срок подачи, затем по названию. Поиск и фильтры отбирает сервер по всему каталогу."}
+      help={page.order === "name" ? "Каталог длиннее предела полного чтения: порядок — по названию, страницы ведёт сервер." : "По умолчанию сначала ближайший подтверждённый срок подачи, затем по названию; «Порядок» меняет это для всего каталога. Поиск и фильтры отбирает сервер по всему каталогу."}
       actions={canManage ? <>
         <Button variant="ghost" asChild><Link href="/universities/cities">Города</Link></Button>
         <Button variant="ghost" asChild><Link href="/universities/rates">Курсы валют</Link></Button>

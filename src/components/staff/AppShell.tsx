@@ -605,8 +605,8 @@ export function AppShell({
         К содержимому
       </a>
 
-      {/* Телефон: одна компактная строка сверху. */}
-      <div
+      {/* Телефон: одна компактная строка сверху. `header` (banner): читалка находит её среди областей, как боковое меню — `nav`. */}
+      <header
         inert={sheetOpen}
         data-testid="v3-shell-topbar"
         className="flex h-[var(--shell-top)] shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-4 md:hidden"
@@ -623,7 +623,7 @@ export function AppShell({
         ) : null}
         {/* Поиск по студентам и лидам нужен с телефона чаще, чем «Ещё → Поиск». */}
         <PaletteIconButton className={`ms-auto inline-flex size-11 shrink-0 items-center justify-center rounded-ctl text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`} />
-      </div>
+      </header>
 
       {/* Боковое меню; на телефоне — лист «Ещё» (тот же DOM). */}
       <div

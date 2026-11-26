@@ -115,14 +115,21 @@ const byName = new Intl.Collator("ru", { sensitivity: "base", numeric: true });
  * Порядок по умолчанию: сначала ближайший подтверждённый срок, при равной
  * дате — название; без срока — по названию после всех со сроком. Порядок
  * общий для всего прочитанного каталога, а не внутри страницы.
+ * `sort` из адреса (25.11.2026, стрелки таблицы переставляли только 30 строк страницы): «name» — по названию А→Я,
+ * «programs» — больше программ выбранного уровня выше, при равном числе — по названию.
  */
 export function sortCatalogueRows(
   items: readonly UniversityListItem[],
   level: UniversityFilters["level"],
   now: Date,
+  sort: UniversityFilters["sort"] = undefined,
 ): UniversityCatalogueRow[] {
-  return items
-    .map((university) => ({ university, deadline: universityDeadlineView(university, level, now) }))
+  const byNameThenId = (a: UniversityCatalogueRow, b: UniversityCatalogueRow) => byName.compare(a.university.content.name, b.university.content.name)
+    || (a.university.id < b.university.id ? -1 : a.university.id > b.university.id ? 1 : 0);
+  const rows = items.map((university) => ({ university, deadline: universityDeadlineView(university, level, now) }));
+  if (sort === "name") return rows.sort(byNameThenId);
+  if (sort === "programs") return rows.sort((a, b) => catalogueProgramCount(b.university, level) - catalogueProgramCount(a.university, level) || byNameThenId(a, b));
+  return rows
     .sort((a, b) => {
       if (a.deadline && b.deadline && a.deadline.dateTime !== b.deadline.dateTime) return a.deadline.dateTime < b.deadline.dateTime ? -1 : 1;
       if (a.deadline && !b.deadline) return -1;

@@ -395,11 +395,11 @@
  * боковой панели рядом, выбрана иначе — `aria-current` и подложка `surface-2`
  * (Э7, 27.09: одна боковая панель везде). Сплошной красный
  * остаётся только главному действию экрана. Вид включается лишь объявленным
- * состоянием — aria-current, aria-pressed="true" или aria-expanded="true", —
+ * состоянием — aria-current, aria-pressed="true", aria-expanded="true" или выбранная вкладка на месте (role="tab"), —
  * поэтому выбранное нельзя показать одним цветом без смысла для читалки.
  * --accent-text на --accent-weak: 6.4:1; рамка (если она есть) того же цвета.
  */
-.v3-world .v3-choice:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-expanded="true"]) {
+.v3-world .v3-choice:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-expanded="true"], [role="tab"][aria-selected="true"]) {
   border-color: var(--accent-text);
   background-color: var(--accent-weak);
   color: var(--accent-text);
@@ -656,6 +656,47 @@
 .v3-world summary {
   min-height: 44px;
   align-content: center;
+}
+
+/*
+ * Раскрытия, которые карточка дела берёт из кабинета (`audience="staff"`: комплект, история документов, пакеты партнёру),
+ * рисуют нативный ▶. В CRM у них тот же шеврон, что у раскрытий карточки (`Icon chevron-down`): сразу после текста,
+ * как у «Документов программы», и он поворачивается при открытии. В режиме высокой контрастности — цвет текста системы. Только под staff: кабинет не меняется. Контейнер помечен классом `v3-staff-disclosures`;
+ * у собственных summary карточки (`list-none` + иконка) класса нет.
+ */
+.v3-world[data-surface="staff"] .v3-staff-disclosures summary {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  list-style: none;
+  cursor: pointer;
+}
+.v3-world[data-surface="staff"] .v3-staff-disclosures summary::-webkit-details-marker {
+  display: none;
+}
+.v3-world[data-surface="staff"] .v3-staff-disclosures summary::after {
+  content: "";
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background-color: var(--text-3);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / 18px 18px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / 18px 18px no-repeat;
+  transition: transform 150ms ease-out;
+}
+.v3-world[data-surface="staff"] .v3-staff-disclosures details[open] > summary::after {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .v3-world[data-surface="staff"] .v3-staff-disclosures summary::after {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .v3-world[data-surface="staff"] .v3-staff-disclosures summary::after {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+  }
 }
 
 .v3-world :where(button, a, summary) {

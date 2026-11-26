@@ -4,6 +4,7 @@ import { staffPresentationCan } from "../platform-access.ts";
 import type { ProfileEvent } from "@/components/staff/profile/types";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { parseCaseDirectionChange } from "@/lib/platform-case-direction-change";
+import { parseCasePaymentDetail } from "@/lib/platform-case-payment-detail";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { journalEvent } from "@/lib/v3/wording";
 
@@ -19,6 +20,9 @@ const FIELDS = new Set(["status", "priority", "due_at", "due_on", "assignee_memb
 // до кодов пяти направлений, неизвестный код приходит пустым и не показывается.
 const DIRECTION_ACTION = "case.direction.set";
 const DIRECTION_KEY = "direction_change";
+// Записанный платёж (376) несёт сумму и название обязательства — только он и только в строке «Деньги».
+const PAYMENT_ACTION = "finance.payment.record";
+const PAYMENT_KEY = "payment_detail";
 
 export function parseProfileActivityCursor(at: string, id: string): ProfileActivityCursor | null {
   return TIMESTAMP.test(at) && Number.isFinite(Date.parse(at)) && UUID.test(id)
@@ -70,6 +74,11 @@ export async function readProfileActivity(
     if (carriesDirection !== (row.action === DIRECTION_ACTION)) return fail();
     if (carriesDirection && row[DIRECTION_KEY] !== null && !isPlainObject(row[DIRECTION_KEY])) return fail();
     const directionChange = carriesDirection ? parseCaseDirectionChange(row[DIRECTION_KEY]) : null;
+    // До 376 поля нет вовсе — строка остаётся «Платёж записан»; у другого действия оно — ошибка ответа.
+    const carriesPayment = Object.prototype.hasOwnProperty.call(row, PAYMENT_KEY);
+    if (carriesPayment && (row.action !== PAYMENT_ACTION || kind !== "money")) return fail();
+    if (carriesPayment && row[PAYMENT_KEY] !== null && !isPlainObject(row[PAYMENT_KEY])) return fail();
+    const paymentDetail = carriesPayment ? parseCasePaymentDetail(row[PAYMENT_KEY]) : null;
     const timestamp = row.occurred_at;
     if (timestamp !== null && (typeof timestamp !== "string"
       || !parseProfileActivityCursor(timestamp, id))) return fail();
@@ -86,6 +95,7 @@ export async function readProfileActivity(
       occurredAt: timestamp as string | null,
       targetId,
       ...(directionChange ? { directionChange } : {}),
+      ...(paymentDetail ? { paymentDetail } : {}),
     });
   });
   let nextCursor: ProfileActivityCursor | null = null;

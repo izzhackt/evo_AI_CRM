@@ -30,6 +30,7 @@ import { PROFILE_FIELDS } from "../student-profile-fields.ts";
 // Смена направления в «Журнале» и «Истории» (блок рядом с `journalActor`): названия направлений - тот же словарь, что у очереди, доски и дела.
 import { DIRECTION_LABELS } from "../../components/staff/profile/admissions-view.ts";
 import { parseCaseDirectionChange } from "../platform-case-direction-change.ts";
+import { casePaymentLine, type CasePaymentDetail } from "../platform-case-payment-detail.ts";
 import { studyCountryFromWebsiteValue, studyCountryName, studyCountryOptions } from "../study-countries.ts";
 
 export function studentProfileFieldState(value: string): string | null {
@@ -1239,15 +1240,18 @@ export function caseDirectionChangeLine(change: unknown): string | null {
 
 /**
  * Подпись события для «Журнала», «Истории» дела, ленты и досье: слова действия
- * (`journalEvent`), а для смены направления - строка со значениями, если они
- * известны. Неизвестное действие - `null`, как у `journalEvent`.
+ * (`journalEvent`), для смены направления - строка со значениями, если они
+ * известны, а для записанного платежа - сумма и название (376), если они пришли.
+ * Неизвестное действие - `null`, как у `journalEvent`.
  */
 export function journalEventText(
   action: string | null | undefined,
   directionChange?: unknown,
+  paymentDetail?: CasePaymentDetail | null,
 ): string | null {
   const base = journalEvent(action);
   if (base === null) return null;
+  if (action === "finance.payment.record" && paymentDetail) return casePaymentLine(paymentDetail);
   return action === "case.direction.set"
     ? (caseDirectionChangeLine(directionChange) ?? base)
     : base;

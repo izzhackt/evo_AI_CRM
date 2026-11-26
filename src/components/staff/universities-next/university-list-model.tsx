@@ -5,6 +5,7 @@
 import { UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, type UniversityFilters } from "@/lib/platform-university-catalog";
 import { staffUniversityCountryOptions } from "@/lib/university-staff-countries";
 import { isStudyCountryCode } from "@/lib/study-countries";
+import { universityCityName, type CityDirectory } from "@/lib/university-geo-groups";
 import { catalogueProgramCount, formatCatalogueDay, type CataloguePage } from "@/lib/v3/university-view";
 
 import type { LinkFilterBarData } from "../list-next/link-filters-model";
@@ -29,11 +30,16 @@ function staleOn(verifiedOn: string, today: string): string | null {
   return Number.isFinite(days) && days > STALE_CARD_DAYS ? formatCatalogueDay(verifiedOn, today) : null;
 }
 
-export function universityListRows(page: CataloguePage, level: UniversityFilters["level"], today: string): UniversityListRow[] {
+/**
+ * Строки таблицы. Город — название из справочника городов (25.11.2026: «Шанхай» и «SHANGHAI» в одном каталоге): вуз со связью
+ * с городом или с подписью, совпавшей с русским или английским названием города, показывает русское название; иначе — подпись
+ * карточки, как прежде. Справочник не прочитался (`null`) — тоже подпись карточки.
+ */
+export function universityListRows(page: CataloguePage, level: UniversityFilters["level"], today: string, directory: CityDirectory | null = null): UniversityListRow[] {
   return page.rows.map(({ university, deadline }) => ({
     id: university.id,
     name: university.content.name,
-    city: university.content.city,
+    city: universityCityName(university, directory),
     country: universityCountry(university.content.country),
     programs: catalogueProgramCount(university, level),
     staleOn: staleOn(university.content.verifiedOn, today),
@@ -65,7 +71,7 @@ export function universityFilterBar(filters: UniversityFilters, countries: reado
   };
 }
 
-export function universityListProps(page: CataloguePage, filters: UniversityFilters, countries: readonly string[], canManage: boolean, today: string): UniversityListProps {
+export function universityListProps(page: CataloguePage, filters: UniversityFilters, countries: readonly string[], canManage: boolean, today: string, directory: CityDirectory | null = null): UniversityListProps {
   const filtered = Boolean(filters.query || filters.country || filters.level);
   const paging: UniversityListPage = {
     first: page.first, last: page.last, total: page.total, order: page.order,
@@ -73,7 +79,7 @@ export function universityListProps(page: CataloguePage, filters: UniversityFilt
     nextHref: page.nextOffset !== null ? universitiesHref(filters, page.nextOffset) : null,
   };
   return {
-    rows: universityListRows(page, filters.level, today),
+    rows: universityListRows(page, filters.level, today, directory),
     page: paging,
     query: filters.query,
     searchHidden: { country: filters.country || null, level: filters.level || null },

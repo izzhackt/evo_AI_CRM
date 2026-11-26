@@ -9,6 +9,7 @@ import { UniversityUnavailable } from "@/components/staff/universities/Universit
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { parseUniversityFilters } from "@/lib/platform-university-catalog";
+import { readStaffCatalogGeographyBrowse } from "@/lib/v3/catalog-geography-source";
 import { readStaffUniversityCatalogue, readStaffUniversityCountries } from "@/lib/v3/university-source";
 import { catalogueServerPage, catalogueSortedPage, sortCatalogueRows } from "@/lib/v3/university-view";
 export const dynamic = "force-dynamic";
@@ -27,13 +28,14 @@ export default async function UniversitiesPage({ searchParams }: { searchParams:
       <Link href="/universities/manage" className={quiet}><Icon name="settings" size={16} />Управлять каталогом</Link>
     </div>
   ) : undefined;
-  let catalogue, facet;
-  try { [catalogue, facet] = await Promise.all([readStaffUniversityCatalogue(actor, filters), readStaffUniversityCountries(actor)]); } catch { return <UniversityShell title="Университеты" action={manageAction}><UniversityUnavailable /></UniversityShell>; }
+  let catalogue, facet, geography;
+  // Справочник городов — только для названия города в строке: не прочитался — строка показывает подпись карточки, список не падает.
+  try { [catalogue, facet, geography] = await Promise.all([readStaffUniversityCatalogue(actor, filters), readStaffUniversityCountries(actor), readStaffCatalogGeographyBrowse(actor).catch(() => null)]); } catch { return <UniversityShell title="Университеты" action={manageAction}><UniversityUnavailable /></UniversityShell>; }
   const now = new Date();
   // Общий порядок по сроку — только из полного чтения; каталог за пределом — страницы сервера по названию.
   const page = catalogue.kind === "complete"
     ? catalogueSortedPage(sortCatalogueRows(catalogue.items, filters.level, now), filters.offset)
     : catalogueServerPage(catalogue.items, filters.offset, catalogue.nextOffset, filters.level, now);
   // «Новый вид» (единственный вид, #1327): тот же каталог, те же чтения и права — таблица из набора виджетов.
-  return <UniversitiesListNextLazy {...universityListProps(page, filters, facet.countries, canManage, dayInOrganizationTimezone(now))} />;
+  return <UniversitiesListNextLazy {...universityListProps(page, filters, facet.countries, canManage, dayInOrganizationTimezone(now), geography)} />;
 }

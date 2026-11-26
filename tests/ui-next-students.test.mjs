@@ -336,6 +336,7 @@ const universityStubs = (cookie, who, overrides = {}) => ({
     canManageCatalogGeography: (actor) => actor.systemRole === "admin" && actor.presentationRole === null, canConfirmAgencyCosts: () => true,
     readStaffCatalogGeography: async () => ({ cities: [], countries: [], rates: [] }), geographyPhotoBase: () => null,
     readStaffInstitutionGeography: async () => ({ cities: [], countries: [], rates: [] }),
+    readStaffCatalogGeographyBrowse: async () => ({ cities: [], institutions: [] }),
   },
   "src/components/staff/universities/geography/UniversityGeographyPanel.tsx": { UniversityGeographyPanel: () => createElement("section", { "data-testid": "geography-panel" }, "Город и стоимость") },
   "src/components/staff/universities/geography/FxRates.tsx": { FxRates: () => createElement("section", { "data-testid": "fx-rates" }, "Курсы") },

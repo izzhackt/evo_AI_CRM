@@ -456,27 +456,22 @@ describe("сессия: постоянный конфликт не гонит э
   });
 
   it("один конфликт и удачное сохранение: всё как раньше; серия кончилась, и следующий конфликт снова получает полные два круга (счётчик сброшен)", async () => {
-    const fresh = draftAttempt({ revision: 7 });
     const { h, session, keys } = await running({
-      // серия 1: два конфликта, затем успех (оба круга использованы); серия 2: конфликт, затем успех
-      [SAVE_RPC]: [conflict(), conflict(), saveReceipt(8), conflict(), saveReceipt(10)],
-      [READ_RPC]: [fresh],
+      // серия 1: конфликт, затем успех (использован один круг); дальше сервер отвечает конфликтом всегда
+      [SAVE_RPC]: [conflict(), saveReceipt(8), conflict()],
+      [READ_RPC]: [draftAttempt({ revision: 7 })],
     });
     session.select(keys[0], "a");
-    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    await h.advance(SAVE_ON_CHOICE_MS);
     await h.advance(RETRY_MS);
-    await h.advance(RETRY_MS);
-    expect(ofName(h, SAVE_RPC)).toHaveLength(3);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(2);
     expect(session.getState().saveStatus).toBe("saved");
     expect(session.getState().answers[keys[0]]).toBe("a"); // выбор наложен и дошёл
-    session.select(keys[1], "b");
-    await h.advance(SAVE_ON_MOVE_MS + 10);
-    expect(ofName(h, SAVE_RPC)).toHaveLength(4); // конфликт
-    await h.advance(RETRY_MS);
-    const sent = ofName(h, SAVE_RPC);
-    expect(sent).toHaveLength(5); // круг наложения состоялся: счётчик не помнил прежней серии
-    expect((sent[4].args.p_answers as Record<string, string>)[keys[1]]).toBe("b");
     expect(session.getState().notice).toBeNull();
+    session.select(keys[1], "b"); // серия 2
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(2 + 3); // полные два круга: серия 1 не оставила в счётчике ничего
     session.dispose();
   });
 
@@ -515,18 +510,17 @@ describe("сессия: постоянный конфликт не гонит э
     session.dispose();
   });
 
-  it("«Пройти ещё раз» после предела: новая попытка получает свои два круга (серия прежней попытки не переходит)", async () => {
+  it("«Пройти ещё раз» посреди серии: новая попытка получает свои два круга (счётчик прежней попытки не переходит)", async () => {
     const { h, session, keys } = await running({ [SAVE_RPC]: [conflict()], [READ_RPC]: [draftAttempt()] });
     session.select(keys[0], "a");
-    await h.advance(120_000);
-    await settle();
-    expect(ofName(h, SAVE_RPC)).toHaveLength(3);
+    await h.advance(SAVE_ON_CHOICE_MS); // конфликт, использован один круг
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
     session.restart();
     await session.start(); // новая попытка
     session.select(keys[0], "b");
     await h.advance(120_000);
     await settle();
-    expect(ofName(h, SAVE_RPC)).toHaveLength(6);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1 + 3);
     session.dispose();
   });
 

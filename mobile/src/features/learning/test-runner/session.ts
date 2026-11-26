@@ -106,8 +106,8 @@ export class CscaTestSession {
   private disposed = false;
   /** Сколько кругов наложения уже было в этой серии конфликтов; обнуляется удачным сохранением и ответом студента после предела. */
   private conflictRounds = 0;
-  /** Идёт пауза перед повторной отправкой после конфликта: хвост `flush()` не отправляет сразу. */
-  private conflictPause = false;
+  /** Таймер паузы перед повторной отправкой после конфликта: пока он единственный на очереди, хвост `flush()` не отправляет сразу. */
+  private conflictPauseTimer: unknown = null;
   /** Выход из аккаунта: токен отозван, ни одного запроса, ни по таймеру, ни при закрытии экрана (`abandon`). */
   private abandoned = false;
   private visible = true;
@@ -239,7 +239,6 @@ export class CscaTestSession {
     // Сама попытка на сервере уже начата и идёт; ученик вернётся к ней кнопкой «Продолжить тест».
     if (this.disposed) return;
     this.conflictRounds = 0;
-    this.conflictPause = false;
     this.adopt(draft, receivedAt);
     const firstOpen = draft.items.findIndex((entry) => !(entry.itemKey in draft.answers));
     this.index = firstOpen === -1 ? 0 : firstOpen;
@@ -412,7 +411,6 @@ export class CscaTestSession {
       if (itemSecondsChanged(current.items, this.seconds, this.sentSeconds)) this.dirty = true;
     }
     if (!this.dirty && !this.retry) return;
-    this.conflictPause = false; // отправка, начатая раньше паузы (фон, закрытие, завершение), её отменяет
     if (this.batchTimer) {
       this.env.clearTimer(this.batchTimer);
       this.batchTimer = null;
@@ -424,7 +422,7 @@ export class CscaTestSession {
     } finally {
       if (this.saving === run) this.saving = null;
     }
-    if (this.dirty && !this.retry && !this.disposed && !this.conflictPause) await this.flush();
+    if (this.dirty && !this.retry && !this.disposed && !this.inConflictPause()) await this.flush();
   }
 
   private async sendOnce(current: CscaTestAttempt): Promise<void> {
@@ -519,18 +517,26 @@ export class CscaTestSession {
     this.patch({ saveStatus: this.dirty ? "saving" : "saved", notice: null });
   }
 
-  /** После конфликта наложенные выборы уходят не сразу, а через `RETRY_MS` (раньше, если студент ответит снова: `scheduleSave`). */
+  /**
+   * После конфликта наложенные выборы уходят не сразу, а через `RETRY_MS` (раньше, если студент ответит снова: `scheduleSave` ставит свой
+   * таймер, или начнётся другая отправка: фон, закрытие, завершение). Неотправленное помечено сразу: закрытие экрана в паузе его досылает.
+   */
   private resendAfterConflict(): void {
     if (this.abandoned || this.disposed) return; // экран закрыт: досылка при закрытии одна
     this.dirty = true;
     this.patch({ saveStatus: "pending" });
     if (this.batchTimer) this.env.clearTimer(this.batchTimer);
-    this.conflictPause = true;
-    this.batchTimer = this.env.setTimer(() => {
+    const timer = this.env.setTimer(() => {
       this.batchTimer = null;
-      this.conflictPause = false;
       void this.flush();
     }, RETRY_MS);
+    this.batchTimer = timer;
+    this.conflictPauseTimer = timer;
+  }
+
+  /** Таймер паузы после конфликта всё ещё на очереди (его сняли отправка или новый выбор, или он сработал: тогда паузы нет). */
+  private inConflictPause(): boolean {
+    return this.conflictPauseTimer !== null && this.batchTimer === this.conflictPauseTimer;
   }
 
   // ---- завершение ------------------------------------------------------------------------

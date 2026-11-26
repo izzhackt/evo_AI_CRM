@@ -440,10 +440,11 @@ export function parseAdmissionsDirectPayload(input: unknown): AdmissionsDirectPa
 /**
  * Ответ server action. `field` — поле, которое назвала база (`admissions_direct_invalid:<ключ>`).
  * `curator_forbidden` — право есть, но этого куратора (или «Без куратора») актёр назвать не может;
- * `lead_exists` — у человека с тем же телефоном или почтой открытый лид в продажах.
+ * `lead_exists` — у человека с тем же телефоном или почтой открытый лид в продажах (база без миграции 378; с ней
+ * команда сотрудника этот лид забирает, и в ответе `saved` приходит `leadTaken: true`).
  */
 export type AdmissionsDirectResult =
-  | Readonly<{ status: "saved"; studentCaseId: string; state: "active" | "pending" }>
+  | Readonly<{ status: "saved"; studentCaseId: string; state: "active" | "pending"; leadTaken?: boolean }>
   | Readonly<{ status: "invalid"; field: string | null }>
   | Readonly<{ status: "lead_exists"; leadId?: string | null }>
   | Readonly<{ status: "forbidden" | "curator_forbidden" | "case_exists" | "request_conflict" | "unavailable" }>;
@@ -476,7 +477,7 @@ export function admissionsDirectCaseHref(result: Readonly<{ studentCaseId: strin
 /** Слова ответа. Без технических кодов; что делать дальше — в самой фразе. */
 export function admissionsDirectMessage(result: AdmissionsDirectResult): string {
   switch (result.status) {
-    case "saved": return result.state === "active" ? "Студент добавлен. Открываем дело." : "Студент добавлен и ждёт куратора. Открываем «Ждут куратора».";
+    case "saved": return `${result.leadTaken ? "Лид из продаж перенесён в дело. " : ""}${result.state === "active" ? "Студент добавлен. Открываем дело." : "Студент добавлен и ждёт куратора. Открываем «Ждут куратора»."}`;
     case "invalid": return result.field === "paymentsExceedCost"
       ? "Получено больше стоимости договора в той же валюте. Проверьте суммы."
       : result.field === "curator" ? "Этого сотрудника нельзя назначить куратором. Выберите другого."

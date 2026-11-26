@@ -845,6 +845,47 @@ describe("повтор в полёте не прячет плашку и «Вы�
       expect(scrollTo).toHaveBeenCalledTimes(1);
       expect(scrollTo).toHaveBeenLastCalledWith({ y: 16 + 130 - 12, animated: false });
     });
+
+    it("строка «Сначала сохраним ответы…» ушла (студент подтвердил «Выйти без сохранения», экран остался), а блок остался: страница не двигается, потому что ничего не добавилось и отказа не было", async () => {
+      const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+      const g = gate();
+      await openOffline(g.handler);
+      await layout("assessment-runner", 16);
+      await failThreeTimes(g);
+      await layout("assessment-error", BLOCK_Y);
+      scrollTo.mockClear();
+      await scrollTo900();
+      await fireEvent.press(screen.getByTestId("assessment-exit"));
+      expect(g.pending()).toBe(1);
+      await g.fail(); // выход не удался: к блоку прибавилась строка, страница идёт к нему
+      expect(screen.getByTestId("assessment-error")).toHaveTextContent(/Сначала сохраним ответы/);
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+
+      await scrollTo900(); // студент ушёл вниз и выбрал «Выйти без сохранения»
+      await fireEvent.press(screen.getByTestId("assessment-leave-anyway"));
+      const buttons = (alert.mock.calls[0] as [string, string, { onPress?: () => void }[]])[2];
+      await act(async () => buttons[1].onPress?.()); // в Jest экран остаётся (`dismissTo` - заглушка): строка уходит, блок на месте
+      expect(screen.getByTestId("assessment-error")).not.toHaveTextContent(/Сначала сохраним ответы/);
+      expect(screen.getByTestId("assessment-error")).toBeTruthy();
+      expect(scrollTo).toHaveBeenCalledTimes(1); // строки не прибавилось, отказа не было: тот же блок, страница стоит
+      alert.mockRestore();
+    });
+
+    it("«Завершить» нажато, когда блок уже на экране: пока отправка идёт, страница стоит; отказ пришёл - блок показан один раз (начало завершения не повод)", async () => {
+      const g = gate();
+      await openReview({ [SAVE]: g.handler });
+      await tick(ASSESSMENT_SAVE_MS); // отправка 1 идёт
+      await g.fail(); // не удалась: блок появился
+      await layout("assessment-error", BLOCK_Y); // страница вверху: блок на виду
+      expect(scrollTo).not.toHaveBeenCalled();
+      await scrollTo900(); // студент ушёл вниз, блок выше видимой части и его раскладка известна
+      await fireEvent.press(screen.getByTestId("assessment-complete")); // «Завершить»: сначала досылается несохранённое, отправка повисла
+      expect(g.pending()).toBe(1);
+      expect(scrollTo).not.toHaveBeenCalled(); // отказа ещё нет: страница стоит
+      await g.fail(); // отправка не прошла: «Завершить» не удалось
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenLastCalledWith(shown);
+    });
   });
 });
 

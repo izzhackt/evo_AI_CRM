@@ -7,7 +7,7 @@ import { SectionTabs, type SectionTab } from "@/components/kit";
 import { LeadSheetNext } from "@/components/staff/pipeline-next/LeadSheetNext";
 import { PipelineClosedNotice, type ClosedNotice } from "@/components/staff/pipeline-next/PipelineClosedNotice";
 import { PipelineColumn } from "@/components/staff/pipeline-next/PipelineColumn";
-import { boardColumns, boardHrefOf, leadLabel } from "@/components/staff/pipeline-next/pipeline-next-model";
+import { boardColumns, boardHrefOf, COLUMN_STEP, leadLabel } from "@/components/staff/pipeline-next/pipeline-next-model";
 import type { PipelineLead, PipelineStage, PipelineStageKey } from "@/components/staff/pipeline-next/types";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { LeadClosureReceipt } from "@/lib/platform-closure-contract";
@@ -55,7 +55,13 @@ export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, owner
   const [last, setLast] = useState<PipelineLead | null>(selected);
   if (selected && selected !== last) setLast(selected);
   const href = (patch: Readonly<Record<string, string | null>>) => boardHrefOf(pathname, search?.toString() ?? "", patch);
-  const columns = boardColumns(stages, leads, filteredStage, handedExpanded);
+  // Сколько карточек открыто в каждой рабочей колонке «Всех этапов» (сверх первых 20); «Показать ещё» ставит фокус на первую новую.
+  const [shown, setShown] = useState<Readonly<Partial<Record<string, number>>>>({});
+  const columns = boardColumns(stages, leads, filteredStage, handedExpanded, shown, selectedId);
+  const showMore = (key: string, before: number) => {
+    setShown((current) => ({ ...current, [key]: before + COLUMN_STEP }));
+    requestAnimationFrame(() => rootRef.current?.querySelectorAll<HTMLElement>(`[data-stage="${key}"] a[data-lead-link]`)[before]?.focus());
+  };
   const workflowStages = stages.flatMap((stage) => (stage.key === "handed_off" ? [] : [{ key: stage.key, title: stage.title }]));
   const stageOf = (lead: PipelineLead | null) => stages.find((stage) => stage.key === lead?.stageKey);
   const tabs: SectionTab[] = [
@@ -104,7 +110,8 @@ export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, owner
         {columns.map((column) => (
           <PipelineColumn key={column.stage.key} column={column} spread={filteredStage !== "all"} selectedId={selectedId} showOwner={showOwner} today={today}
             hrefFor={(lead) => href({ lead: lead.id })} openLead={openLead} handedExpanded={handedExpanded}
-            handedHref={(expanded) => href({ handed: expanded ? "all" : null })} />
+            handedHref={(expanded) => href({ handed: expanded ? "all" : null })}
+            onMore={() => showMore(column.stage.key, column.visible.length)} stageHref={href({ stage: column.stage.key, lead: null })} />
         ))}
       </div>
       {last ? (

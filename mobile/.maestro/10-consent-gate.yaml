@@ -1,10 +1,12 @@
 appId: com.evoadmissions.app
 name: Экран «Конфиденциальность»
-# Нужен студент БЕЗ решения о Политике и ИИ (миграция 356): перед запуском удалите его строки из
-# platform_private.student_privacy_consents и student_ai_consents на ЛОКАЛЬНОМ стенде, например
+# Нужен студент БЕЗ решения о Политике и ИИ (миграция 356): на локальном стенде это `approved`, пока под ним не прошли экран
+# (свежий `npm run mobile:stack:up`; либо `mobile:stack:down` и `up`; либо удалите его строки из platform_private.student_privacy_consents
+# и student_ai_consents на ЛОКАЛЬНОМ стенде). Запуск только по имени файла:
 #   EVO_E2E_ACCOUNT=approved npm run e2e:ios -- .maestro/10-consent-gate.yaml
-# Потоки 01-09 сами проходят этот экран (subflows/pass-consent.yaml); при полном прогоне этот поток пропустите,
-# если студент уже решил (тогда экран не показывается и поток по замыслу падает на проверке экрана).
+# В общий прогон поток не входит: метку `needs-undecided` исключает config.yaml (excludeTags). Потоки 01-08 и 11 сами проходят этот
+# экран (subflows/pass-consent.yaml) под `assisted`, после них студент уже решил, экран не показывается, и поток по замыслу падает на
+# проверке экрана. Подробнее: docs/mobile/E2E.md, «Поток 10: только вручную».
 tags:
   - needs-undecided
 ---

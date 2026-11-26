@@ -34,6 +34,16 @@ import { randomUUID } from "expo-crypto";
 export const SAVE_ON_CHOICE_MS = 1_500;
 export const SAVE_ON_MOVE_MS = 2_000;
 export const RETRY_MS = 3_000;
+/**
+ * Сколько раз за серию конфликтов (подряд, без удачного сохранения) неподтверждённые выборы накладываются поверх сохранённого
+ * сервером и отправляются снова; каждый круг идёт после паузы `RETRY_MS`. Дальше правило веба: сервер главнее, сообщение остаётся,
+ * заново ничего не отправляется, пока студент не ответит снова. Без предела постоянный 409 гнал бы открытый экран по кругу
+ * «сохранение, перечитывание» со скоростью сети. Конфликт (40001) сервер даёт, только если попытка ещё открыта, а её ревизию
+ * изменили: другое устройство или вкладка сайта, гонка двух экранов на одной попытке, своя устаревшая ревизия после неудачного
+ * перечитывания. Закрытая, завершённая или просроченная попытка даёт другие отказы (`test_completed`, `deadline_passed`, 22023):
+ * экран идёт к итогу, цикла нет.
+ */
+export const MAX_CONFLICT_ROUNDS = 2;
 
 export type TestPhase = "intro" | "starting" | "running" | "finishing" | "result";
 export type SaveStatus = "idle" | "pending" | "saving" | "saved" | "retrying";
@@ -97,6 +107,10 @@ export class CscaTestSession {
   private finalizing = false;
   private startWrite: FrozenWrite | null = null;
   private disposed = false;
+  /** Сколько кругов наложения уже было в этой серии конфликтов; обнуляется удачным сохранением и ответом студента после предела. */
+  private conflictRounds = 0;
+  /** Таймер паузы перед повторной отправкой после конфликта: пока он единственный на очереди, хвост `flush()` не отправляет сразу. */
+  private conflictPauseTimer: unknown = null;
   /** Выход из аккаунта: токен отозван, ни одного запроса, ни по таймеру, ни при закрытии экрана (`abandon`). */
   private abandoned = false;
   private visible = true;
@@ -144,8 +158,11 @@ export class CscaTestSession {
   /**
    * Экран закрыт (свайп назад, системная «назад», выход): несохранённые ответы и время на задании
    * уходят «по возможности» (запрос идёт и после закрытия), затем таймеры останавливаются.
+   * Досылка одна: после закрытия новых таймеров и повторов нет (сбой досылки, опоздавший ответ, конфликт, выбор после закрытия),
+   * иначе без связи запрос шёл бы каждые 3 с, пока не пройдёт. Второе закрытие ничего не шлёт.
    */
   dispose(): void {
+    if (this.disposed) return;
     if (this.attempt?.status === "draft" && this.state.phase === "running") void this.flush({ settle: true }).catch(() => undefined);
     this.disposed = true;
     if (this.batchTimer) this.env.clearTimer(this.batchTimer);
@@ -224,6 +241,7 @@ export class CscaTestSession {
     // некому. Без этой проверки отсчёт `startTicking()` пережил бы экран: таймер каждые 500 мс и вызовы после закрытия.
     // Сама попытка на сервере уже начата и идёт; ученик вернётся к ней кнопкой «Продолжить тест».
     if (this.disposed) return;
+    this.conflictRounds = 0;
     this.adopt(draft, receivedAt);
     const firstOpen = draft.items.findIndex((entry) => !(entry.itemKey in draft.answers));
     this.index = firstOpen === -1 ? 0 : firstOpen;
@@ -293,6 +311,7 @@ export class CscaTestSession {
   // ---- ввод ------------------------------------------------------------------------------
   select(itemKey: string, option: CscaOptionId): void {
     if (this.state.phase !== "running") return;
+    this.startNewConflictEpisodeAfterCap();
     this.answers = { ...this.answers, [itemKey]: option };
     this.touched.add(itemKey);
     this.patch({ answers: { ...this.answers } });
@@ -301,6 +320,7 @@ export class CscaTestSession {
 
   toggleFlag(itemKey: string): void {
     if (this.state.phase !== "running") return;
+    this.startNewConflictEpisodeAfterCap();
     this.flags = this.flags.includes(itemKey) ? this.flags.filter((k) => k !== itemKey) : [...this.flags, itemKey];
     this.flagsTouched = true;
     this.flagsVersion += 1;
@@ -363,9 +383,16 @@ export class CscaTestSession {
   }
 
   // ---- сохранение ------------------------------------------------------------------------
+  /** Ответ студента после предела кругов наложения начинает новую серию конфликтов: действия студента остаются единственным поводом. */
+  private startNewConflictEpisodeAfterCap(): void {
+    if (this.conflictRounds >= MAX_CONFLICT_ROUNDS) this.conflictRounds = 0;
+  }
+
   /** Выбор: статус «Сохраняем…», отправка через 1,5 с, не раньше 2 с после прошлой (§7.3). */
   private scheduleSave(minDelay = SAVE_ON_CHOICE_MS): void {
-    if (this.abandoned) return; // после выхода таймеров и записи больше нет (экран к этому часу уже замер: `patch` после `abandon` пуст)
+    // После выхода из аккаунта и после закрытия экрана таймеров и записи больше нет (экран к этому часу уже замер: `patch` пуст).
+    // Сюда приходят выбор, флажок, переход и наложение выбора после конфликта; во время завершения они закрыты (`phase` не `running`).
+    if (this.abandoned || this.disposed) return;
     this.dirty = true;
     if (this.retry) return; // таймер повтора не сбивается
     this.patch({ saveStatus: "pending" });
@@ -398,7 +425,7 @@ export class CscaTestSession {
     } finally {
       if (this.saving === run) this.saving = null;
     }
-    if (this.dirty && !this.retry && !this.disposed) await this.flush();
+    if (this.dirty && !this.retry && !this.disposed && !this.inConflictPause()) await this.flush();
   }
 
   private async sendOnce(current: CscaTestAttempt): Promise<void> {
@@ -430,20 +457,25 @@ export class CscaTestSession {
         // Тот же запрос: сервер мог его уже принять, повтор вернёт ту же квитанцию.
         this.retry = request;
         this.patch({ saveStatus: "retrying" });
-        this.batchTimer = this.env.setTimer(() => void this.flush(), RETRY_MS);
+        // Экран закрыт: повтор по таймеру не заводится (досылка при закрытии одна); запрос остаётся замороженным, чтобы завершение,
+        // начатое до закрытия, не ушло без ответов, которые не дошли.
+        if (!this.disposed) this.batchTimer = this.env.setTimer(() => void this.flush(), RETRY_MS);
         return;
       }
       this.retry = null;
       if (code === "conflict") {
-        // Попытка изменилась (другое устройство): сервер главнее для сохранённого, но выборы,
-        // сделанные здесь и не подтверждённые, накладываются поверх и уходят следующим запросом.
+        // Попытка изменилась (другое устройство): сервер главнее для сохранённого, но выборы, сделанные здесь и не подтверждённые,
+        // накладываются поверх и уходят следующим запросом. Не больше `MAX_CONFLICT_ROUNDS` раз за серию конфликтов и каждый раз
+        // после паузы `RETRY_MS`. После предела правило веба: остаётся то, что сохранил сервер, сообщение о конфликте на экране,
+        // заново ничего не отправляется, пока студент не ответит снова (иначе постоянный 409 гнал бы экран по кругу со скоростью сети).
         const localAnswers = { ...this.answers };
         const localFlags = [...this.flags];
         const keys = [...this.touched];
         const flagsTouched = this.flagsTouched;
         this.patch({ notice: "conflict" });
         await this.reloadAttempt();
-        if (this.attempt?.status === "draft" && this.state.phase === "running" && (keys.length > 0 || flagsTouched)) {
+        if (this.attempt?.status === "draft" && this.state.phase === "running" && (keys.length > 0 || flagsTouched) && this.conflictRounds < MAX_CONFLICT_ROUNDS) {
+          this.conflictRounds += 1;
           for (const key of keys) {
             this.answers[key] = localAnswers[key];
             this.touched.add(key);
@@ -453,7 +485,7 @@ export class CscaTestSession {
             this.flagsTouched = true;
           }
           this.patch({ answers: { ...this.answers }, flags: [...this.flags] });
-          this.scheduleSave();
+          this.resendAfterConflict();
           return;
         }
         this.patch({ saveStatus: "saved" });
@@ -465,9 +497,10 @@ export class CscaTestSession {
         return;
       }
       if (code === "deadline_passed") {
-        // Срок держит сервер: завершаем тем, что сохранено до срока.
+        // Срок держит сервер: завершаем тем, что сохранено до срока. Экран закрыт: нового завершения не начинаем (сервер сам завершит
+        // попытку при следующем чтении, §7.5); уже идущее завершение довершается.
         this.patch({ saveStatus: "idle" });
-        void this.finalize();
+        if (!this.disposed) void this.finalize();
         return;
       }
       this.patch({ saveStatus: "idle", error: code === "denied" ? "denied" : "invalid" });
@@ -476,6 +509,7 @@ export class CscaTestSession {
     const receivedAt = this.env.now();
     this.lastSaveAt = receivedAt;
     this.retry = null;
+    this.conflictRounds = 0; // удачное сохранение: серия конфликтов кончилась
     // Подтверждено только то, что ушло и не менялось за время запроса.
     for (const [key, sent] of Object.entries(request.sentAnswers)) if (this.answers[key] === sent) this.touched.delete(key);
     if (this.flagsVersion === request.flagsVersion) this.flagsTouched = false;
@@ -484,6 +518,31 @@ export class CscaTestSession {
     this.offset = laterClockOffset(this.offset, clockOffsetMs(receipt.serverNow, receivedAt));
     // Пока шёл запрос, ученик мог выбрать ещё: тогда «Сохранено» неправда.
     this.patch({ saveStatus: this.dirty ? "saving" : "saved", notice: null });
+  }
+
+  /**
+   * После конфликта наложенные выборы уходят не сразу, а через `RETRY_MS` (раньше, если студент ответит снова: `scheduleSave` ставит свой
+   * таймер, или начнётся другая отправка: фон, закрытие, завершение). Неотправленное помечено сразу, и после закрытия экрана тоже:
+   * закрытие в паузе и закрытие, пока шло перечитывание после конфликта (его `adopt` только что сбросил пометку), досылают его одной
+   * отправкой при закрытии; таймер после закрытия не заводится.
+   */
+  private resendAfterConflict(): void {
+    if (this.abandoned) return;
+    this.dirty = true;
+    if (this.disposed) return; // экран закрыт: таймера нет, досылка при закрытии одна
+    this.patch({ saveStatus: "pending" });
+    if (this.batchTimer) this.env.clearTimer(this.batchTimer);
+    const timer = this.env.setTimer(() => {
+      this.batchTimer = null;
+      void this.flush();
+    }, RETRY_MS);
+    this.batchTimer = timer;
+    this.conflictPauseTimer = timer;
+  }
+
+  /** Таймер паузы после конфликта всё ещё на очереди (его сняли отправка или новый выбор, или он сработал: тогда паузы нет). */
+  private inConflictPause(): boolean {
+    return this.conflictPauseTimer !== null && this.batchTimer === this.conflictPauseTimer;
   }
 
   // ---- завершение ------------------------------------------------------------------------

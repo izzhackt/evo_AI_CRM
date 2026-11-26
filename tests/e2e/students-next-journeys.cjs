@@ -210,17 +210,18 @@ const journeys = [
         tables: document.querySelectorAll("[data-slot=data-table]").length,
         external: [...document.querySelectorAll("main a[target=_blank]")].filter((link) => !/noopener/u.test(link.rel)).length,
         photo: Boolean(document.querySelector("aside[aria-label='Фото кампуса']")),
-        manage: [...document.querySelectorAll("main a")].map((link) => link.textContent.trim()).filter((text) => /Бланки университета|Предложить обновление/u.test(text)),
+        manage: document.querySelectorAll("[data-testid=university-manage-menu]").length,
       }));
       report(`uni-detail ${view}: programs are sections with their intake tables`, info.tables >= 1 && info.h2.length >= 2, info);
       report(`uni-detail ${view}: every external link opens in a new tab safely`, info.external === 0, info.external);
-      report(`uni-detail ${view}: photo and the editor's links (forms, update) are present for a manager`, info.photo && info.manage.length === 2, info.manage);
+      // 25.11.2026: бланки и «Предложить обновление» — пункты меню «⋯» у названия.
+      report(`uni-detail ${view}: photo and the editor's menu (forms, update) are present for a manager`, info.photo && info.manage === 1, info.manage);
       report(`uni-detail ${view}: no browser errors`, errors.length === 0, errors);
       await context.close();
     }
     const plain = await open("uni-detail-plain", "d1280");
-    const links = await plain.page.evaluate(() => [...document.querySelectorAll("main a")].map((link) => link.textContent.trim()).filter((text) => /Бланки университета|Предложить обновление/u.test(text)));
-    report("uni-detail-plain d1280: no management links without the right", links.length === 0, links);
+    const links = await plain.page.evaluate(() => document.querySelectorAll("[data-testid=university-manage-menu]").length);
+    report("uni-detail-plain d1280: no management menu without the right", links === 0, links);
     await plain.context.close();
   },
 

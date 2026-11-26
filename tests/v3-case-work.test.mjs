@@ -172,7 +172,7 @@ test("the case view (Student 360, Э4): stage and «Что дальше» under 
   assert.doesNotMatch(text, /Открыть вузы и программы|Открыть договор и оплату/u, "заявки есть, оплата не видна — ссылок нет");
   assert.match(text, /Переписка Нужен ответ Открыть переписку/u);
   assert.match(html, /href="\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
-  assert.match(text, /Шанхайский университет · Международная торговля — готовится · основной вариант · срок подачи 30\.11/u);
+  assert.match(text, /Шанхайский университет · Международная торговля — вариант · основной · срок подачи 30\.11/u);
   // Последнее сообщение переписки — в ленте.
   assert.match(text, /Лента .*Переписка · Айдана Сыдыкова 22\.09 14:14 Здравствуйте!/u);
   // Прежние дубли ушли: ссылка дела на само себя, «Коротко», вторая «Создать задачу по студенту».
@@ -280,7 +280,8 @@ test("Admin: sales forms and portal access are collapsed groups under «Свед
   assert.equal((salesData.match(/bg-accent (?:px|text)/gu) ?? []).length, 0, "no solid red inside «Данные продажи»");
   assert.equal((salesData.match(/>(?:Сохранить|Сохранить условия)<\/button>/gu) ?? []).length, 4);
   assert.match(read("src/components/staff/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet groups \/>/u);
-  assert.match(text, /Оплата 40% оплачено · остаток 900 \$/u);
+  // Один вид денег на карточку (как в таблице «Оплата»): «900 USD», не «900 $».
+  assert.match(text, /Оплата 40% оплачено · остаток 900 USD/u);
   assert.match(html, /<details name="case-edit" id="portal-access" data-lead-group="" data-testid="v3-case-portal"[^>]*>/u);
   assert.match(text, /Доступ к порталу анкета одобрена/u);
   assert.match(text, /Сведения Направление Китай Сменить направление Куратор АО Айгүл Осмонова Сменить куратора Передал Эрмек Токтосунов · 30\.08 12:00 Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
@@ -996,4 +997,17 @@ test("the contract download reads the file through the staff session, the servic
   assert.match(suite, /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") > 0 && script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
   assert.match(script, /a327_already_applied/u);
+});
+
+test("статус заявки одним словом во всей карточке: «вариант», как первый шаг пути, без второго словаря", async () => {
+  const wording = await import("../src/lib/v3/wording.ts");
+  assert.equal(wording.applicationStatus("preparation"), "вариант");
+  assert.equal(wording.applicationPathWord("preparation"), wording.applicationStatus("preparation"), "«Обзор» и «Вузы» говорят одно и то же");
+  assert.equal(wording.APPLICATION_PATH_STEPS[0], wording.applicationStatus("preparation"));
+  assert.doesNotMatch(read("src/lib/v3/wording.ts"), /preparation: "готовится"/u);
+  // Пометка основной заявки — «основной», как в живой карточке («Обзор» нового вида) и на «Вузах» («★ основной»).
+  for (const file of ["src/components/staff/profile/CaseOverview.tsx", "src/components/staff/profile/next/CaseApplications.tsx"]) {
+    assert.doesNotMatch(read(file), /основной вариант/u, `${file}: «вариант · основной вариант» не повторяется`);
+    assert.match(read(file), /application\.primary \? " · основной"/u, file);
+  }
 });

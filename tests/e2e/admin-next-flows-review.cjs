@@ -22,7 +22,7 @@ module.exports = function register({ flow: addFlow, sheet, esc, opener, calls, f
   // Урок волны 2A: первая Esc в поле панели только выводит из поля (фокус на названии, вопроса нет); вторая закрывает, а над правкой — спрашивает.
   const escTwice = async (page) => { await page.keyboard.press("Escape"); await page.waitForTimeout(250); await page.keyboard.press("Escape"); await page.waitForTimeout(300); };
   const inSheet = (page) => page.evaluate(() => document.activeElement?.closest("[data-slot=sheet-content]") !== null && document.activeElement !== document.body);
-  const toggle = (page, title) => page.locator("button[aria-expanded]", { hasText: title }).first();
+  const toggle = (page, title) => page.locator("button[aria-haspopup=dialog]", { hasText: title }).first();
   const accountForm = (page) => page.locator("form:has(input[name=operation][value=password])");
   const inviteForm = (page) => page.locator("form:has(input[name=operation][value=invite])");
 
@@ -37,41 +37,37 @@ module.exports = function register({ flow: addFlow, sheet, esc, opener, calls, f
     await form.locator("button[type=submit]").click();
   }
 
+  // 25.11.2026: «Создать аккаунт» и «Пригласить сотрудника» — каждая в своей выезжающей панели под охраной (`useSheetGuard`), а не форма в строке кнопок.
   flow("staff-access-kept", async (env) => {
     const { context, page, errors } = await env.open("settings-staff", "d1440");
     const { report } = env;
-    report("staff-access-kept: both forms are on the page from the start, hidden", (await accountForm(page).count()) === 1 && (await inviteForm(page).count()) === 1 && (await accountForm(page).isHidden()) && (await inviteForm(page).isHidden()), null);
+    report("staff-access-kept: no form in the button row until a panel opens", (await accountForm(page).count()) === 0 && (await inviteForm(page).count()) === 0, null);
     await toggle(page, "Создать аккаунт").click();
-    report("staff-access-kept: «Создать аккаунт» shows its form and hides the other", (await accountForm(page).isVisible()) && (await inviteForm(page).isHidden()), null);
+    await sheet(page).waitFor({ state: "visible" });
+    report("staff-access-kept: «Создать аккаунт» opens its own panel with one title", (await accountForm(page).count()) === 1 && (await sheet(page).locator("h2, h3").count()) === 1, null);
     await page.evaluate((password) => { window.__harness.results = { staffAuthAction: (_state, fields) => ({ status: "success", message: "Аккаунт создан.", requestId: fields.request_id, oneTimePassword: password }) }; }, SHOWN_ONCE);
     await submitAccess(accountForm(page), "password", "Синтетический Сотрудник");
     await page.waitForTimeout(300);
     const password = page.locator(`input[value="${SHOWN_ONCE}"]`);
     report("staff-access-kept: the one-time password is shown after «Создать аккаунт»", (await password.count()) === 1 && (await password.isVisible()), null);
-    await toggle(page, "Пригласить сотрудника").click();
-    await toggle(page, "Создать аккаунт").click();
-    report("staff-access-kept: one click on the neighbouring button and back does not lose the password", (await password.count()) === 1 && (await password.isVisible()), await password.count());
-    await toggle(page, "Создать аккаунт").click();
-    await toggle(page, "Создать аккаунт").click();
-    report("staff-access-kept: pressing the same toggle twice does not lose it either", (await password.count()) === 1 && (await password.isVisible()), await password.count());
-    // «Закрыть» возвращает фокус на кнопку, что открыла форму, а не на страницу.
-    await page.getByRole("button", { name: "Закрыть", exact: true }).focus();
-    await page.keyboard.press("Enter");
-    report("staff-access-kept: «Закрыть» collapses the form", (await toggle(page, "Создать аккаунт").getAttribute("aria-expanded")) === "false" && (await accountForm(page).isHidden()), null);
-    report("staff-access-kept: after «Закрыть» focus returns to the button that opened the form (not the page)", (await focusLabel(page)) === "Создать аккаунт", await focusLabel(page));
-    await toggle(page, "Пригласить сотрудника").click();
-    await page.getByRole("button", { name: "Закрыть", exact: true }).click();
-    report("staff-access-kept: the same after a mouse click, for «Пригласить сотрудника»", (await focusLabel(page)) === "Пригласить сотрудника", await focusLabel(page));
-    // Неизвестный итог: тот же запрос уходит с тем же request_id после переключения форм.
+    let asked = null;
+    page.once("dialog", (dialog) => { asked = dialog.message(); void dialog.dismiss(); });
+    await escTwice(page);
+    report("staff-access-kept: Esc over the shown password asks first and, declined, keeps the panel and the password", asked !== null && (await password.count()) === 1 && (await password.isVisible()), asked);
+    page.once("dialog", (dialog) => void dialog.accept());
+    await escTwice(page);
+    await sheet(page).waitFor({ state: "hidden" });
+    report("staff-access-kept: after closing, focus returns to «Создать аккаунт»", (await focusLabel(page)) === "Создать аккаунт", await focusLabel(page));
+    // Неизвестный итог: панель не закрывается, повтор уходит с тем же request_id.
     await page.evaluate(() => { window.__harness.results = { staffAuthAction: (_state, fields) => ({ status: "error", outcome: "unknown", requestId: fields.request_id, message: "Ответ не получен. Проверьте тот же запрос." }) }; });
     await toggle(page, "Пригласить сотрудника").click();
+    await sheet(page).waitFor({ state: "visible" });
     await submitAccess(inviteForm(page), "invite", "Приглашённый Куратор");
     await page.waitForTimeout(300);
     const again = page.getByRole("button", { name: "Проверить тот же запрос" });
     report("staff-access-kept: an unknown outcome offers «Проверить тот же запрос»", (await again.count()) === 1, await again.count());
-    await toggle(page, "Создать аккаунт").click();
-    await toggle(page, "Пригласить сотрудника").click();
-    report("staff-access-kept: the unknown-outcome request survives switching forms", (await again.count()) === 1 && (await again.isEnabled()), await again.count());
+    await escTwice(page);
+    report("staff-access-kept: with an unknown outcome the panel does not close", (await sheet(page).count()) === 1 && (await again.count()) === 1 && (await again.isEnabled()), await again.count());
     await again.click();
     await page.waitForTimeout(300);
     const sent = (await calls(page)).filter(([name, fields]) => name === "staffAuthAction" && fields && fields.operation === "invite");
@@ -335,7 +331,7 @@ module.exports = function register({ flow: addFlow, sheet, esc, opener, calls, f
       const facts = await page.evaluate(() => {
         const width = document.documentElement.clientWidth;
         const log = [...document.querySelectorAll("button")].find((element) => /Журнал доступа/u.test(element.textContent));
-        const create = [...document.querySelectorAll("button")].find((element) => /Создать аккаунт/u.test(element.textContent) && element.hasAttribute("aria-expanded"));
+        const create = [...document.querySelectorAll("button")].find((element) => /Создать аккаунт/u.test(element.textContent) && element.getAttribute("aria-haspopup") === "dialog");
         const values = [...document.querySelectorAll("tbody tr, [data-card-open]")].slice(0, 2).map((row) => row.getBoundingClientRect().right);
         return { width, log: log?.getBoundingClientRect().right ?? null, create: create?.getBoundingClientRect().right ?? null, rows: values };
       });

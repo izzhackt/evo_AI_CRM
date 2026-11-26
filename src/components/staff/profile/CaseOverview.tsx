@@ -255,7 +255,7 @@ function ApplicationsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
               <span className="break-words font-medium text-fg">{application.title}</span>
               <span className="text-fg-2">
                 {" — "}{applicationStatus(application.status) ?? "статус не указан"}
-                {application.primary ? " · основной вариант" : null}
+                {application.primary ? " · основной" : null}
                 {application.deadlineOn ? <> · срок подачи <time dateTime={application.deadlineOn} className="font-mono tabular-nums">{formatQueueDay(application.deadlineOn, input.work.today)}</time></> : null}
               </span>
             </li>

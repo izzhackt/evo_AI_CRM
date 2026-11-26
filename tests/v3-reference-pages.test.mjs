@@ -203,6 +203,8 @@ test("«Университеты»: one dense table of 30 rows with the photo, t
 test("«Университеты»: search runs by itself after a pause and without scripts is a plain GET form; filters are links with removable chips", () => {
   // «Новый вид» (#1327) заменил строку из двух `select` и «Найти» (прежний `UniversityToolbar`): поиск `ListSearch` с `liveMs`, фильтры ссылками.
   const html = page("universities-list-filtered");
+  // 25.11.2026: в заголовках таблицы нет стрелок сортировки (они переставляли 30 строк страницы); порядок — меню «Порядок».
+  assert.doesNotMatch(html.slice(html.indexOf("<thead"), html.indexOf("</thead>")), /aria-sort=/u);
   assert.match(html, /<form role="search" aria-label="Поиск университетов"[^>]*action="\/universities" method="get">/u, "works without scripts: a GET form");
   assert.match(html, /<input type="hidden" name="country" value="MY"\/><input type="hidden" name="level" value="bachelor"\/>/u, "the chosen filters ride along with a search");
   assert.match(html, /data-testid="list-filters"/u);

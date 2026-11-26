@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { MouseEvent } from "react";
 
-import { Icon } from "@/components/icons";
 import { BoardColumnCard } from "@/components/staff/board-next/BoardColumnCard";
 import { BOARD_EMPTY } from "@/components/staff/board/Board";
 import { LeadCardNext } from "@/components/staff/pipeline-next/LeadCardNext";
@@ -13,7 +12,8 @@ import { cn } from "@/lib/utils";
 const MORE_LINK = "flex min-h-11 items-center px-1.5 t-item text-fg-2 underline underline-offset-4 hover:text-fg";
 
 /**
- * Колонка этапа: карточка набора (`BoardColumnCard`) с названием, числом и замком «Есть условия» у этапа с условиями. С фокусом на
+ * Колонка этапа: карточка набора (`BoardColumnCard`) с названием и числом. Замка «Есть условия» у «Квалифицирован» больше нет
+ * (25.11): он остался от передачи из карточки, а нынешняя передача — запись в «Отчёте продаж» (миграции 174 и 181) — этап не проверяет. С фокусом на
  * этапе карточки лежат сеткой (240 px и больше), иначе в колонку шириной с шестую часть страницы. У «Переданных» — последние
  * 20 и «Показать все N» (тот же адрес `?handed=all`, что у прежней доски). Рабочие колонки «Всех этапов» — первые 20 (`columnLimit`),
  * «Показать ещё 20» и «Весь этап · N» — вкладка этапа.
@@ -46,7 +46,6 @@ export function PipelineColumn({ column, spread, selectedId, showOwner, today, h
         className={rows}
         title={stage.title}
         count={inStage.length}
-        marker={stage.gate ? <span title="Есть условия" className="inline-flex items-center"><Icon name="lock" size={14} /><span className="sr-only">Есть условия</span></span> : null}
       >
         {/* Вкладка рабочего этапа — список строк (26.11.2026), а не сетка карточек; «Переданы» — прежние карточки. */}
         {spread && !stage.terminal ? (

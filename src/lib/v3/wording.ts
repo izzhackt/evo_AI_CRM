@@ -576,6 +576,21 @@ const CASE_CHAT_AWAIT_CHOICE_SHORT: Record<string, string> = {
   none: "Не требуется",
 };
 export const caseChatAwaitChoiceShort = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE_SHORT, v);
+
+/** «Воронка продаж» (чек-лист 23.11): пустой поиск и ссылка на лида, которого на доске нет. */
+export const pipelineWords = {
+  noResults: (query: string, filtered: boolean) => filtered ? `По запросу «${query}» с выбранными фильтрами лидов нет` : `По запросу «${query}» лидов нет`,
+  // Выбрана вкладка этапа, на ней пусто, а лиды по запросу есть — на других этапах (27.11.2026: «лидов нет» без слов об этапе было ложью).
+  noResultsInStage: (query: string, filtered: boolean) => filtered ? `На этом этапе по запросу «${query}» с выбранными фильтрами лидов нет` : `На этом этапе по запросу «${query}» лидов нет`,
+  showAllStages: "Показать все этапы",
+  resetSearch: (filtered: boolean) => filtered ? "Сбросить поиск и фильтры" : "Сбросить поиск",
+  foundHanded: "Найдены среди переданных",
+  // Переданный лид на доске есть (вкладка «Переданы»), поэтому «передан» среди причин не называем.
+  leadMissing: "Лид не найден на доске — возможно, закрыт или ссылка устарела.",
+  leadFiltered: "Лид не подходит под поиск или фильтры.",
+  closedLink: "Закрытые",
+  showAll: "Показать всю доску",
+} as const;
 export const portalConsultationStatus = (v: string | null | undefined) =>
   lookup(PORTAL_CONSULTATION_STATUS, v);
 export const documentSlotStatus = (v: string | null | undefined) =>

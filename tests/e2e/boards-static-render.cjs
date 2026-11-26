@@ -217,6 +217,15 @@ const NEXT_SCENARIOS = {
   ...Object.fromEntries(NEXT_BASES.map((name) => [`next-${name}`, { ...SCENARIOS[name] }])),
   // Чтение лидов оборвано на пределе страниц (4000+ лидов): числа у «Воронки продаж» нет ни в заголовке, ни у вкладки «Все этапы».
   "next-sales-truncated": { ...SCENARIOS.sales, rows: "truncated" },
+  // Поиск на вкладке этапа (27.11.2026): «Данияр Макетов» один на «Встреча назначена», «Айжан Примерова» — на «Новых». Этап — вид, доска читает
+  // все этапы, поэтому лид из запроса приходит и с другого этапа. Переданные — «Алина Переданная» и «Мээрим Выпускница» (лиды 13 и 14).
+  "next-sales-stage-search-other": { page: "sales", search: `stage=meeting_scheduled&q=${encodeURIComponent("Айжан")}` },
+  "next-sales-stage-search-filtered": { page: "sales", search: `stage=meeting_scheduled&q=${encodeURIComponent("Айжан")}&due=overdue` },
+  "next-sales-stage-search-nobody": { page: "sales", search: `stage=meeting_scheduled&q=${encodeURIComponent("Яблоко")}` },
+  "next-sales-stage-search-handed": { page: "sales", search: `stage=meeting_scheduled&q=${encodeURIComponent("Алина")}` },
+  "next-sales-search-handed": { page: "sales", search: `q=${encodeURIComponent("Алина")}` },
+  // `?lead=` указывает на лида, которого в чтении нет (закрыт, удалён, старая ссылка): строка о том, почему, и ссылка на «Закрытые».
+  "next-sales-lead-missing": { page: "sales", search: `lead=${leadId(900)}` },
   // Другие миры: сотрудник, просмотр роли и администратор (имена прежние).
   ...Object.fromEntries(["sales", "sales-closed", "admissions"].flatMap((name) => [
     [`staff-cookie-${name}`, { ...SCENARIOS[name], actor: "staff" }],

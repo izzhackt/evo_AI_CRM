@@ -408,6 +408,11 @@ describe("сессия: постоянный конфликт не гонит э
   const SAVE_RPC = "save_learning_test_v1";
   const READ_RPC = "learning_test_attempt_v1";
   const conflict = () => err("40001", "Learning attempt changed");
+  /**
+   * Сервер, который отвечает 409 «всегда»: на деле 60 раз, потом принимает. Без предела (до исправления) сессия шла бы по кругу без пауз
+   * и съела бы память; так же поломка кончается ошибкой проверки (шестьдесят сохранений вместо трёх), а не крахом прогона.
+   */
+  const alwaysConflict = () => [...Array.from({ length: 60 }, conflict), saveReceipt(8)];
   const ofName = (h: { calls: Call[] }, name: string) => h.calls.filter((c) => c.name === name);
 
   async function running(extra: Record<string, Reply[]>) {
@@ -423,7 +428,7 @@ describe("сессия: постоянный конфликт не гонит э
   };
 
   it("сервер отвечает 409 всегда: за 120 с одно сохранение и два круга наложения (три сохранения, три перечитывания), потом за 60 с ни одного запроса; остаётся то, что сохранил сервер, и сообщение", async () => {
-    const { h, session, keys } = await running({ [SAVE_RPC]: [conflict()], [READ_RPC]: [draftAttempt()] });
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
     session.select(keys[0], "a");
     await h.advance(120_000);
     await settle();
@@ -440,7 +445,7 @@ describe("сессия: постоянный конфликт не гонит э
   });
 
   it("между кругами проходит пауза RETRY_MS: раньше следующее сохранение не уходит, ровно через неё уходит", async () => {
-    const { h, session, keys } = await running({ [SAVE_RPC]: [conflict()], [READ_RPC]: [draftAttempt()] });
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
     session.select(keys[0], "a");
     await h.advance(SAVE_ON_CHOICE_MS); // первая отправка ровно по таймеру: конфликт в этот миг, пауза считается от него
     expect(ofName(h, SAVE_RPC)).toHaveLength(1);
@@ -457,8 +462,8 @@ describe("сессия: постоянный конфликт не гонит э
 
   it("один конфликт и удачное сохранение: всё как раньше; серия кончилась, и следующий конфликт снова получает полные два круга (счётчик сброшен)", async () => {
     const { h, session, keys } = await running({
-      // серия 1: конфликт, затем успех (использован один круг); дальше сервер отвечает конфликтом всегда
-      [SAVE_RPC]: [conflict(), saveReceipt(8), conflict()],
+      // серия 1: конфликт, затем успех (использован один круг); дальше сервер отвечает конфликтом «всегда»
+      [SAVE_RPC]: [conflict(), saveReceipt(8), ...alwaysConflict()],
       [READ_RPC]: [draftAttempt({ revision: 7 })],
     });
     session.select(keys[0], "a");
@@ -476,7 +481,7 @@ describe("сессия: постоянный конфликт не гонит э
   });
 
   it("после предела новый ответ студента начинает новую ограниченную серию: ещё одно сохранение и два круга, не больше", async () => {
-    const { h, session, keys } = await running({ [SAVE_RPC]: [conflict()], [READ_RPC]: [draftAttempt()] });
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
     session.select(keys[0], "a");
     await h.advance(120_000);
     await settle();
@@ -496,7 +501,7 @@ describe("сессия: постоянный конфликт не гонит э
   });
 
   it("ответ посреди серии её не продлевает: те же одно сохранение и два круга (серия считается подряд идущими конфликтами, а не ответами студента)", async () => {
-    const { h, session, keys } = await running({ [SAVE_RPC]: [conflict()], [READ_RPC]: [draftAttempt()] });
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
     session.select(keys[0], "a");
     await h.advance(SAVE_ON_CHOICE_MS + 10); // конфликт, первый круг ждёт паузу
     session.select(keys[1], "b"); // ответ во время паузы: уходит раньше, как обычный выбор
@@ -540,7 +545,7 @@ describe("сессия: постоянный конфликт не гонит э
   });
 
   it("«Пройти ещё раз» посреди серии: новая попытка получает свои два круга (счётчик прежней попытки не переходит)", async () => {
-    const { h, session, keys } = await running({ [SAVE_RPC]: [conflict()], [READ_RPC]: [draftAttempt()] });
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
     session.select(keys[0], "a");
     await h.advance(SAVE_ON_CHOICE_MS); // конфликт, использован один круг
     expect(ofName(h, SAVE_RPC)).toHaveLength(1);
@@ -554,7 +559,7 @@ describe("сессия: постоянный конфликт не гонит э
   });
 
   it("экран закрыт во время паузы после конфликта: наложенные выборы уходят одной досылкой, дальше тишина", async () => {
-    const { h, session, keys } = await running({ [SAVE_RPC]: [conflict()], [READ_RPC]: [draftAttempt()] });
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
     session.select(keys[0], "a");
     await h.advance(SAVE_ON_CHOICE_MS + 10);
     expect(ofName(h, SAVE_RPC)).toHaveLength(1);

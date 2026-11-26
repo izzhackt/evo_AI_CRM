@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { clockOffsetMs, laterClockOffset, remainingSeconds, serverAcceptsSave, formatClock } from "@web/lib/portal/csca";
 
-import { CscaTestSession, RETRY_MS, SAVE_ON_CHOICE_MS, type SessionEnv } from "@/features/learning/test-runner/session";
+import { CscaTestSession, RETRY_MS, SAVE_ON_CHOICE_MS, SAVE_ON_MOVE_MS, type SessionEnv } from "@/features/learning/test-runner/session";
 import type { RpcTransport } from "@/lib/rpc";
 
 const fx = (name: string) => JSON.parse(readFileSync(path.join(__dirname, "../../../test-fixtures/csca", `${name}.json`), "utf8"));
@@ -389,15 +389,239 @@ describe("сессия: закрытие экрана и возврат из с�
     session.select(keys[0], "a");
     session.toggleFlag(keys[2]);
     await h.advance(SAVE_ON_CHOICE_MS + 10); // первая отправка: конфликт
-    // Выборы поверх сохранённого сервером (не затёрты) и уже уходят следующим запросом.
+    // Выборы поверх сохранённого сервером (не затёрты) видны сразу, а следующим запросом уходят после паузы `RETRY_MS` (раньше сразу:
+    // постоянный 409 гнал экран по кругу со скоростью сети, теперь круг идёт не быстрее раза в 3 с и не больше двух раз).
     expect(session.getState().answers).toEqual({ [keys[1]]: "c", [keys[0]]: "a" });
     expect(session.getState().flags).toEqual([keys[2]]);
+    expect(saves(h.calls)).toHaveLength(1);
+    await h.advance(RETRY_MS);
     const sent = saves(h.calls);
     expect(sent).toHaveLength(2);
     expect(sent[1].args.p_expected_revision).toBe(7);
     expect(sent[1].args.p_answers).toEqual({ [keys[1]]: "c", [keys[0]]: "a" });
     expect(sent[1].args.p_flags).toEqual([keys[2]]);
     session.dispose();
+  });
+});
+
+describe("сессия: постоянный конфликт не гонит экран по кругу (не больше двух кругов наложения, пауза между ними)", () => {
+  const SAVE_RPC = "save_learning_test_v1";
+  const READ_RPC = "learning_test_attempt_v1";
+  const conflict = () => err("40001", "Learning attempt changed");
+  /**
+   * Сервер, который отвечает 409 «всегда»: на деле 60 раз, потом принимает. Без предела (до исправления) сессия шла бы по кругу без пауз
+   * и съела бы память; так же поломка кончается ошибкой проверки (шестьдесят сохранений вместо трёх), а не крахом прогона.
+   */
+  const alwaysConflict = () => [...Array.from({ length: 60 }, conflict), saveReceipt(8)];
+  const ofName = (h: { calls: Call[] }, name: string) => h.calls.filter((c) => c.name === name);
+
+  async function running(extra: Record<string, Reply[]>) {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], ...extra });
+    const session = new CscaTestSession(h.env, FORM, null);
+    await session.start();
+    return { h, session, keys: attempt.items.map((i: { itemKey: string }) => i.itemKey) as string[] };
+  }
+  /** Цепочка запросов и обработчиков идёт одними обещаниями без таймеров: несколько проходов по 30 шагов её дочитывают до конца. */
+  const settle = async () => {
+    for (let i = 0; i < 6; i += 1) await flushMicrotasks();
+  };
+
+  it("сервер отвечает 409 всегда: за 120 с одно сохранение и два круга наложения (три сохранения, три перечитывания), потом за 60 с ни одного запроса; остаётся то, что сохранил сервер, и сообщение", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
+    session.select(keys[0], "a");
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1 + 2);
+    expect(ofName(h, READ_RPC)).toHaveLength(3);
+    const total = h.calls.length;
+    await h.advance(60_000);
+    await settle();
+    expect(h.calls).toHaveLength(total);
+    expect(session.getState().notice).toBe("conflict"); // сообщение осталось
+    expect(session.getState().saveStatus).toBe("saved"); // как на вебе
+    expect(session.getState().answers[keys[0]]).toBeUndefined(); // выбор не наложен: сервер главнее
+    session.dispose();
+  });
+
+  it("между кругами проходит пауза RETRY_MS: раньше следующее сохранение не уходит, ровно через неё уходит", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS); // первая отправка ровно по таймеру: конфликт в этот миг, пауза считается от него
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    await h.advance(RETRY_MS - 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    await h.advance(10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(2);
+    await h.advance(RETRY_MS - 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(2);
+    await h.advance(10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(3); // второй и последний круг
+    session.dispose();
+  });
+
+  it("один конфликт и удачное сохранение: всё как раньше; серия кончилась, и следующий конфликт снова получает полные два круга (счётчик сброшен)", async () => {
+    const { h, session, keys } = await running({
+      // серия 1: конфликт, затем успех (использован один круг); дальше сервер отвечает конфликтом «всегда»
+      [SAVE_RPC]: [conflict(), saveReceipt(8), ...alwaysConflict()],
+      [READ_RPC]: [draftAttempt({ revision: 7 })],
+    });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS);
+    await h.advance(RETRY_MS);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(2);
+    expect(session.getState().saveStatus).toBe("saved");
+    expect(session.getState().answers[keys[0]]).toBe("a"); // выбор наложен и дошёл
+    expect(session.getState().notice).toBeNull();
+    session.select(keys[1], "b"); // серия 2
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(2 + 3); // полные два круга: серия 1 не оставила в счётчике ничего
+    session.dispose();
+  });
+
+  it("после предела новый ответ студента начинает новую ограниченную серию: ещё одно сохранение и два круга, не больше", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
+    session.select(keys[0], "a");
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(3);
+    await h.advance(60_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(3); // студент не отвечал: тишина
+    session.select(keys[1], "b"); // действие студента: новая серия
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(6);
+    expect(ofName(h, READ_RPC)).toHaveLength(6);
+    await h.advance(60_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(6);
+    session.dispose();
+  });
+
+  it("ответ посреди серии её не продлевает: те же одно сохранение и два круга (серия считается подряд идущими конфликтами, а не ответами студента)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10); // конфликт, первый круг ждёт паузу
+    session.select(keys[1], "b"); // ответ во время паузы: уходит раньше, как обычный выбор
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1 + 2);
+    expect(ofName(h, READ_RPC)).toHaveLength(3);
+    await h.advance(60_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(3);
+    session.dispose();
+  });
+
+  it("после конфликта обычное сохранение не меняется: выбор, сделанный пока идёт запрос, уходит сразу после его ответа (хвост не заперт прежней паузой)", async () => {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], [SAVE_RPC]: [conflict(), saveReceipt(8), saveReceipt(9), saveReceipt(10)], [READ_RPC]: [draftAttempt({ revision: 7 })] });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let entered = 0;
+    const transport: RpcTransport = async (name, args, options) => {
+      if (name === SAVE_RPC && (entered += 1) === 3) await held; // третье сохранение висит, пока тест не отпустит
+      return h.env.transport(name, args, options);
+    };
+    const session = new CscaTestSession({ ...h.env, transport }, FORM, null);
+    await session.start();
+    const keys = attempt.items.map((i: { itemKey: string }) => i.itemKey) as string[];
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS); // конфликт, пауза
+    await h.advance(RETRY_MS); // повтор прошёл: пауза кончилась
+    expect(ofName(h, SAVE_RPC)).toHaveLength(2);
+    session.select(keys[1], "b");
+    await h.advance(SAVE_ON_MOVE_MS); // третье сохранение ушло и висит
+    expect(entered).toBe(3);
+    session.select(keys[2], "c"); // выбор, пока запрос в полёте
+    release();
+    await settle(); // время не двигаем: следующий запрос уходит сразу за ответом на предыдущий
+    const sent = ofName(h, SAVE_RPC);
+    expect(sent).toHaveLength(4);
+    expect((sent[3].args.p_answers as Record<string, string>)[keys[2]]).toBe("c");
+    session.dispose();
+  });
+
+  it("«Пройти ещё раз» посреди серии: новая попытка получает свои два круга (счётчик прежней попытки не переходит)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS); // конфликт, использован один круг
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    session.restart();
+    await session.start(); // новая попытка
+    session.select(keys[0], "b");
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1 + 3);
+    session.dispose();
+  });
+
+  it("экран закрыт, пока идёт перечитывание после конфликта: наложенный выбор всё равно уходит одной досылкой (ревью #1598, F1)", async () => {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], [SAVE_RPC]: [conflict(), saveReceipt(8)], [READ_RPC]: [draftAttempt({ revision: 7 })] });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    const transport: RpcTransport = async (name, args, options) => {
+      if (name === READ_RPC && (reads += 1) === 1) await held; // перечитывание висит, пока тест не отпустит
+      return h.env.transport(name, args, options);
+    };
+    const session = new CscaTestSession({ ...h.env, transport }, FORM, null);
+    await session.start();
+    const keys = attempt.items.map((i: { itemKey: string }) => i.itemKey) as string[];
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS); // сохранение: конфликт, перечитывание в полёте
+    expect(reads).toBe(1);
+    session.dispose();
+    release();
+    await settle();
+    await h.advance(120_000);
+    await settle();
+    const sent = ofName(h, SAVE_RPC);
+    expect(sent).toHaveLength(2); // досылка при закрытии (на `main` она уходила, без правки её нет)
+    expect((sent[1].args.p_answers as Record<string, string>)[keys[0]]).toBe("a");
+    expect(h.pendingTimers()).toBe(0);
+  });
+
+  it("обрыв посреди серии серию не обнуляет: конфликт, обрыв, конфликт, конфликт - шесть сохранений (три из них попытки слоя RPC одного запроса) и три перечитывания, потом тишина (ревью #1598, F2)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [conflict(), NETWORK, NETWORK, NETWORK, conflict(), conflict(), conflict(), saveReceipt(9)], [READ_RPC]: [draftAttempt({ revision: 7 })] });
+    session.select(keys[0], "a");
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(6);
+    expect(ofName(h, READ_RPC)).toHaveLength(3);
+    expect(session.getState().notice).toBe("conflict");
+    expect(session.getState().saveStatus).toBe("saved");
+    session.dispose();
+  });
+
+  it("после предела флажок, как и ответ, начинает новую серию: ещё одно сохранение и два круга (ревью #1598, F2)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
+    session.select(keys[0], "a");
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(3);
+    session.toggleFlag(keys[1]);
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(6);
+    session.dispose();
+  });
+
+  it("экран закрыт во время паузы после конфликта: наложенные выборы уходят одной досылкой, дальше тишина", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    session.dispose();
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(2); // досылка при закрытии
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(2);
   });
 });
 
@@ -633,6 +857,156 @@ describe("сессия: выход из аккаунта (QA 23: `save_learning_
     expect(sent).toBeLessThanOrEqual(3); // одна отправка с повторами слоя RPC, второго круга нет
     await h.advance(60_000);
     expect(total(h, COMPLETE_RPC)).toBe(sent);
+  });
+});
+
+describe("сессия: после закрытия экрана ничего не заводится (повторы, таймеры, завершение)", () => {
+  const SAVE_RPC = "save_learning_test_v1";
+  const COMPLETE_RPC = "complete_learning_test_v1";
+  const READ_RPC = "learning_test_attempt_v1";
+  const ofName = (h: { calls: Call[] }, name: string) => h.calls.filter((c) => c.name === name);
+  const keysOf = (attempt: { items: { itemKey: string }[] }) => attempt.items.map((i) => i.itemKey);
+  /** Цепочка запросов и обработчиков идёт одними обещаниями без таймеров: несколько проходов по 30 шагов её дочитывают до конца (один проход мог остановить проверку на полпути). */
+  const settle = async () => {
+    for (let i = 0; i < 6; i += 1) await flushMicrotasks();
+  };
+
+  async function running(extra: Record<string, Reply[]> = {}) {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], ...extra });
+    const session = new CscaTestSession(h.env, FORM, null);
+    await session.start();
+    return { h, session, keys: keysOf(attempt) };
+  }
+
+  /** Первый запрос сохранения не заканчивается, пока тест его не отпустит: так экран закрывается при запросе «в полёте». */
+  async function runningWithHeldSave(extra: Record<string, Reply[]>) {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], ...extra });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let entered = 0;
+    const transport: RpcTransport = async (name, args, options) => {
+      if (name === SAVE_RPC && (entered += 1) === 1) await held;
+      return h.env.transport(name, args, options);
+    };
+    const session = new CscaTestSession({ ...h.env, transport }, FORM, null);
+    await session.start();
+    return { h, session, keys: keysOf(attempt), release: () => release(), entered: () => entered };
+  }
+
+  it("закрытие экрана без связи: одна досылка, а повторов по таймеру нет, сколько бы времени ни прошло (раньше запрос шёл каждые 3 с, пока не пройдёт)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK] });
+    session.select(keys[0], "a"); // не отправлено
+    session.dispose();
+    await settle();
+    const sent = ofName(h, SAVE_RPC).length;
+    expect(sent).toBe(3); // три попытки слоя RPC одного запроса
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(RETRY_MS * 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(sent);
+    expect(h.pendingTimers()).toBe(0);
+  });
+
+  it("пока экран открыт, повтор после обрыва идёт по таймеру как раньше (защита касается только закрытого экрана)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(3);
+    expect(h.pendingTimers()).toBeGreaterThan(1); // отсчёт и повтор
+    await h.advance(RETRY_MS + 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(6);
+    await h.advance(RETRY_MS + 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(9);
+    session.dispose();
+  });
+
+  it("двойное закрытие экрана шлёт один раз (второй вызов `dispose` ничего не делает)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK] });
+    session.select(keys[0], "a");
+    session.dispose();
+    session.dispose();
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(3);
+    expect(h.pendingTimers()).toBe(0);
+  });
+
+  it("запрос в полёте, экран закрыт, затем ответ «нет связи»: повтор не заводится, состояние экрана не тронуто", async () => {
+    const { h, session, keys, release, entered } = await runningWithHeldSave({ [SAVE_RPC]: [NETWORK] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    expect(entered()).toBe(1); // запрос ушёл и висит
+    const before = session.getState();
+    session.dispose();
+    release(); // ответ пришёл уже после закрытия
+    await settle();
+    const sent = ofName(h, SAVE_RPC).length;
+    expect(sent).toBe(6); // три попытки висевшего запроса и досылка при закрытии (тот же запрос ещё раз)
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(RETRY_MS * 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(sent);
+    expect(session.getState()).toBe(before);
+  });
+
+  it("запрос в полёте, экран закрыт, затем ответ «принято»: ничего не заводится, состояние экрана не тронуто (так и было: проверка не даёт это сломать)", async () => {
+    const { h, session, keys, release, entered } = await runningWithHeldSave({ [SAVE_RPC]: [saveReceipt(2)] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    expect(entered()).toBe(1);
+    const before = session.getState();
+    session.dispose();
+    release();
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(RETRY_MS * 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    expect(session.getState()).toBe(before);
+    expect(session.debug().revision).toBe(2); // внутренняя ревизия идёт дальше: завершение, начатое до закрытия, ждёт её
+  });
+
+  it("сервер отвечает конфликтом уже после закрытия экрана (и ответит так всегда): одно перечитывание и тишина, повторных отправок по кругу нет", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [err("40001", "Learning attempt changed")], [READ_RPC]: [draftAttempt()] });
+    session.select(keys[0], "a");
+    session.dispose();
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    expect(ofName(h, READ_RPC)).toHaveLength(1);
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(60_000);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    expect(ofName(h, READ_RPC)).toHaveLength(1);
+  });
+
+  it("выбор после закрытия экрана (опоздавший ввод) таймера сохранения не заводит", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [saveReceipt(2)] });
+    session.dispose();
+    session.select(keys[0], "b");
+    session.toggleFlag(keys[0]);
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(60_000);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(0);
+  });
+
+  it("ответ «срок прошёл» уже после закрытия экрана: нового завершения не начинается (сервер завершит попытку при следующем чтении)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [err("22023", "learning_test_deadline_passed")], [COMPLETE_RPC]: [fx("csca_test_complete_diagnostic")] });
+    session.select(keys[0], "a");
+    session.dispose();
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    expect(ofName(h, COMPLETE_RPC)).toHaveLength(0);
+  });
+
+  it("экран закрыт посреди досрочного завершения, а отправка не прошла: неотправленное остаётся помеченным, завершение без этих ответов не уходит, таймеров нет", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK], [COMPLETE_RPC]: [fx("csca_test_complete_diagnostic")] });
+    session.select(keys[0], "a");
+    const finishing = session.finalize();
+    session.dispose();
+    await finishing;
+    await settle();
+    expect(ofName(h, COMPLETE_RPC)).toHaveLength(0);
+    expect(h.pendingTimers()).toBe(0);
+    expect(session.debug().retry).not.toBeNull(); // замороженный запрос на месте: завершение ждёт его
   });
 });
 

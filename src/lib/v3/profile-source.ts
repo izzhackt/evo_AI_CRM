@@ -19,6 +19,7 @@ import { readProfileActivity, type ProfileActivityCursor } from "@/lib/v3/profil
 import { getHandoffAcknowledgement, getSalesHandoffAcknowledgement, type HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 
 import { caseSaleBlocks } from "@/components/staff/profile/case-work-view";
+import { moneyAmount } from "@/components/staff/profile/case-money-view";
 import type {
   DocumentCaseLinkTarget,
   DocumentGroup,
@@ -181,12 +182,12 @@ function formatDate(value: string | null, full = false): string | null {
   return Number.isNaN(date.valueOf()) ? null : (full ? FULL_DAY : DAY).format(date);
 }
 
+/**
+ * Сумма карточки дела — тем же видом, что в таблице «Оплата» («3 500 USD», копейки — только ненулевые). Прежний
+ * «3 500,00 $» на «Обзоре» и в «Обязательствах» расходился с таблицей той же вкладки.
+ */
 function formatMoney(amountMinor: number, currency: string): string {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(amountMinor / 100);
+  return moneyAmount(String(amountMinor), currency);
 }
 
 function financeSummary(finance: PlatformCaseFinanceControl | null): FinanceSummary {
@@ -213,8 +214,13 @@ function financeSummary(finance: PlatformCaseFinanceControl | null): FinanceSumm
       : null,
     currency: aggregateCurrency,
     payments: (finance?.obligations ?? []).map((obligation) => ({
+      id: obligation.paymentObligationId,
       name: obligation.label,
       amount: formatMoney(obligation.amountMinor, obligation.currency),
+      // Частично оплаченный платёж: та же оплаченная часть, что строкой оплаты в таблице «Оплата».
+      paidPart: obligation.outstandingMinor > 0 && obligation.totalPaidMinor - obligation.totalRefundedMinor > 0
+        ? formatMoney(obligation.totalPaidMinor - obligation.totalRefundedMinor, obligation.currency)
+        : null,
       state: obligation.status === "paid"
         ? "paid"
         : obligation.overdue || obligation.status === "overdue"

@@ -38,7 +38,9 @@ export default async function UniversityCountryPage({ params, searchParams }: {
   if (total === 0) {
     return <UniversityShell title={name} back={back} tabs={tabs} meta={meta}><p className="rounded-card border border-border bg-surface p-5 t-body-compact text-fg-2">По этой стране пока нет опубликованных карточек.</p></UniversityShell>;
   }
-  const place = (item: (typeof geo.items)[number]) => [item.content.city, name].filter(Boolean).join(" · ");
+  // Город точки — название группы (из справочника, если вуз с ним связан), как в списке по городам, а не подпись карточки.
+  const cityOf = new Map(geo.groups.flatMap((group) => (group.key === null ? [] : group.items.map((item) => [item.id, group.label] as const))));
+  const place = (item: (typeof geo.items)[number]) => [cityOf.get(item.id) ?? null, name].filter(Boolean).join(" · ");
   const map = view === "map" ? buildCampusPins(geo.items.map((item) => ({ id: item.id, name: item.content.name, photoKey: item.content.photoKey, item })), (pin) => place(pin.item)) : null;
   return (
     <UniversityShell title={name} back={back} tabs={tabs} meta={meta}>

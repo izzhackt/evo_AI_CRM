@@ -132,7 +132,15 @@ const ADMISSIONS_ROWS = [
  * отказывает `moved` и называет текущее положение. `moveElsewhere` — чужое
  * перемещение (другой сотрудник) для сценария отказа отмены.
  */
-const pipeline = new Map(ADMISSIONS_ROWS.map((one) => [one.studentCaseId, { stage: one.pipelineStage, hidden: false, version: 1 }]));
+// Объёмная доска поступления (прод 26.11: «Документы» — 66 дел): 41 дело в «Документах», остальное как у обычной доски.
+const ADMISSIONS_VOLUME_ROWS = [
+  ...ADMISSIONS_ROWS,
+  ...Array.from({ length: 39 }, (_, index) => row(100 + index, {
+    studentDisplayName: `Студент Объёмный ${index + 1}`, targetCountry: index % 3 === 0 ? "MY" : "CN", pipelineStage: "documents",
+    intakeLabel: index % 4 === 0 ? "Осень 2027" : null, ...(index % 2 ? CURATOR_TWO : {}),
+  })),
+];
+const pipeline = new Map(ADMISSIONS_VOLUME_ROWS.map((one) => [one.studentCaseId, { stage: one.pipelineStage, hidden: false, version: 1 }]));
 const pipelineCalls = [];
 function movePipeline(input) {
   pipelineCalls.push(input);
@@ -199,6 +207,7 @@ function matchesDue(one, dueFilter) {
 const LOPSIDED_ROWS = VOLUME_ROWS.filter((row) => row.stageKey === "new" || row.stageKey === "handed_off").slice(0, 34);
 function selectSalesRows(kind) {
   state.salesRows = kind === "volume" ? VOLUME_ROWS : kind === "lopsided" ? LOPSIDED_ROWS : SALES_ROWS;
+  state.admissionsVolume = kind === "admissions-volume";
   // «Усечённое чтение»: страницы лидов не кончаются (`hasNext` всегда истина), чтение останавливается на пределе страниц, как при 4000+ лидов.
   state.truncated = kind === "truncated";
   state.pagesRead = 0;
@@ -284,7 +293,7 @@ const STUBS = {
     // Фильтр «Страна» — как у настоящего чтения (Э8.11: на телефоне первый
     // этап раздела бывает пуст).
     readAdmissionsPipelineBoard: async (_actor, filters = {}) => ({
-      rows: ADMISSIONS_ROWS.filter((one) => !pipeline.get(one.studentCaseId).hidden)
+      rows: (state.admissionsVolume ? ADMISSIONS_VOLUME_ROWS : ADMISSIONS_ROWS).filter((one) => !pipeline.get(one.studentCaseId).hidden)
         .filter((one) => !filters.country || one.targetCountry === filters.country)
         .map((one) => ({ ...one, pipelineStage: pipeline.get(one.studentCaseId).stage })),
       truncated: false,

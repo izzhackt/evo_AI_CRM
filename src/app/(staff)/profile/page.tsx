@@ -524,7 +524,7 @@ export default async function ProfilePart({
     now: new Date(),
   }) : null;
   // «Новый вид»: части `caseWorkParts` / `leadWorkParts` в новой раскладке.
-  const nextParts = caseParts?.next ? caseNextParts(caseParts.next, caseParts.actions) : leadParts ? leadNextParts(leadParts.next) : null;
+  const nextParts = caseParts?.next ? caseNextParts(caseParts.next, caseParts.actions, tab) : leadParts ? leadNextParts(leadParts.next) : null;
   // «Похоже на» (#1198, пункт 2): номер лида или дела записан как телефон родителя в анкете другого студента.
   // Только подсказка, ничего не объединяется; что показать именно этому сотруднику, решает база (миграция 306):
   // читаемые дела со ссылкой, а для дела, которого он не читает (менеджер продаж), только факт совпадения.

@@ -117,9 +117,9 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
   const portalControls = !preview && (actor.systemRole === "admin" || (admissions.isCabinetCase && staffCan(actor, "sales.write")));
   const application = draft.studentApplication;
   // Кабинет с временным паролем (343): состояние приходит только тем, кому база его отдала — админу и куратору этого
-  // дела (363). Открытый кабинет куратору показывать нечего: «Сбросить пароль» (344) остаётся за админом.
+  // дела (363). Им же открытый кабинет показывает логин и «Сбросить пароль» (374, решение владельца 25.11.2026).
   const cabinetView = preview ? null : caseCabinetView(input.cabinet, admissions.caseState);
-  const cabinetShown = cabinetView !== null && (admin || cabinetView !== "open");
+  const cabinetShown = cabinetView !== null;
   const portalSettings = portalControls || cabinetShown || application?.status === "pending" || (application?.status === "rejected" && application.decisionReason) ? (
     <div className="space-y-3">
       {application?.status === "pending" && !preview && sales !== null ? (
@@ -131,7 +131,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       {/* Одно место для формы, «Кабинет открыт» и отказа (343): после обновления карточки показанный пароль остаётся. */}
       {input.cabinet && cabinetView && cabinetShown ? (
         <CaseCabinetAccount studentCaseId={caseId} requestId={input.cabinet.requestId} firstName={input.cabinet.firstName}
-          lastName={input.cabinet.lastName} portalOrigin={input.cabinet.portalOrigin} view={cabinetView} canReset={admin}
+          lastName={input.cabinet.lastName} portalOrigin={input.cabinet.portalOrigin} view={cabinetView}
           reset={{ requestId: input.cabinet.resetRequestId, login: input.cabinet.login, email: input.cabinet.email }} />
       ) : null}
       {/* Кабинет уже открыт (343): приглашение по почте ему не нужно, база его и не примет. */}

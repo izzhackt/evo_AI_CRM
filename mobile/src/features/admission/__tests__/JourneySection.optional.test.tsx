@@ -15,7 +15,7 @@ describe("шаг «по желанию» в пути", () => {
   it("стипендия Турции: значок, слово читалке, обычные шаги считаются без неё", async () => {
     const turkey = view("ru");
     const progress = timelineStepProgress(turkey.steps, "documents");
-    await renderPortal(<JourneySection view={turkey} progress={progress} source="case" readFailed={false} assisted initiallyUnfolded />, testApi(fakeTransport({}).transport));
+    await renderPortal(<JourneySection view={turkey} progress={progress} source="case" readFailed={false} assisted hero={() => null} initiallyUnfolded />, testApi(fakeTransport({}).transport));
     expect(screen.getByTestId("step-optional-tr-2-scholarship")).toHaveTextContent("по желанию");
     expect(screen.getByTestId("step-toggle-tr-2-scholarship").props.accessibilityLabel).toContain(". по желанию");
     expect(screen.getByTestId("step-toggle-tr-3-exams-documents").props.accessibilityLabel).toContain(". Сейчас");
@@ -24,7 +24,7 @@ describe("шаг «по желанию» в пути", () => {
 
   it("KY: значок на кыргызском", async () => {
     const turkey = view("ky");
-    await renderPortal(<JourneySection view={turkey} progress={timelineStepProgress(turkey.steps, "applications")} source="case" readFailed={false} assisted initiallyUnfolded />, testApi(fakeTransport({}).transport), "ky");
+    await renderPortal(<JourneySection view={turkey} progress={timelineStepProgress(turkey.steps, "applications")} source="case" readFailed={false} assisted hero={() => null} initiallyUnfolded />, testApi(fakeTransport({}).transport), "ky");
     expect(screen.getByTestId("step-optional-tr-2-scholarship")).toHaveTextContent("каалоо боюнча");
   });
 

@@ -1,17 +1,21 @@
 import { ActivityIndicator, View } from "react-native";
 
+import { ApplicantDeletionSection } from "@/features/registration/ApplicantDeletion";
 import { ApplicationStatusScreen } from "@/features/registration/ApplicationStatus";
 import { NeedsApplicationScreen } from "@/features/registration/SignedInApplication";
 import { useLang } from "@/i18n/LangProvider";
 import { useSession } from "@/session/SessionProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
+import { LangSwitch } from "@/ui/LangSwitch";
 import { Card, Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 
 /**
  * Состояния маршрутизатора, при которых кабинет не открывается:
  * resolvingAccess, networkError, accessPending, needsApplication, applicationStatus.
+ * На экранах с карточкой есть язык RU|KY и «Выйти»; на «Доступ готовится» ещё и удаление аккаунта (веб:
+ * auth/account-pending/page.tsx; Apple 5.1.1(v)).
  */
 export default function GateScreen() {
   const { tokens } = useTheme();
@@ -29,11 +33,14 @@ export default function GateScreen() {
     );
   }
 
-  const logout = <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} />;
+  const logout = <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} testID="gate-sign-out" />;
 
   if (state.kind === "networkError") {
     return (
       <Screen>
+        <View style={{ alignItems: "flex-end", marginBottom: 12 }}>
+          <LangSwitch />
+        </View>
         <Card>
           <Text variant="title" accessibilityRole="header">
             {state.messageKey === "error.offline" ? m("gate.offlineTitle") : m("gate.serverTitle")}
@@ -59,16 +66,22 @@ export default function GateScreen() {
   // accessPending (и страховка для остальных видов)
   return (
     <Screen>
-      <Card>
-        <Text variant="title" accessibilityRole="header">
-          {m("gate.pendingTitle")}
-        </Text>
-        <Text variant="secondary" tone="text2">
-          {m("gate.pendingBody")}
-        </Text>
-        <Button label={m("gate.retry")} onPress={() => void retry()} />
-        {logout}
-      </Card>
+      <View style={{ alignItems: "flex-end", marginBottom: 12 }}>
+        <LangSwitch />
+      </View>
+      <View style={{ gap: 16 }}>
+        <Card>
+          <Text variant="title" accessibilityRole="header">
+            {m("gate.pendingTitle")}
+          </Text>
+          <Text variant="secondary" tone="text2">
+            {m("gate.pendingBody")}
+          </Text>
+          <Button label={m("gate.retry")} onPress={() => void retry()} testID="gate-pending-retry" />
+          {logout}
+        </Card>
+        <ApplicantDeletionSection />
+      </View>
     </Screen>
   );
 }

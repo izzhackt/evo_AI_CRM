@@ -4,6 +4,7 @@
 import { formatPortalString, type PortalStrings } from "@web/lib/portal/i18n";
 
 import type { StudentPortalAction, StudentPortalEvoAction, StudentPortalNotification } from "@/domain/portal-source";
+import { preparationPath } from "@/features/preparations/routes";
 
 type AdmissionStrings = PortalStrings<"admission">;
 
@@ -61,11 +62,27 @@ export function actionTitle(action: StudentPortalAction, strings: AdmissionStrin
   return `${verb}: ${action.label}`;
 }
 
-/** Куда ведёт действие: вкладка приложения. Якорь слота документа поймёт M2. */
+/** Куда ведёт действие: вкладка приложения; у документа ещё и строка чек-листа (`slotId`, веб: якорь `#document-<slotId>`). */
 export type ActionTarget = Readonly<{ route: "/documents" | "/payments"; slotId: string | null }>;
 
 export function actionTarget(action: StudentPortalAction): ActionTarget {
   return action.kind === "payment" ? { route: "/payments", slotId: null } : { route: "/documents", slotId: action.documentSlotId };
+}
+
+/**
+ * Имя параметра «показать этот документ» у экрана «Документы» (`/documents?focus=<documentSlotId>`). Значение - тот же
+ * идентификатор слота, что в веб-ссылке `/portal/documents#document-<slotId>` (HomeCase.actionHref): экран прокручивает
+ * к строке и подсвечивает её. Пока экран параметр не читает, он просто игнорируется.
+ */
+export const DOCUMENT_FOCUS_PARAM = "focus";
+
+/**
+ * Адрес действия строкой для `go()` и строк «Ближайших дат» (веб `actionHref`, HomeCase.tsx): оплата - «Оплата»;
+ * документ - «Документы» с параметром `focus`, чтобы открылась строка этого документа, а не верх списка.
+ */
+export function actionHref(action: StudentPortalAction): string {
+  const target = actionTarget(action);
+  return target.slotId === null ? target.route : `${target.route}?${DOCUMENT_FOCUS_PARAM}=${encodeURIComponent(target.slotId)}`;
 }
 
 // ---- этапы дела (OverviewView.tsx, PORT-8c) ------------------------------------
@@ -121,35 +138,60 @@ export function portalNotificationText(
   return { title: notification.subjectLabel, detail: notification.detail };
 }
 
-export type NotificationRoute = "/documents" | "/payments" | "/messages/chat" | "/messages/updates" | "/home";
+/**
+ * Вид события ленты по тем же веткам, что и `notificationRoute` (portalNotificationKind, веб, 18.11.2026): значок строки
+ * «Что нового» на «Главной». Пакет программы, документ, ответ или сообщение команды, оплата, остальное.
+ */
+export type PortalNotificationKind = "package" | "document" | "message" | "payment" | "other";
+
+export function portalNotificationKind(notification: Pick<StudentPortalNotification, "category" | "eventCode">): PortalNotificationKind {
+  if (notification.eventCode === "application_package_review") return "package";
+  if (notification.eventCode === "application_document_review") return "document";
+  if (notification.eventCode === "case_help_answer" || notification.eventCode === "case_chat_message") return "message";
+  if (notification.category.startsWith("document")) return "document";
+  if (notification.category.startsWith("payment")) return "payment";
+  return "other";
+}
+
+/** Экраны решения по уведомлению во «Входящих» (веб: /portal/notifications, /portal/document-notifications, /portal/package-notifications). */
+export const REPLY_ROUTE_PREFIX = "/messages/reply/";
+export const DOCUMENT_DECISION_ROUTE_PREFIX = "/messages/document-decision/";
+export const PACKAGE_DECISION_ROUTE_PREFIX = "/messages/package-decision/";
+
+export type NotificationRoute =
+  | "/documents"
+  | "/payments"
+  | "/messages/chat"
+  | "/home"
+  | `/messages/reply/${string}`
+  | `/messages/document-decision/${string}`
+  | `/messages/package-decision/${string}`;
 
 /**
- * Цель уведомления по `category` и `eventCode` (portalNotificationTarget, веб). Сообщение
- * команды ведёт в чат. Ответ куратора и проверка пакета или документа вуза показываются
- * в ленте «Что нового» развёрнутым текстом уведомления (отдельные страницы разбора
- * веба в приложении пока не нужны). Любая новая категория ведёт на «Главную» (#1355: «Поступления» больше нет).
+ * Цель уведомления по `eventCode` и `category` (portalNotificationTarget, веб): одна ссылка на уведомление. Проверка пакета
+ * программы, проверка документа программы и ответ куратора ведут на свои экраны решения (в вебе это отдельные страницы;
+ * решение и файл есть только там, строка уведомления несёт лишь название и причину). Сообщение команды ведёт в чат. Любая
+ * новая категория ведёт на «Главную» (#1355: «Поступления» больше нет).
  */
-export function notificationRoute(notification: Pick<StudentPortalNotification, "category" | "eventCode">): NotificationRoute {
+export function notificationRoute(notification: Pick<StudentPortalNotification, "notificationId" | "category" | "eventCode">): NotificationRoute {
+  if (notification.eventCode === "application_package_review") return `${PACKAGE_DECISION_ROUTE_PREFIX}${notification.notificationId}`;
+  if (notification.eventCode === "application_document_review") return `${DOCUMENT_DECISION_ROUTE_PREFIX}${notification.notificationId}`;
+  if (notification.eventCode === "case_help_answer") return `${REPLY_ROUTE_PREFIX}${notification.notificationId}`;
   if (notification.eventCode === "case_chat_message") return "/messages/chat";
-  if (
-    notification.eventCode === "application_package_review" ||
-    notification.eventCode === "application_document_review" ||
-    notification.eventCode === "case_help_answer"
-  ) {
-    return "/messages/updates";
-  }
   if (notification.category.startsWith("document")) return "/documents";
   if (notification.category.startsWith("payment")) return "/payments";
   return "/home";
 }
 
-/** Подпись ссылки уведомления (portalNotificationTarget.label, веб); `null`, когда ссылки нет. */
-export function notificationTargetLabel(notification: Pick<StudentPortalNotification, "category" | "eventCode">, strings: AdmissionStrings): string | null {
-  switch (notificationRoute(notification)) {
+/** Подпись ссылки уведомления (portalNotificationTarget.label, веб): у каждого вида своя, ссылка есть всегда. */
+export function notificationTargetLabel(notification: Pick<StudentPortalNotification, "notificationId" | "category" | "eventCode">, strings: AdmissionStrings): string {
+  const route = notificationRoute(notification);
+  if (route.startsWith(PACKAGE_DECISION_ROUTE_PREFIX)) return strings.targetProgramPackage;
+  if (route.startsWith(DOCUMENT_DECISION_ROUTE_PREFIX)) return strings.targetProgramDocument;
+  if (route.startsWith(REPLY_ROUTE_PREFIX)) return strings.targetReply;
+  switch (route) {
     case "/messages/chat":
       return strings.targetMessages;
-    case "/messages/updates":
-      return null;
     case "/documents":
       return strings.targetDocuments;
     case "/payments":
@@ -184,16 +226,38 @@ export function evoActionStatusLabel(action: StudentPortalEvoAction, strings: Ad
 
 export type LinkTarget = Readonly<{ kind: "route"; route: string }> | Readonly<{ kind: "external"; url: string }>;
 
+/** Сегмент адреса без процентного кодирования; испорченное кодирование - `null` (ссылка не открывается, исключения нет). */
+function decodeSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Ссылки контента ведут на страницы веба (`/portal/csca`) или на внешние сайты. В
  * приложении `/portal/<раздел>` становится вкладкой `/<раздел>`. `/portal` и
  * `/portal/home` — «Главная»; `/portal?view=programs` — «Главная» с вкладкой «Мои
  * программы»; `/portal/messages?view=chat|updates` — беседа или лента «Входящих» (#1356:
- * «Написать EVO»). Внешние адреса открывает браузер. Прочее (неизвестный относительный
- * адрес) в приложение не ведёт: `null`.
+ * «Написать EVO»). `/portal/preparations/<id>` - экран программы (`preparationPath`), `/portal/universities/<id>` -
+ * карточка вуза: идентификатор сохраняется, а не отбрасывается общим правилом. Веб добавляет к адресу программы
+ * хвост (`#requirement-…`, запрос): у экрана программы в приложении якорей нет, хвост отбрасывается. Адрес программы без
+ * годного идентификатора (пустой, лишний сегмент, `.`, `..`, испорченное кодирование) ведёт в «Мои программы»: туда же ведёт
+ * `preparationPath` для негодного идентификатора. У карточки вуза хвост (`?x`, `#x`, косая черта) тоже отбрасывается, а
+ * идентификатор сохраняется. Внешние адреса открывает браузер.
+ * Прочее (неизвестный относительный адрес) в приложение не ведёт: `null`.
  */
 export function linkTarget(href: string): LinkTarget | null {
   if (/^https:\/\//i.test(href)) return { kind: "external", url: href };
+  // Страницы с идентификатором в адресе: общее правило ниже его отбросило бы (`/portal/universities/<id>` -> `/universities`).
+  if (/^\/portal\/preparations(?:[/?#]|$)/.test(href)) {
+    const preparation = /^\/portal\/preparations\/([^/?#]+)\/?(?:[?#].*)?$/.exec(href);
+    // Нет годного идентификатора - пустая строка, а `preparationPath("")` - «Мои программы» (одно запасное место для всех таких ссылок).
+    return { kind: "route", route: preparationPath((preparation && decodeSegment(preparation[1])) ?? "") };
+  }
+  const university = /^\/portal\/universities\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?(?:[?#].*)?$/.exec(href);
+  if (university) return { kind: "route", route: `/universities/${university[1].toLowerCase()}` };
   const home = /^\/portal(?:\/home)?(?:\?view=(programs|universities))?(?:#[a-z-]*)?$/.exec(href);
   if (home) {
     if (home[1] === "programs") return { kind: "route", route: "/home?list=programs" };

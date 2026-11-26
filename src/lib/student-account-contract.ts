@@ -16,9 +16,13 @@ export const TECHNICAL_STUDENT_EMAIL_DOMAIN = "students.evoadmissions.invalid";
 /** Страница «Придумайте свой пароль» для входа с временным паролем. */
 export const NEW_PASSWORD_PATH = "/auth/new-password";
 
-/** Временный пароль: 14 знаков без похожих (0/O, 1/l/I), три группы через дефис — его диктуют и вводят с телефона. */
-export const TEMPORARY_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
-export const TEMPORARY_PASSWORD_PATTERN = /^[a-hjkmnp-z2-9]{4}-[a-hjkmnp-z2-9]{4}-[a-hjkmnp-z2-9]{4}$/u;
+/**
+ * Временный пароль (26.11.2026, решение владельца): 6 цифр. Раньше было `xxxx-xxxx-xxxx` на 14 знаков: студенты не
+ * понимали, нужны ли дефисы, и не входили (кабинет Малайзии, 6 отказов Auth подряд при верном пароле в базе).
+ * Первая цифра не ноль: в таблице Excel (выгрузка кабинетов) ведущий ноль пропал бы. Пароль живёт до первого входа,
+ * потом студент ставит свой (длиннее). Минимум Auth на сервере — 6 знаков.
+ */
+export const TEMPORARY_PASSWORD_PATTERN = /^[1-9][0-9]{5}$/u;
 
 export type StudentAccountInput = Readonly<{ firstName: string; lastName: string; email: string | null }>;
 
@@ -128,7 +132,7 @@ export function hasTemporaryPassword(appMetadata: unknown): boolean {
     && (appMetadata as Record<string, unknown>)[TEMPORARY_PASSWORD_FLAG] === true;
 }
 
-/** Сброс пароля студента администратором (344): новый временный пароль виден один раз и нигде не хранится. */
+/** Сброс пароля студента (344; с 374 — и куратором этого дела): новый временный пароль виден один раз и нигде не хранится. */
 export type StudentPasswordResetActionState =
   | Readonly<{ status: "idle"; requestId: string }>
   | Readonly<{ status: "reset"; requestId: string; password: string }>

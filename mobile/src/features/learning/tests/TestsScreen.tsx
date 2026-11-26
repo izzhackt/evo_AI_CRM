@@ -7,8 +7,9 @@ import type { StudentAssessmentKey } from "@web/lib/student-assessment-contract"
 
 import { loadErrorKey, useRefetchOnFocus } from "@/api/queries";
 import { useAssessmentCatalog } from "@/features/learning/tests/queries";
-import { cscaDayLabelSafe } from "@/features/learning/csca/format";
+import { assessmentDateLabel } from "@/features/learning/tests/dates";
 import { Chip } from "@/features/learning/ui";
+import { usePullRefresh } from "@/features/universities/use-pull-refresh";
 import { useLang } from "@/i18n/LangProvider";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
@@ -24,9 +25,10 @@ export function TestsScreen() {
   const s = t("tests");
   useRefetchOnFocus();
   const catalog = useAssessmentCatalog();
+  const { refreshing, pull } = usePullRefresh(catalog.refetch);
   const data = catalog.data;
   return (
-    <Screen topInset={false} tabBar onRefresh={() => void catalog.refetch()} refreshing={catalog.isRefetching}>
+    <Screen topInset={false} tabBar onRefresh={() => void pull()} refreshing={refreshing}>
       <View style={{ gap: 16 }} testID="tests-screen">
         <Text variant="display" accessibilityRole="header" testID="title-tests">
           {s.title}
@@ -60,9 +62,6 @@ export function TestsScreen() {
                   </Text>
                   <View style={{ flexDirection: "row", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <Chip tone={i.latestCompletedAttemptId && !draft ? "ok" : draft ? "accent" : "neutral"} label={status} />
-                    <Text variant="caption" tone="text2">
-                      {format(t("csca").testItems, { count: String(i.questionCount) })}
-                    </Text>
                   </View>
                   <Text variant="caption" tone="text2">
                     {s.cardMeta}
@@ -94,7 +93,7 @@ export function TestsScreen() {
                         {a.instrumentKey === "english36" ? s.historyEnglish : s.historyCareer}
                       </Text>
                       <Text variant="caption" tone="text2">
-                        {a.completedAt ? cscaDayLabelSafe(a.completedAt, lang) : ""}
+                        {a.completedAt ? assessmentDateLabel(a.completedAt, lang) : ""}
                       </Text>
                     </View>
                     <Button variant="ghost" label={s.cardOpenResult} onPress={() => openAssessment(a.instrumentKey, a.attemptId)} testID={`history-${a.attemptId}`} />

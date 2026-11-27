@@ -118,12 +118,17 @@ const ageText = (age: string) => {
 
 const language = (name: string, without: string, level: string) => (level === "" ? null : level === "Нет" ? without : `${name} ${level}`);
 
+/** Подпись к стоимости, которую подставила форма (Китай) и ещё не изменили руками. */
+const COST_DEFAULT_NOTE = "по умолчанию для Китая";
+
 /**
  * Одна строка свёрнутого раскрытия: что в нём уже заполнено, через «·». Пусто — ничего.
  * Этап «Новые» стоит по умолчанию, его не вводили: он приглушён, пока этап не сменили. Стоимость,
- * подставленная для Китая, — уже значение дела, она тёмная.
+ * подставленная для Китая, — уже значение дела, она тёмная; пока её не изменили (`costPrefilled`), рядом
+ * приглушённо сказано «по умолчанию для Китая»: раскрытие свёрнуто, а с миграцией 378 такая стоимость заменяет
+ * ту, что продажи записали на забранном лиде (ревью #1614). Набранная руками стоимость — без подписи.
  */
-export function sectionSummary(section: AddStudentSection, draft: AdmissionsDirectDraft): readonly SummaryPart[] {
+export function sectionSummary(section: AddStudentSection, draft: AdmissionsDirectDraft, costPrefilled = false): readonly SummaryPart[] {
   switch (section) {
     case "student":
       return typed(draft.email, draft.birthDate ? dotted(draft.birthDate) : ageText(draft.age));
@@ -144,10 +149,12 @@ export function sectionSummary(section: AddStudentSection, draft: AdmissionsDire
     case "money": {
       const paid = draft.payments.length;
       const stage = admissionsPipelineStage(draft.stage);
+      const cost = draft.costAmount.trim();
       return [
         ...(stage ? [{ text: stage, preset: draft.stage === EMPTY_ADMISSIONS_DIRECT_DRAFT.stage }] : []),
+        ...typed(cost && `${cost} ${draft.costCurrency}`),
+        ...(cost && costPrefilled ? [{ text: COST_DEFAULT_NOTE, preset: true }] : []),
         ...typed(
-          draft.costAmount.trim() && `${draft.costAmount.trim()} ${draft.costCurrency}`,
           draft.signedOn && `договор ${dotted(draft.signedOn)}`,
           paid > 0 && `${paid} ${plural(paid, "оплата", "оплаты", "оплат")}`,
         ),

@@ -88,7 +88,8 @@ type FocusRequest =
  * раскрытия с ошибками открываются, фокус встаёт на первое неверное поле.
  *
  * Для Китая стоимость подставляется 1 500 USD, пока её не изменили руками —
- * и при свёрнутом «Этап и деньги» (строка раскрытия это показывает). Оплаты —
+ * и при свёрнутом «Этап и деньги» (строка раскрытия называет её «по умолчанию
+ * для Китая», пока цену не набрали руками). Оплаты —
  * список строк. Проверка в браузере та же, что у базы; после сохранения
  * открывается новое дело, а дело без куратора — в «Ждут куратора», где его
  * назначают. «Сохранение не подтверждено» оставляет форму и ключ запроса:
@@ -350,7 +351,7 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
           <div className="divide-y divide-border rounded-card border border-border bg-surface">
             {SECTIONS.map((section, index) => (
               <DetailsSection key={section.key} name={section.key} title={section.title}
-                summary={sectionSummary(section.key, draft)}
+                summary={sectionSummary(section.key, draft, costPrefilled)}
                 invalid={section.fields.some((key) => errors[key]) || (section.key === "money" && paymentErrors.some(Boolean))}
                 open={openSections.has(section.key)} first={index === 0} last={index === SECTIONS.length - 1}
                 onToggle={() => toggleSection(section.key)}>

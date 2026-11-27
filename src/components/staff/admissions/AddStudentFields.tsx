@@ -11,6 +11,7 @@ import {
   ADMISSIONS_DIRECT_PARENT_RELATIONS,
   ADMISSIONS_DIRECT_SALES_NAME_MAX,
   ADMISSIONS_DIRECT_UNSPECIFIED,
+  admissionsDirectNoteLimit,
   bishkekToday,
   type AdmissionsDirectDraft,
   type AdmissionsDirectField,
@@ -104,7 +105,7 @@ export function MainFields({ form, curator, onCountry }: Readonly<{
           {errorText("curator")}
         </Field>
       )}
-      {/* 27.11.2026, решение владельца: от какого продажника пришёл клиент — имя словами; уходит первой строкой заметки. */}
+      {/* 27.11.2026, решение владельца: от какого продажника пришёл клиент — имя словами; уходит в заметку дела строкой «Продажник: Имя». */}
       <Field label="Продажник" htmlFor={ids.salesName} className={people}>
         <input {...field("salesName")} name="salesName" autoComplete="off" maxLength={ADMISSIONS_DIRECT_SALES_NAME_MAX}
           className={FIELD_CLS} placeholder="Имя, если клиент от продаж" value={draft.salesName}
@@ -222,12 +223,15 @@ export function StudyFields({ form }: Readonly<{ form: AddStudentForm }>) {
   </>;
 }
 
-/** «Заметка»: что важно знать куратору. Продажник — в «Главном», в заметку он уходит первой строкой при сохранении. */
+/**
+ * «Заметка»: что важно знать куратору. Продажник — в «Главном», в заметку дела он уходит строкой «Продажник: Имя» при сохранении;
+ * предел заметки (3 500 знаков) — на неё целиком, поэтому длина этого поля уменьшается на длину строки «Продажник».
+ */
 export function NoteFields({ form }: Readonly<{ form: AddStudentForm }>) {
   const { draft, ids, set, field, errorText } = form;
   return (
     <Field label="Что важно знать куратору" htmlFor={ids.note} className={WIDE}>
-      <textarea {...field("note")} name="note" rows={3} maxLength={3500} className={`${FIELD_CLS} h-auto py-2`}
+      <textarea {...field("note")} name="note" rows={3} maxLength={admissionsDirectNoteLimit(draft.salesName)} className={`${FIELD_CLS} h-auto py-2`}
         value={draft.note} onChange={(e) => set("note", e.target.value)} />
       {errorText("note")}
     </Field>

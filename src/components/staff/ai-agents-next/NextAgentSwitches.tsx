@@ -78,23 +78,24 @@ export function NextAgentSwitches({
   const notable = state.status === "failed" || state.code !== null || (state.warnings?.length ?? 0) > 0;
   return (
     <div className="flex flex-col gap-2 sm:items-end" data-testid="v3-aia-switches-header">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-        <div className="inline-flex items-center gap-2">
-          <Label htmlFor={`aia-sw-enabled-${agentKey}`}>Включён</Label>
+      {/* Телефон: две равные половины карточки шапки через волосяную черту, подпись слева, переключатель у правого края половины; подпись нажимается. */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 max-sm:items-stretch max-sm:gap-x-0">
+        <div className="inline-flex items-center gap-2 max-sm:flex-[1_1_8rem] max-sm:flex-wrap max-sm:gap-y-0 max-sm:pr-4">
+          <Label htmlFor={`aia-sw-enabled-${agentKey}`} className="max-sm:min-h-11 max-sm:flex-1">Включён</Label>
           <Switch id={`aia-sw-enabled-${agentKey}`} checked={enabledLocal} aria-disabled={pending || lockedEnable || undefined} onCheckedChange={toggleEnabled} data-testid="v3-aia-switch-enabled" />
           {lockedEnable ? (
-            <Link href={aiAgentHref(agentKey, { tab: "instructions" })} className="inline-flex min-h-11 items-center rounded-nav t-meta text-fg underline underline-offset-4" data-testid="v3-aia-switch-needs-instructions">
+            <Link href={aiAgentHref(agentKey, { tab: "instructions" })} className="inline-flex min-h-11 items-center rounded-nav t-meta text-fg underline underline-offset-4 max-sm:basis-full" data-testid="v3-aia-switch-needs-instructions">
               Сначала напишите правила
             </Link>
           ) : null}
         </div>
-        <div className="inline-flex items-center gap-2">
-          <Label htmlFor={`aia-sw-auto-${agentKey}`} title="Агент сам пишет клиентам и студентам без одобрения">Авто</Label>
-          <Switch ref={autoRef} id={`aia-sw-auto-${agentKey}`} checked={autoLocal} aria-disabled={pending || undefined} onCheckedChange={toggleAuto} data-testid="v3-aia-switch-auto" />
+        <div className="inline-flex items-center gap-2 max-sm:flex-[1_1_8rem] max-sm:items-start max-sm:border-l max-sm:border-border max-sm:pl-4">
+          <Label htmlFor={`aia-sw-auto-${agentKey}`} title="Агент сам пишет клиентам и студентам без одобрения" className="max-sm:min-h-11 max-sm:flex-1">Авто</Label>
+          <Switch ref={autoRef} id={`aia-sw-auto-${agentKey}`} className="max-sm:mt-2.5" checked={autoLocal} aria-disabled={pending || undefined} onCheckedChange={toggleAuto} data-testid="v3-aia-switch-auto" />
         </div>
       </div>
       {confirming ? (
-        <div role="group" aria-labelledby={`aia-auto-confirm-${agentKey}`} className="max-w-md rounded-card border border-border bg-surface-2 p-3" data-testid="v3-aia-auto-confirm">
+        <div role="group" aria-labelledby={`aia-auto-confirm-${agentKey}`} className="max-w-md rounded-card border border-border bg-surface-2 p-3 max-sm:mb-2" data-testid="v3-aia-auto-confirm">
           <p id={`aia-auto-confirm-${agentKey}`} className="t-body-compact text-fg">
             Агент начнёт сам писать клиентам и студентам без вашего одобрения. Политика конфиденциальности пока говорит, что ИИ клиентам не пишет. Включить?
           </p>

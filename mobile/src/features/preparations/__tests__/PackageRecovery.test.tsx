@@ -85,8 +85,10 @@ describe("оборванная отправка комплекта на экра
     expect(await packageKeys()).toEqual([]);
     await waitFor(() => expect(screen.queryByTestId("prep-package-recovery")).toBeNull());
     expect(screen.getByTestId("prep-package-message")).toHaveTextContent("Комплект отправлен в EVO");
-    expect(reads()).toBeGreaterThan(1);
-    await fireEvent.press(screen.getByTestId("prep-package-choose-toggle"));
+    // список перечитывается после подтверждения, но не в тот же миг, когда запись исчезла: ждём чтение, а не проверяем его сразу
+    await waitFor(() => expect(reads()).toBeGreaterThan(1));
+    // пока список перечитывается, вместо выбора «Загружаем…»: переключатель ждём
+    await fireEvent.press(await screen.findByTestId("prep-package-choose-toggle"));
     // после подтверждения список перечитывается: выбор открывается, когда ответ пришёл
     await waitForEnabled("prep-package-preview");
   });

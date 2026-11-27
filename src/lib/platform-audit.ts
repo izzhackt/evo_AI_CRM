@@ -84,6 +84,10 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // statuses and counts (no instruction text, message text or document content). They fall
 // through to the `action.startsWith("ai.")` branch of `expectedChangedFieldCodes`
 // (`["ai_status"]`), exactly like the server's `ai.%` branch of `p7a_changed_field_codes`.
+// Migration 381 («мозг компании», docs/PLAN_CHANGES.md «2026-11-28 · ИИ-агенты: мозг компании, досье и предохранители») adds the
+// action `ai.fact.change` (one row per saved, verified or retired company fact) and the resource type `ai_company_fact` by the
+// same rename-and-union wrappers (`..._pre_company_facts`). The rows name only the topic, the audience, the changed field
+// codes and dates (no fact text). They fall through to the `action.startsWith("ai.")` branch (`["ai_status"]`).
 // Migration 320 («Согласие студента на ИИ-помощников», docs/PLAN_CHANGES.md «2026-10-25 · Согласие студента на
 // ИИ-помощников, база данных (миграция 320)») adds two actions, `ai.consent.grant` and `ai.consent.decline`
 // (written by `platform.portal_ai_consent_set_v1`: one row per change of the decision), and the resource type
@@ -176,6 +180,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "ai.draft.request",
   "ai.draft.request.knowledge",
   "ai.draft.review",
+  "ai.fact.change",
   "ai.fact.record",
   "ai.memory.record",
   "ai.proposal.review",
@@ -401,6 +406,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "ai_agent",
   "ai_agent_draft",
   "ai_agent_run",
+  "ai_company_fact",
   "ai_draft",
   "ai_draft_request",
   "ai_draft_request_knowledge_selection",

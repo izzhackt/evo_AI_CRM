@@ -32,6 +32,7 @@ import { DIRECTION_LABELS } from "../../components/staff/profile/admissions-view
 import { parseCaseDirectionChange } from "../platform-case-direction-change.ts";
 import { casePaymentLine, type CasePaymentDetail } from "../platform-case-payment-detail.ts";
 import { studyCountryFromWebsiteValue, studyCountryName, studyCountryOptions } from "../study-countries.ts";
+import { COMPANY_FACT_LIMITS } from "../ai-agents/company-facts.ts";
 
 export function studentProfileFieldState(value: string): string | null {
   const labels: Record<string, string> = {
@@ -1112,6 +1113,8 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "ai.agent.draft.decide": "Решение по сообщению ИИ-агента",
   "ai.agent.message.send": "ИИ-агент отправил сообщение",
   "ai.agent.document.read": "ИИ-агент открыл документ студента",
+  // «Мозг компании» (миграция 381). В записи только тема, аудитория и коды изменённых полей, без текста факта.
+  "ai.fact.change": "Факт компании для ИИ-агентов изменён",
   // Согласие студента на ИИ-помощников (миграция 320). В записи только состояние и версия текста, без имени.
   "ai.consent.grant": "Студент разрешил ИИ-помощников",
   "ai.consent.decline": "Студент не разрешил ИИ-помощников",
@@ -1211,6 +1214,7 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   ai_agent: "ИИ-агент",
   ai_agent_run: "Запуск ИИ-агента",
   ai_agent_draft: "Сообщение ИИ-агента",
+  ai_company_fact: "Факт компании",
 
   // Согласие студента на ИИ-помощников (миграция 320).
   student_ai_consent: "Согласие на ИИ-помощников",
@@ -2092,3 +2096,217 @@ export function whatsappConnectError(code: string | null | undefined): string | 
     ? whatsappConnectWords.errors[code as keyof typeof whatsappConnectWords.errors]
     : null;
 }
+
+
+/* -------------------------------------------------------------------------------------------------------------------
+ * «Факты компании» («мозг компании», миграция 381): слова экрана «Настройки → Факты». Тема факта — ключ вида
+ * `course.sat.group`: людям показывается название, ключ идёт мелко рядом. Для темы без названия берётся слово группы
+ * (первая часть ключа), сырой ключ заголовком не бывает.
+ * ----------------------------------------------------------------------------------------------------------------- */
+const COMPANY_FACT_TOPIC_TITLE: Readonly<Record<string, string>> = {
+  "course.sat.group": "Курс SAT: группа и цена",
+  "course.ielts.group": "Курс IELTS: группа и цена",
+  "course.group.size": "Курсы: размер группы",
+  "course.discount.last_seats": "Курсы: скидка на последние места",
+  "course.trial.free": "Курсы: бесплатный пробный урок",
+  "course.goal.results": "Курсы: цель и результат",
+  "course.exams.registration": "Курсы: регистрация на экзамены",
+  "course.csca.prep": "Курс подготовки к CSCA",
+  "course.schedule.source": "Курсы: даты и расписание потока",
+  "promise.admission": "Обещания: поступление и виза не гарантируются",
+  "promise.consultation.free": "Обещания: бесплатная консультация",
+  "promise.refund_installment": "Обещания: возврат и рассрочка",
+  "promise.discount_not_scholarship": "Обещания: скидка агента не стипендия",
+  "metric.funnel.stuck_lead": "Воронка: застрявший лид",
+  "promise.cn.applications_by_evo": "Китай: кто подаёт заявки",
+  "promise.cn.response_times": "Китай: сроки ответа куратора и студента",
+  "process.cn.application_form": "Китай: анкета вуза",
+  "process.cn.universities_count": "Китай: сколько вузов подавать",
+  "exam.cn.csca": "Китай: экзамен CSCA",
+  "exam.cn.language_scores": "Китай: языковые экзамены и баллы",
+  "calendar.cn.intake_2027.2026_10": "Китай, набор 2027: октябрь 2026",
+  "calendar.cn.intake_2027.2026_11": "Китай, набор 2027: ноябрь 2026",
+  "calendar.cn.intake_2027.2026_11_12": "Китай, набор 2027: ноябрь-декабрь 2026",
+  "calendar.cn.intake_2027.2026_12": "Китай, набор 2027: декабрь 2026",
+  "calendar.cn.intake_2027.2027_01": "Китай, набор 2027: до января 2027",
+  "calendar.cn.intake_2027.2027_02_04": "Китай, набор 2027: февраль-апрель 2027",
+  "calendar.cn.intake_2027.2027_05_07": "Китай, набор 2027: май-июль 2027",
+  "calendar.cn.intake_2027.2027_07_08": "Китай, набор 2027: июль-август 2027",
+  "calendar.cn.intake_2027.2027_09": "Китай, набор 2027: сентябрь 2027",
+  "calendar.cn.intake_2027.csc_window": "Китай, набор 2027: стипендия CSC",
+  "calendar.cn.intake_2027.exam_registration_risk": "Китай, набор 2027: риск без регистрации на экзамен",
+  "calendar.cn.intake_2027.minor_age_cutoff": "Китай, набор 2027: порог возраста 18 лет",
+  "docs.cn.package": "Китай: пакет документов",
+  "docs.cn.passport": "Китай: загранпаспорт",
+  "docs.cn.photos": "Китай: фотографии",
+  "docs.cn.medical": "Китай: медицинская справка",
+  "docs.cn.transcript": "Китай: аттестат и справка с места учёбы",
+  "docs.cn.police_certificate": "Китай: справка о несудимости",
+  "docs.cn.recommendation_letters": "Китай: рекомендательные письма",
+  "docs.cn.bank_statement": "Китай: банковская справка, сумма",
+  "docs.cn.parents_data": "Китай: данные родителей",
+  "docs.cn.minor_extra": "Китай: документы для младше 18 лет",
+  "visa.cn.x1_x2": "Китай: виза X1 и X2",
+  "visa.cn.preliminary_vs_offer": "Китай: предварительное решение и зачисление",
+  "arrival.cn.checklist": "Китай: выезд, чек-лист",
+  "arrival.cn.after_arrival": "Китай: после прилёта",
+  "promise.my.applications_by_evo": "Малайзия: кто подаёт заявки",
+  "docs.my.school_certificate": "Малайзия: аттестат",
+  "docs.my.photo": "Малайзия: фотография",
+  "docs.my.passport": "Малайзия: загранпаспорт",
+  "docs.my.hdf": "Малайзия: форма HDF",
+  "docs.my.english": "Малайзия: подтверждение английского",
+  "docs.my.minor": "Малайзия: документы до 18 лет",
+  "docs.my.school_issues": "Малайзия: вопросы к школьным документам",
+  "uni.my.inti": "Малайзия: INTI, порядок подачи",
+  "uni.my.sunway": "Малайзия: Sunway, порядок подачи",
+  "uni.my.taylors": "Малайзия: Taylor's, порядок подачи",
+  "uni.my.mmu": "Малайзия: MMU, порядок подачи",
+  "uni.my.ucsi": "Малайзия: UCSI, порядок подачи",
+  "uni.my.apu": "Малайзия: APU, порядок подачи",
+  "uni.my.alfa": "Малайзия: Alfa, порядок подачи",
+  "uni.my.subject_guide": "Малайзия: какие вузы по направлениям",
+  "visa.my.eval": "Малайзия: eVAL (EMGS)",
+  "visa.my.sev": "Малайзия: виза SEV",
+  "visa.my.mdac": "Малайзия: карта прибытия MDAC",
+  "arrival.my.print_list": "Малайзия: что распечатать перед вылетом",
+  "arrival.my.notice_deadlines": "Малайзия: когда уведомить университет о прилёте",
+  "arrival.my.after_arrival": "Малайзия: после прилёта",
+  "housing.my.dorms": "Малайзия: жильё",
+  "payments.my.rules": "Малайзия: платежи",
+};
+
+const COMPANY_FACT_GROUP_TITLE: Readonly<Record<string, string>> = {
+  course: "Курсы", promise: "Обещания", calendar: "Календарь", docs: "Документы", visa: "Виза", exam: "Экзамены",
+  process: "Порядок работы", arrival: "Прилёт и выезд", uni: "Университеты", housing: "Жильё", payments: "Платежи",
+  metric: "Показатели",
+};
+
+/** Название темы факта словами: своё название, иначе слово группы («Курсы», «Календарь»), иначе «Факт». */
+export function companyFactTopicTitle(topic: string): string {
+  const own = COMPANY_FACT_TOPIC_TITLE[topic];
+  if (own) return own;
+  return COMPANY_FACT_GROUP_TITLE[topic.split(".")[0] ?? ""] ?? "Факт";
+}
+
+/** Темы, у которых есть своё название (тест сверяет их с посевом миграции 381). */
+export const companyFactTopicKeys = (): readonly string[] => Object.keys(COMPANY_FACT_TOPIC_TITLE);
+
+export const companyFactWords = {
+  title: "Факты компании",
+  intro: "Проверенные факты со сроком годности: цены, условия курсов, обещания, календари и сроки. ИИ-агенты берут их отсюда, а не из своих инструкций: дату или цену меняют в одном месте.",
+  add: "Добавить факт",
+  edit: "Изменить",
+  verify: "Проверено",
+  verifyToday: "Проверено сегодня",
+  retire: "Снять",
+  retireHint: "Снятый факт агенты больше не видят. Его можно найти в «Показать снятые».",
+  showRetired: "Показать снятые",
+  topic: "Тема",
+  statement: "Текст",
+  statementRu: "Текст по-русски",
+  statementKy: "Текст по-кыргызски (необязательно)",
+  statementEn: "Текст по-английски (необязательно)",
+  audience: "Кому",
+  source: "Источник",
+  sourceRef: "Где подтверждено",
+  verifiedAt: "Проверено",
+  validUntil: "Годен до",
+  noLimit: "Без срока",
+  topicKey: "Ключ темы (латиницей, через точки: course.sat.group)",
+  topicKeyHint: "Одна тема и одна аудитория — один действующий факт.",
+  search: "Найти факт",
+  list: "Список фактов",
+  empty: "Фактов пока нет. Добавьте первый, и агенты начнут его видеть.",
+  saved: "Сохранено.",
+  unchanged: "Без изменений.",
+  retired: "Факт снят.",
+  history: "Предыдущая версия",
+  expiredBanner: (count: number) => `Просрочено фактов: ${count}. Агенты их не видят, пока срок не продлён.`,
+  expiringBanner: (count: number) => `Скоро истекает срок у фактов: ${count}.`,
+  allFine: "Просроченных фактов нет.",
+  filterAll: "Все",
+  filterExpired: "Просрочены",
+  filterExpiring: "Скоро истекают",
+  verifiedBy: (name: string | null) => (name ? `Проверил: ${name}` : "Перенесён из инструкции"),
+  validityLine: (validity: string, daysLeft: number | null): string => {
+    if (validity === "unlimited" || daysLeft === null) return "Без срока";
+    if (validity === "expired") return daysLeft === -1 ? "Просрочен вчера" : `Просрочен ${Math.abs(daysLeft)} дн. назад`;
+    if (daysLeft === 0) return "Последний день";
+    if (validity === "expiring") return `Осталось ${daysLeft} дн.`;
+    return "Действует";
+  },
+  readOnly: "Правка фактов доступна тем, у кого есть право управлять ИИ-агентами. Вы можете читать.",
+  denied: "Факты компании видят сотрудники с доступом к ИИ-агентам.",
+  notReady: "Раздел готовится.",
+  unavailable: "Не удалось прочитать факты. Попробуйте ещё раз.",
+  truncated: "Показана часть фактов. Сузьте поиск, чтобы найти нужный.",
+  verifyCheckbox: "Проверено сегодня: текст и срок актуальны",
+  verifyCheckboxCreate: "Подтверждаю: факт проверен сегодня",
+  refresh: "Обновить",
+  filterGroup: "Фильтр по сроку",
+  actions: "Действия",
+  retiredBadge: "Снят",
+  save: "Сохранить",
+  saving: "Сохраняем…",
+  done: "Готово",
+  cancel: "Отмена",
+  retireConfirm: "Да, снять факт",
+  retiring: "Снимаем…",
+  verifying: "Проверяем…",
+  validUntilHint: "Пусто: без срока. После этой даты агенты факт не видят.",
+  langKy: "KY",
+  langEn: "EN",
+} as const;
+
+export const COMPANY_FACT_AUDIENCE_WORD: Readonly<Record<string, string>> = {
+  client: "Клиентский",
+  internal: "Внутренний",
+};
+export const COMPANY_FACT_AUDIENCE_HINT: Readonly<Record<string, string>> = {
+  client: "Агент может сказать это клиенту или студенту.",
+  internal: "Только для работы агента и сотрудников, клиенту не пересказывается.",
+};
+export const COMPANY_FACT_SOURCE_WORD: Readonly<Record<string, string>> = {
+  owner: "Слова владельца",
+  agent_instruction: "Инструкция агента",
+  kb_node: "База знаний",
+  catalog_cost: "Каталог: стоимость",
+  timeline: "Календарь страны",
+  contract: "Договор",
+};
+export const COMPANY_FACT_VALIDITY_WORD: Readonly<Record<string, string>> = {
+  unlimited: "Без срока",
+  ok: "Действует",
+  expiring: "Скоро истечёт",
+  expired: "Просрочен",
+};
+
+/** Слова ответа формы факта; ключи — `CompanyFactFormState["status"]`. */
+export const COMPANY_FACT_FORM_MESSAGE: Readonly<Record<string, string>> = {
+  idle: "",
+  saved: "Сохранено.",
+  unchanged: "Без изменений.",
+  retired: "Факт снят.",
+  forbidden: "Править факты могут сотрудники с правом управлять ИИ-агентами.",
+  invalid: `Не удалось принять значения. Проверьте поля: тема латиницей через точки, текст не длиннее ${COMPANY_FACT_LIMITS.statementMaxChars} знаков, срок датой. Если нажимали «Проверено», обновите страницу и повторите.`,
+  verification_required: "Изменили текст: отметьте «Проверено сегодня».",
+  invalid_dates: "Срок «Годен до» не может быть раньше даты проверки.",
+  topic_exists: "Такой факт для этой темы и аудитории уже есть. Измените его в списке.",
+  stale: "Факт уже изменили или сняли. Обновите страницу.",
+  not_found: "Факт не найден. Обновите страницу.",
+  request_conflict: "Этот запрос уже отправлен с другими значениями. Обновите страницу.",
+  not_ready: "Раздел готовится.",
+  unavailable: "Не удалось сохранить. Попробуйте ещё раз.",
+};
+
+/**
+ * Названия задач «Сторожа сроков» (migration 380, `platform_private.case_deadline_watch_title`). Задачу пишет SQL, поэтому
+ * слова лежат и там; равенство двух копий проверяет tests/case-deadline-watch.test.mjs. `{detail}` — документ или платёж в
+ * кавычках, `{date}` — дата дд.мм.гггг.
+ */
+export const CASE_DEADLINE_WATCH_TITLES = {
+  slot_due: "Срок документа — {detail}: {date}",
+  next_step_overdue: "Следующий шаг просрочен: срок был {date}",
+  tranche_overdue: "Платёж просрочен — {detail}: срок был {date}",
+} as const;

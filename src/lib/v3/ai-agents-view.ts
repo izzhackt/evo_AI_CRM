@@ -608,6 +608,7 @@ const TOOL_PROGRESS: Readonly<Record<string, string>> = {
   list_tasks: "Смотрит задачи",
   search_catalog: "Ищет в каталоге университетов",
   search_knowledge: "Ищет в базе знаний",
+  get_company_facts: "Читает факты компании",
   recent_calls: "Смотрит звонки",
   list_staff: "Смотрит сотрудников",
   get_my_settings: "Читает свои настройки",

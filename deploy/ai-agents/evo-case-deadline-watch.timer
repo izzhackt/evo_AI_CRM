@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the EVO case deadline watch on weekday mornings
+
+[Timer]
+# 08:15 on weekdays, Asia/Bishkek. `Persistent` runs a missed morning once after the host comes back.
+OnCalendar=Mon..Fri 08:15 Asia/Bishkek
+Persistent=true
+Unit=evo-case-deadline-watch.service
+
+[Install]
+WantedBy=timers.target

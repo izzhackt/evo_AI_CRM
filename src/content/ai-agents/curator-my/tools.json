@@ -15,6 +15,7 @@
     "list_staff",
     "search_catalog",
     "search_knowledge",
+    "get_company_facts",
     "create_task",
     "add_note",
     "send_message",

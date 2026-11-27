@@ -535,6 +535,41 @@ test("tools/call: success returns the database value as JSON text and logs the a
   assert.equal(Number.isInteger(logged.p_duration_ms), true);
 });
 
+test("get_company_facts: the registry entry, the defaults, the database function and the bounds of its arguments", async () => {
+  const tool = AI_AGENT_TOOLS.find((candidate) => candidate.name === "get_company_facts");
+  assert.equal(tool.kind, "read");
+  assert.equal(tool.audit, "none");
+  assert.equal(tool.rpc, "ai_agent_tool_get_company_facts_v1");
+  const schema = schemaOf("get_company_facts");
+  // Everything is optional; the defaults are the ones the database function applies.
+  assert.deepEqual(validateToolArguments(schema, {}).value, { limit: 20 });
+  assert.deepEqual(validateToolArguments(schema, { topic_prefix: "calendar.cn.", audience: "client", limit: 50 }).value, { topic_prefix: "calendar.cn.", audience: "client", limit: 50 });
+  const issues = (value) => validateToolArguments(schema, value).issues;
+  assert.deepEqual(issues({ limit: 51 }), [{ path: "limit", problem: "maximum" }]);
+  assert.deepEqual(issues({ limit: 0 }), [{ path: "limit", problem: "minimum" }]);
+  assert.deepEqual(issues({ audience: "everyone" }), [{ path: "audience", problem: "enum" }]);
+  assert.deepEqual(issues({ topic_prefix: "Course!" }), [{ path: "topic_prefix", problem: "pattern" }]);
+  assert.deepEqual(issues({ topic_prefix: "a".repeat(81) }), [{ path: "topic_prefix", problem: "max_length" }]);
+  assert.deepEqual(issues({ query: "x" }), [{ path: "query", problem: "unknown_property" }]);
+
+  const data = { facts: [{ fact_id: AGENT_USER, topic: "course.sat.group", statement: { ru: "Тест" }, audience: "client", source: "owner", verified_at: "2026-10-23", valid_until: "2026-12-31" }], today: "2026-11-28", truncated: false };
+  const { handler, toolCalls, logCalls } = harness({ rpc: rpcWith(() => ({ data, error: null })) });
+  const { result, body } = await toolCall(handler, "get_company_facts", { topic_prefix: "course." });
+  assert.equal(result.isError, false);
+  assert.deepEqual(body, data);
+  assert.equal(toolCalls()[0].functionName, "ai_agent_tool_get_company_facts_v1");
+  assert.deepEqual(toolCalls()[0].args.p_args, { topic_prefix: "course.", limit: 20 });
+  assert.equal(logCalls()[0].args.p_tool, "get_company_facts");
+  assert.equal(logCalls()[0].args.p_status, "ok");
+});
+
+test("get_company_facts: a disabled agent gets agent_disabled from the database function", async () => {
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: null, error: { code: "55000", message: "agent_disabled" } })) });
+  const { result, body } = await toolCall(handler, "get_company_facts", {});
+  assert.equal(result.isError, true);
+  assert.equal(body.error_code, "agent_disabled");
+});
+
 test("tools/call: invalid arguments never reach the tool and list fields without values", async () => {
   const { handler, toolCalls, logCalls } = harness();
   const { result, body } = await toolCall(handler, "search_clients", { query: SECRET_QUERY, limit: 1000, rogue: SECRET_QUERY });

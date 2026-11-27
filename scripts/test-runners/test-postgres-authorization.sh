@@ -5099,6 +5099,36 @@ SQL
       exit 1
     fi
   fi
+  # «ИИ-агенты»: «мозг компании» - проверенные факты со сроком годности (migration 381, PLAN_CHANGES 28.11.2026). Matched by
+  # name, not number. Right after the migration: a second apply refuses (a381_already_applied), then the suite, insisting on
+  # its marker. The suite proves: the posture of the closed table, the three staff functions and the tool, the journal
+  # allowlist; the idempotent seed from the agent instructions; who may read and who may write; create, versions
+  # (the old row retired, the new one supersedes it), stale saves, replay by request id; retire and list with validity
+  # marks; the tool giving only active, unexpired facts of the organization (the last valid day counts), `agent_disabled`
+  # and invalid arguments; the journal rows without statement texts.
+  if [[ "$(basename "$migration")" == *_platform_company_facts.sql ]]; then
+    t381_again_log="$(mktemp -t evo-t381-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t381_again_log" 2>&1; then
+      echo "migration 381 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a381_already_applied" "$t381_again_log"; then
+      echo "a second apply of migration 381 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t381_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t381_again_log"
+    company_facts_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_company_facts.sql </dev/null)"
+    printf '%s\n' "$company_facts_log"
+    if ! grep -q 'A381_COMPANY_FACTS_SUITE_PASSED' <<<"$company_facts_log"; then
+      echo "platform_company_facts.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Вернуть документ без кабинета» (migration 328, PLAN_CHANGES 02.11.2026). Matched by name, not number. Right after the
   # migration: a second apply refuses (a328_already_applied), then the suite, insisting on its marker. The suite proves: a case
   # with no activated portal saves the decision and notifies nobody, the reason stays required, staff without the case are
@@ -6329,6 +6359,35 @@ SQL
     printf '%s\n' "$case_history_payment_detail_log"
     if ! grep -q 'A376_CASE_HISTORY_PAYMENT_DETAIL_SUITE_PASSED' <<<"$case_history_payment_detail_log"; then
       echo "platform_case_history_payment_detail.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Сторож сроков» (migration 380, 28.11.2026). Matched by name, not number. Right after the migration a second apply refuses
+  # (a380_already_applied), then the suite, insisting on its marker. The suite proves: the posture (the run is service_role
+  # only, the helpers and the key table closed); the rules row by row on a fixed day (slot in the past, in 3 and in exactly
+  # 7 days, none for 8 and 10 days, empty deadline, approved, removed, retired requirement, closed case, step today, paid and
+  # archived tranche); the dry run (the default) writes nothing; the real run (curator or responsible administrator, exact
+  # Russian title, priority, task event, audit row, key); repeats (same run, next day, closed task, moved date).
+  if [[ "$(basename "$migration")" == *_platform_case_deadline_watch.sql ]]; then
+    t380_again_log="$(mktemp -t evo-t380-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t380_again_log" 2>&1; then
+      echo "migration 380 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a380_already_applied" "$t380_again_log"; then
+      echo "a second apply of migration 380 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t380_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t380_again_log"
+    case_deadline_watch_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_deadline_watch.sql </dev/null)"
+    printf '%s\n' "$case_deadline_watch_log"
+    if ! grep -q 'A380_CASE_DEADLINE_WATCH_SUITE_PASSED' <<<"$case_deadline_watch_log"; then
+      echo "platform_case_deadline_watch.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

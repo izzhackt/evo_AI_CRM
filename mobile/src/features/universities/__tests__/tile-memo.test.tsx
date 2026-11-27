@@ -14,6 +14,7 @@ import type { TileModel } from "@/features/universities/model";
 import { LangProvider } from "@/i18n/LangProvider";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { renderPortal, testApi } from "@/test-fixtures/render";
+import { itUncompiledOnly } from "@/test-fixtures/uncompiled-only";
 import { fakeTransport } from "@/test-fixtures/universities";
 
 // Каждая отрисовка карточки один раз строит адреса её фото: по числу вызовов видно, сколько раз она отрисовывалась.
@@ -64,7 +65,8 @@ describe("UniversityTileView: перерисовка только по делу"
     expect(mockDrawn).toHaveBeenCalledTimes(1);
   });
 
-  it("окно прокрутки: `photoActive` изменился - карточка перерисовывается; сердечко и содержимое тоже", async () => {
+  // Считает вызовы `universityUrls` за отрисовки: скомпилированный вызов с теми же аргументами запоминается, счёт ниже. Только без компилятора.
+  itUncompiledOnly("окно прокрутки: `photoActive` изменился - карточка перерисовывается; сердечко и содержимое тоже", async () => {
     const view = await render(tree(base()));
     await view.rerender(tree(base({ photoActive: true })));
     expect(mockDrawn).toHaveBeenCalledTimes(2);
@@ -77,7 +79,8 @@ describe("UniversityTileView: перерисовка только по делу"
     expect(screen.getByText("Академия Альфа")).toBeTruthy();
   });
 
-  it("изменились уровни или ближайший набор: карточка показывает новое", async () => {
+  // То же: счёт вызовов `universityUrls` (при компиляторе он ниже). Только без компилятора.
+  itUncompiledOnly("изменились уровни или ближайший набор: карточка показывает новое", async () => {
     const view = await render(tree(base()));
     await view.rerender(tree(base({ tile: model({ levels: ["Бакалавриат"] }) })));
     expect(mockDrawn).toHaveBeenCalledTimes(2);

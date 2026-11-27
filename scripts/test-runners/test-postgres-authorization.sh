@@ -6363,6 +6363,35 @@ SQL
       exit 1
     fi
   fi
+  # «Тестовый лид» (migration 385, ночь 28.11.2026). Matched by name, not number. The migration adds platform.leads.is_test,
+  # the staff write and reader, the service hook that tells whether the lead of an agent event is a test lead, and patches
+  # four bodies by checked fragments (list_leads, funnel_stats, list_conversations of the agent; current_sales_funnel). Right
+  # after it a second apply refuses (a385_already_applied), then the suite, insisting on its marker. The suite proves: the
+  # posture; the write (journal row, replay, conflict, unchanged, no right, archived); the reader; the hook for a website
+  # request and a chat; the agent tools and the sales funnel without the test lead, and back with it once unmarked.
+  if [[ "$(basename "$migration")" == *_platform_leads_is_test.sql ]]; then
+    t385_again_log="$(mktemp -t evo-t385-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t385_again_log" 2>&1; then
+      echo "migration 385 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a385_already_applied" "$t385_again_log"; then
+      echo "a second apply of migration 385 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t385_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t385_again_log"
+    leads_is_test_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_leads_is_test.sql </dev/null)"
+    printf '%s\n' "$leads_is_test_log"
+    if ! grep -q 'A385_LEADS_IS_TEST_SUITE_PASSED' <<<"$leads_is_test_log"; then
+      echo "platform_leads_is_test.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

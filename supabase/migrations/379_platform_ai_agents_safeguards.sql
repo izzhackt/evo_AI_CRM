@@ -129,13 +129,13 @@ DECLARE
   n INTEGER;
 BEGIN
   body := pg_get_functiondef(to_regprocedure(sig));
-  IF position('379' IN body) > 0 THEN
+  IF position('a379_auto_send_off' IN body) > 0 THEN
     RAISE EXCEPTION 'a379_already_applied';
   END IF;
   pairs := ARRAY[
     -- После разбора патча: у выключенного агента «Авто» всегда выключен (и при выключении, и при попытке включить «Авто»).
     ARRAY[$o1$  IF n_enabled IS DISTINCT FROM a.enabled THEN v_changed := array_append(v_changed, 'enabled');$o1$,
-          $n1$  -- 379: выключенный агент ничего не пишет сам; «Авто» не должен дожидаться следующего включения.
+          $n1$  -- a379_auto_send_off: выключенный агент ничего не пишет сам; «Авто» не должен дожидаться следующего включения.
   IF NOT n_enabled THEN
     n_auto := FALSE;
   END IF;
@@ -205,5 +205,7 @@ BEGIN
   EXECUTE body;
 END
 $a379_send$;
+
+NOTIFY pgrst, 'reload schema';
 
 COMMIT;

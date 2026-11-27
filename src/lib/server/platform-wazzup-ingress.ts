@@ -108,18 +108,20 @@ function defaultLog(entry: Readonly<Record<string, LogValue>>): void {
 }
 
 // Больше бесед за один запрос будят одним общим событием: пачка бывает при догрузке, а не при живом потоке.
-const MAX_AI_CONVERSATIONS_PER_REQUEST = 10;
+export const MAX_AI_CONVERSATIONS_PER_REQUEST = 10;
+
+/** Какие события будить по беседам запроса: по одному на беседу; 0 или больше предела — одно общее без id. Чистая, для теста. */
+export function whatsappAgentEventRefs(conversationIds: readonly string[]): readonly (string | null)[] {
+  if (conversationIds.length === 0 || conversationIds.length > MAX_AI_CONVERSATIONS_PER_REQUEST) return [null];
+  return conversationIds;
+}
 
 function defaultScheduleAiAgents(conversationIds: readonly string[]): void {
   // Динамический импорт: маршрут без нового входящего не тянет модуль агентов, а тесты Node его не грузят.
   void import("./ai-agents/dispatch.ts").then(
     (dispatch) => {
-      if (conversationIds.length === 0 || conversationIds.length > MAX_AI_CONVERSATIONS_PER_REQUEST) {
-        dispatch.scheduleAiAgentEvent({ kind: "whatsapp_inbound", ref: null });
-        return;
-      }
       // По событию на беседу: дебаунс в dispatch схлопывает пачку одного клиента и не глушит остальных.
-      for (const conversationId of conversationIds) dispatch.scheduleAiAgentEvent({ kind: "whatsapp_inbound", ref: conversationId });
+      for (const ref of whatsappAgentEventRefs(conversationIds)) dispatch.scheduleAiAgentEvent({ kind: "whatsapp_inbound", ref });
     },
     () => undefined,
   ).catch(() => undefined);

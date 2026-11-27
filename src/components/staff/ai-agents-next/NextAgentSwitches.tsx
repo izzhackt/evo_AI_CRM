@@ -48,7 +48,7 @@ export function NextAgentSwitches({
   const [handled, setHandled] = useState(state);
   if (handled !== state) {
     setHandled(state);
-    if (state.status === "failed") { setEnabledLocal(enabled); setAutoLocal(autoSend); }
+    if (state.status === "failed") { setEnabledLocal(enabled); setAutoLocal(autoSend); setConfirming(false); }
   }
 
   const write = (patch: Record<string, unknown>) => submit({ key: agentKey, expected_version: String(configVersion), patch: JSON.stringify(patch) });

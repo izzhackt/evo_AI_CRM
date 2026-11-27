@@ -38,9 +38,9 @@ const EVENT_PROMPTS: Readonly<Record<AiAgentEventKind, (ref: string | null) => s
   whatsapp_inbound: (ref) => {
     const conversationId = whatsappConversationRef(ref);
     return conversationId
-      ? `Событие: новое входящее сообщение в WhatsApp продаж в чате conversation_id=${conversationId}. Прочитай переписку этого чата `
-        + `(get_conversation conversation_id=${conversationId}) и подготовь ответ по инструкции. Другие чаты в этом запуске не разбирай: `
-        + "на них придёт своё событие."
+      ? `Событие: новое входящее сообщение в WhatsApp продаж. Начни с чата conversation_id=${conversationId} `
+        + `(get_conversation conversation_id=${conversationId}), затем проверь остальные неотвеченные чаты `
+        + "(list_conversations, filter=unanswered) и подготовь ответы по инструкции."
       : "Событие: новое входящее сообщение в WhatsApp продаж. Посмотри неотвеченные чаты (list_conversations, filter=unanswered), "
         + "для каждого прочитай переписку и подготовь ответ по инструкции.";
   },

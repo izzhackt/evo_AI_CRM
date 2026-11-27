@@ -793,6 +793,15 @@ test("the agents hook gets the distinct conversations of the new inbound message
   assert.deepEqual([...seen[0]].sort(), [...conversations].sort());
 });
 
+test("the agents events per request: none or more than the limit is one general event, otherwise one per conversation", async () => {
+  const { whatsappAgentEventRefs, MAX_AI_CONVERSATIONS_PER_REQUEST } = await import("../src/lib/server/platform-wazzup-ingress.ts");
+  const ids = (n) => Array.from({ length: n }, (_, index) => uuid(7000 + index));
+  assert.equal(MAX_AI_CONVERSATIONS_PER_REQUEST, 10);
+  assert.deepEqual(whatsappAgentEventRefs([]), [null], "0 conversations: one general event");
+  assert.deepEqual(whatsappAgentEventRefs(ids(10)), ids(10), "10: one event per conversation");
+  assert.deepEqual(whatsappAgentEventRefs(ids(11)), [null], "11: one general event");
+});
+
 test("a failure of the agents hook never changes the answer", async () => {
   const { handler } = harness({
     ai: () => {

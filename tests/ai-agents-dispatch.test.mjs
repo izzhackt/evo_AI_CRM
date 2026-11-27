@@ -116,7 +116,27 @@ test("dispatch: WhatsApp с id беседы — ключ на чат, пачка
   assert.equal(service.called("ai_agent_runtime_run_reserve_v1")[0].args.p_dedupe_key, key(CHAT_A, NOW));
   const text = claude.callsFor("POST", "/v1/sessions")[0].body.initial_events[0].content[0].text;
   assert.match(text, new RegExp(`get_conversation conversation_id=${CHAT_A}`, "u"));
-  assert.doesNotMatch(text, /unanswered/u, "известный чат не отправляет агента по всем неотвеченным");
+  assert.match(text, /Начни с чата/u);
+  assert.match(text, /list_conversations, filter=unanswered/u, "промпт чата покрывает и остальные неотвеченные");
+});
+
+test("dispatch: два чата в одном окне — второй получает run_in_progress, а промпт первого покрывает остальные неотвеченные", async () => {
+  let calls = 0;
+  const { service, claude, deps } = setup({
+    reserve: () => {
+      calls += 1;
+      return { data: calls === 1 ? { reserved: true, runId: RUN } : { reserved: false, reason: "run_in_progress", existingRunId: RUN } };
+    },
+  });
+  assert.deepEqual(await dispatchAiAgentEvent({ kind: "whatsapp_inbound", ref: CHAT_A }, deps), { started: 1 });
+  assert.deepEqual(await dispatchAiAgentEvent({ kind: "whatsapp_inbound", ref: CHAT_B }, deps), { started: 0 });
+  const keys = service.called("ai_agent_runtime_run_reserve_v1").map((call) => call.args.p_dedupe_key);
+  assert.notEqual(keys[0], keys[1], "у чатов свои ключи");
+  assert.equal(claude.callsFor("POST", "/v1/sessions").length, 1, "сессия одна");
+  const text = claude.callsFor("POST", "/v1/sessions")[0].body.initial_events[0].content[0].text;
+  assert.match(text, new RegExp(`conversation_id=${CHAT_A}`, "u"));
+  assert.match(text, /остальные неотвеченные/u);
+  assert.match(text, /list_conversations, filter=unanswered/u);
 });
 
 test("dispatch: резерв отказал (повтор или уже идёт запуск) — сессия не создаётся", async () => {

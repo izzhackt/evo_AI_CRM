@@ -74,10 +74,11 @@ afterEach(() => restore());
 describe("выбор файлов для комплекта", () => {
   it("блок «Комплект программы» закрыт до нажатия; у обязательного требования сразу выбор, у необязательного сначала «Включить в комплект»", async () => {
     await open({ ready: current() });
-    const section = await screen.findByTestId("prep-package-section");
-    expect(within(section).getByText("Комплект программы")).toBeTruthy();
+    // Блок виден уже пока читаются требования («Загружаем…»), а переключатель выбора появляется, когда ответ пришёл: ждём его, а не блок.
+    const toggle = await screen.findByTestId("prep-package-choose-toggle");
+    expect(within(screen.getByTestId("prep-package-section")).getByText("Комплект программы")).toBeTruthy();
     expect(screen.queryByTestId(`prep-package-row-${FIRST}`)).toBeNull();
-    expect(screen.getByTestId("prep-package-choose-toggle").props.accessibilityState).toMatchObject({ expanded: false });
+    expect(toggle.props.accessibilityState).toMatchObject({ expanded: false });
     await openReadyChoice();
     expect(screen.getByTestId("prep-package-choose-toggle").props.accessibilityState).toMatchObject({ expanded: true });
     const first = screen.getByTestId(`prep-package-row-${FIRST}`);
@@ -598,8 +599,8 @@ describe("состояние выбора", () => {
     await fireEvent.press(screen.getByTestId("prep-check"));
     await waitFor(() => expect(screen.queryByTestId("prep-package-preview-box")).toBeNull());
     expect(screen.queryByTestId("prep-package-submit")).toBeNull();
-    // выбор остался: его можно проверить снова
-    expect(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`).props.accessibilityState).toMatchObject({ selected: true });
+    // выбор остался: его можно проверить снова. Пока идёт «Проверить состояние», вместо выбора «Загружаем…»: ждём, когда выбор вернулся.
+    expect((await screen.findByTestId(`prep-package-version-${FIRST}-${versionId(5)}`)).props.accessibilityState).toMatchObject({ selected: true });
   });
 
   it("выбранный файл пропал из списка сохранённых: строка «Выбранный файл недоступен» стоит выбранной, отправить его нельзя случайно", async () => {

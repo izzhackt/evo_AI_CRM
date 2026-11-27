@@ -7,6 +7,8 @@ import type { AiAgentKey, AiAgentToolName } from "../../lib/ai-agents/contract.t
 /** Инструменты, которые агент видит и может вызывать. get_my_settings разрешён всегда. */
 export const AI_AGENT_TOOL_GRANTS: Readonly<Record<AiAgentKey, readonly AiAgentToolName[]>> = {
   "director": [
+    "get_lead_dossier",
+    "get_case_dossier",
     "list_leads",
     "list_student_cases",
     "get_case",
@@ -25,6 +27,7 @@ export const AI_AGENT_TOOL_GRANTS: Readonly<Record<AiAgentKey, readonly AiAgentT
     "notify_staff",
   ],
   "sales": [
+    "get_lead_dossier",
     "search_clients",
     "get_client_card",
     "list_leads",
@@ -44,6 +47,7 @@ export const AI_AGENT_TOOL_GRANTS: Readonly<Record<AiAgentKey, readonly AiAgentT
     "notify_staff",
   ],
   "curator-cn": [
+    "get_case_dossier",
     "search_clients",
     "get_client_card",
     "get_lead",
@@ -66,6 +70,7 @@ export const AI_AGENT_TOOL_GRANTS: Readonly<Record<AiAgentKey, readonly AiAgentT
     "notify_staff",
   ],
   "curator-my": [
+    "get_case_dossier",
     "search_clients",
     "get_client_card",
     "get_lead",
@@ -88,6 +93,7 @@ export const AI_AGENT_TOOL_GRANTS: Readonly<Record<AiAgentKey, readonly AiAgentT
     "notify_staff",
   ],
   "curator-eu": [
+    "get_case_dossier",
     "search_clients",
     "get_client_card",
     "get_lead",
@@ -110,6 +116,7 @@ export const AI_AGENT_TOOL_GRANTS: Readonly<Record<AiAgentKey, readonly AiAgentT
     "notify_staff",
   ],
   "curator-ae": [
+    "get_case_dossier",
     "search_clients",
     "get_client_card",
     "get_lead",
@@ -132,6 +139,7 @@ export const AI_AGENT_TOOL_GRANTS: Readonly<Record<AiAgentKey, readonly AiAgentT
     "notify_staff",
   ],
   "curator-tr": [
+    "get_case_dossier",
     "search_clients",
     "get_client_card",
     "get_lead",

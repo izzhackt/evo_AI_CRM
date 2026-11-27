@@ -321,6 +321,11 @@ export class AssessmentSession {
     this.abandoned = true;
   }
 
+  /** Кнопка «Выйти»: токен ещё действует, и неотправленные ответы уходят сейчас (выход ждёт не дольше 3 с в сумме), затем `abandon()`. */
+  flushForSignOut(): Promise<boolean> {
+    return this.flush();
+  }
+
   /** Следующее действие студента после отказа: он остался на экране, значит, отказ недействителен; сохранение продолжается. */
   private keepIfDiscarded(): void {
     if (!this.discarded || this.abandoned || this.disposed) return;

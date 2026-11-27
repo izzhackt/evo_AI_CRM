@@ -8,17 +8,22 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 import {
   ADMISSIONS_DIRECT_CHINESE,
   ADMISSIONS_DIRECT_DEGREES,
   ADMISSIONS_DIRECT_EDUCATION_CURRENT,
   ADMISSIONS_DIRECT_ENGLISH,
+  ADMISSIONS_DIRECT_NOTE_MAX,
   ADMISSIONS_DIRECT_UNSPECIFIED,
   CHINA_DEFAULT_COST,
   EMPTY_ADMISSIONS_DIRECT_DRAFT,
   admissionsDirectCaseHref,
+  admissionsDirectNote,
+  admissionsDirectNoteLimit,
   admissionsDirectPhone,
   admissionsDirectMessage,
   admissionsDirectServerField,
@@ -28,12 +33,17 @@ import {
   minorToAmount,
   parseAdmissionsDirectPayload,
 } from "../src/lib/admissions-direct-student-contract.ts";
+import * as contract from "../src/lib/admissions-direct-student-contract.ts";
+import * as wording from "../src/lib/v3/wording.ts";
 
+const require = createRequire(import.meta.url);
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = source("supabase/migrations/281_platform_admissions_direct_student.sql");
 const suite = source("supabase/tests/platform_admissions_direct_student.sql");
 const script = source("scripts/test-runners/test-postgres-authorization.sh");
-const drawer = source("src/components/staff/admissions/AddStudentDrawer.tsx");
+// 27.11.2026 (дизайн «Главное и подробности»): форма — панель и три файла частей; проверки читают их вместе.
+const drawer = ["AddStudentDrawer", "AddStudentFields", "AddStudentMoney", "AddStudentDetails"]
+  .map((name) => source(`src/components/staff/admissions/${name}.tsx`)).join("\n");
 const page = source("src/app/(staff)/admissions-pipeline/page.tsx");
 const directSource = source("src/lib/v3/admissions-direct-student-source.ts");
 
@@ -106,6 +116,115 @@ test("a minimal draft: name and country, no curator, stage new", () => {
   });
 });
 
+test("the salesperson name goes into the case note (owner decision 27.11.2026)", () => {
+  const with_ = (overrides) => buildAdmissionsDirectPayload(draft({ age: "17", ...overrides }), "2026-10-16");
+  const both = with_({ salesName: "  Алия   Продажи ", note: "Звонить после 18:00" });
+  assert.equal(both.ok, true);
+  assert.equal(both.payload.note, "Продажник: Алия Продажи\nЗвонить после 18:00");
+  assert.deepEqual(parseAdmissionsDirectPayload(both.payload), both.payload, "the server re-parse accepts the two-line note");
+  const alone = with_({ salesName: "Алия" });
+  assert.equal(alone.payload.note, "Продажник: Алия");
+  const long = with_({ salesName: "А".repeat(81) });
+  assert.equal(long.ok, false);
+  assert.match(long.errors.salesName, /не больше 80/u);
+  assert.equal(with_({ salesName: "Алия\tПродажи" }).payload?.note, "Продажник: Алия Продажи", "a tab is folded into a space");
+  assert.equal(with_({ salesName: "Алия\u0007" }).ok, false, "control characters are refused");
+  assert.match(drawer, /label="Продажник"/u);
+});
+
+test("the case note is built from the salesperson and the typed note: both, the name only, the note only, neither (review #1614)", () => {
+  assert.equal(admissionsDirectNote("Алия", "Звонить после 18:00"), "Продажник: Алия\nЗвонить после 18:00");
+  assert.equal(admissionsDirectNote("Алия", ""), "Продажник: Алия");
+  assert.equal(admissionsDirectNote("", "Звонить после 18:00"), "Звонить после 18:00");
+  assert.equal(admissionsDirectNote("", ""), "");
+  // Blank values add nothing: no empty «Продажник: » line and no stray line break before or after.
+  assert.equal(admissionsDirectNote("   ", "Звонить"), "Звонить");
+  assert.equal(admissionsDirectNote("Алия", "  \n "), "Продажник: Алия");
+  assert.equal(admissionsDirectNote(" \t ", "  "), "");
+  // The name is folded to one line; the typed note keeps its own line breaks.
+  assert.equal(admissionsDirectNote("  Алия \t  Продажи ", "Строка 1\nСтрока 2"), "Продажник: Алия Продажи\nСтрока 1\nСтрока 2");
+});
+
+test("the salesperson line and the typed note are checked apart; the 3 500 limit counts the «Продажник» line (review #1614)", () => {
+  const built = (overrides) => buildAdmissionsDirectPayload(draft({ age: "17", ...overrides }), "2026-10-16");
+  // A control character in the name alone is the name's error: the empty «Заметка» section must not open with a note error.
+  const badName = built({ salesName: "Алия\u0007" });
+  assert.equal(badName.ok, false);
+  assert.match(badName.errors.salesName, /^Продажник: одной строкой/u);
+  assert.equal(badName.errors.note, undefined, "the note is not blamed for the name");
+  // A name that is too long is the name's error as well, even with a long note beside it.
+  const longName = built({ salesName: "А".repeat(81), note: "Ж".repeat(3450) });
+  assert.match(longName.errors.salesName, /не больше 80/u);
+  assert.equal(longName.errors.note, undefined, "an invalid name is not counted in the note length");
+  // A control character in the note alone is the note's error.
+  const badNote = built({ salesName: "Алия", note: "Звонить\u0007" });
+  assert.equal(badNote.errors.salesName, undefined, "the name is not blamed for the note");
+  assert.equal(typeof badNote.errors.note, "string");
+  // A note of 3 480 characters fits alone; the «Продажник: …» line and its line break push it over, and the message says so.
+  const note = "Ж".repeat(3480);
+  assert.equal(built({ note }).ok, true);
+  const over = built({ salesName: "Алия Продажи", note });
+  assert.equal(over.ok, false);
+  assert.equal(over.errors.note, "Заметка вместе со строкой «Продажник» — не больше 3 500 символов.");
+  assert.equal(over.errors.salesName, undefined, "the name itself is fine");
+  // The edge: 11 («Продажник: ») + 12 (name) + 1 (line break) leave 3 476 characters for the typed note.
+  assert.equal(admissionsDirectNoteLimit("Алия Продажи"), 3476);
+  assert.equal(built({ salesName: "Алия Продажи", note: "Ж".repeat(3476) }).payload?.note.length, ADMISSIONS_DIRECT_NOTE_MAX);
+  assert.equal(built({ salesName: "Алия Продажи", note: "Ж".repeat(3477) }).ok, false);
+  // Without a name the plain limit and the plain message stay.
+  assert.equal(built({ note: "Ж".repeat(3501) }).errors.note, "Заметка: не больше 3 500 символов.");
+  assert.equal(built({ note: "Ж".repeat(3500) }).ok, true);
+});
+
+test("the note field limit agrees with the check: it shrinks by the «Продажник» line (review #1614)", () => {
+  assert.equal(admissionsDirectNoteLimit(""), ADMISSIONS_DIRECT_NOTE_MAX);
+  assert.equal(admissionsDirectNoteLimit("   "), ADMISSIONS_DIRECT_NOTE_MAX, "a blank name takes nothing");
+  assert.equal(admissionsDirectNoteLimit("Алия"), 3484, "11 + 4 + the line break");
+  assert.equal(admissionsDirectNoteLimit("  Алия   Продажи "), admissionsDirectNoteLimit("Алия Продажи"), "counted as the name goes into the note");
+  assert.equal(admissionsDirectNoteLimit("А".repeat(80)), 3408);
+  // The textarea takes its limit from the same function (no fixed 3 500 beside it).
+  assert.match(drawer, /<textarea \{\.\.\.field\("note"\)\} name="note" rows=\{3\} maxLength=\{admissionsDirectNoteLimit\(draft\.salesName\)\}/u);
+  assert.doesNotMatch(drawer, /name="note"[^>]*maxLength=\{3500\}/u);
+});
+
+/** `AddStudentDetails.tsx` вне сборки Next: настоящий файл, переведённый TypeScript; подменены только значки (в строке нужны слова). */
+function addStudentDetails() {
+  const path = "src/components/staff/admissions/AddStudentDetails.tsx";
+  const code = ts.transpileModule(source(path), { fileName: path, compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
+  } }).outputText;
+  const stubs = {
+    "lucide-react": { UserRoundPlusIcon: () => null },
+    "@/components/icons": { Icon: () => null },
+    "@/lib/admissions-direct-student-contract": contract,
+    "@/lib/v3/wording": wording,
+  };
+  const loaded = { exports: {} };
+  new Function("require", "module", "exports", code)((id) => {
+    if (id in stubs) return stubs[id];
+    if (id === "react" || id === "react/jsx-runtime") return require(id);
+    throw new Error(`${path} imports ${id}: add it to the stubs or the allowed list`);
+  }, loaded, loaded.exports);
+  return loaded.exports;
+}
+
+test("«Этап и деньги» stays collapsed, so its row names a price the form filled in for China; a typed price has no such note (review #1614)", () => {
+  const { sectionSummary } = addStudentDetails();
+  const row = (overrides, costPrefilled) => sectionSummary("money", draft(overrides), costPrefilled).map((part) => part.text).join(" · ");
+  // China: the form filled 1 500 USD in and nobody touched it. With migration 378 it replaces the price sales recorded.
+  const china = { country: "CN", costAmount: minorToAmount(Number(CHINA_DEFAULT_COST.amount) * 100), costCurrency: CHINA_DEFAULT_COST.currency };
+  assert.equal(row(china, true), "Новые · 1 500 USD · по умолчанию для Китая");
+  // The student typed a price (even the same one): shown as typed, without the note.
+  assert.equal(row({ ...china, costAmount: "2 000" }, false), "Новые · 2 000 USD");
+  assert.equal(row(china, false), "Новые · 1 500 USD");
+  // No price, no note (a stale flag adds nothing); the stage and the other parts follow as before.
+  assert.equal(row({ ...china, costAmount: "" }, true), "Новые");
+  assert.equal(row({ ...china, stage: "shortlist", signedOn: "2026-10-01" }, true), "Подбор вузов · 1 500 USD · по умолчанию для Китая · договор 01.10.2026");
+  // The drawer hands its «filled in, not touched» flag to the summary, and the flag drops when the price is typed.
+  assert.match(drawer, /summary=\{sectionSummary\(section\.key, draft, costPrefilled\)\}/u);
+  assert.match(drawer, /const setCost = \(key: "costAmount" \| "costCurrency", value: string\) => \{\s+setCostPrefilled\(false\);/u);
+});
+
 test("validation mirrors the database: required, shapes, money", () => {
   const errors = (overrides) => {
     const built = buildAdmissionsDirectPayload(draft(overrides), "2026-10-16");
@@ -159,7 +278,9 @@ test("review #1194 (6): a payment is dated today at the latest, as in 281", () =
   assert.equal(paidOn("2026-10-17").paymentErrors[0], "Укажите дату оплаты, не позже сегодняшнего дня.");
   assert.doesNotMatch(migration, /today \+ 1/u, "the database bound is today as well");
   assert.match(migration, /admissions_direct_date\(payment, 'paidOn', DATE '2000-01-01', today, 'paidOn'\)/u);
-  assert.match(drawer, /max=\{bishkekToday\(\)\} onChange=\{\(e\) => setPayment\(index, "paidOn"/u);
+  // 27.11.2026: строки оплат — в AddStudentMoney.tsx, смену поля отдаёт `onPayment` панели (`setPayment`).
+  assert.match(drawer, /max=\{bishkekToday\(\)\} onChange=\{\(e\) => onPayment\(index, "paidOn"/u);
+  assert.match(drawer, /onPayment=\{setPayment\}/u, "the drawer hands setPayment to the payment rows");
 });
 
 test("the server re-parse refuses foreign keys and types", () => {
@@ -400,10 +521,13 @@ test("study, English and Chinese are lists; the empty choice is omitted", () => 
   assert.equal(parseAdmissionsDirectPayload({ ...base, education: { current: "аспирантура" } }), null);
   assert.equal(parseAdmissionsDirectPayload({ ...base, education: { english: "B2" } }).education.english, "B2");
   assert.equal(parseAdmissionsDirectPayload({ ...base, education: { chinese: "HSK 9" } }), null);
-  assert.match(drawer, /<select \{\.\.\.fieldProps\("educationCurrent"\)\} name="educationCurrent" className=\{SELECT_CLS\}/u);
-  assert.match(drawer, /<select \{\.\.\.fieldProps\("english"\)\} name="english" className=\{SELECT_CLS\}/u);
-  assert.match(drawer, /<select \{\.\.\.fieldProps\("chinese"\)\} name="chinese" className=\{SELECT_CLS\}/u);
-  assert.equal(drawer.match(/<option value="">\{ADMISSIONS_DIRECT_UNSPECIFIED\}<\/option>/gu)?.length, 3);
+  // 27.11.2026 (AddStudentFields.tsx): «Где учится сейчас» — свой список, английский и китайский — один цикл по `levels`;
+  // у каждого из трёх списков пустой вариант «не указано».
+  assert.match(drawer, /<select \{\.\.\.field\("educationCurrent"\)\} name="educationCurrent" className=\{FIELD_CLS\}/u);
+  assert.match(drawer, /\{ key: "english", label: "Английский", options: ADMISSIONS_DIRECT_ENGLISH \}/u);
+  assert.match(drawer, /\{ key: "chinese", label: "Китайский", options: ADMISSIONS_DIRECT_CHINESE \}/u);
+  assert.match(drawer, /<select \{\.\.\.field\(key\)\} name=\{key\} className=\{FIELD_CLS\}[\s\S]{0,120}<option value="">\{ADMISSIONS_DIRECT_UNSPECIFIED\}<\/option>/u);
+  assert.equal(drawer.match(/<option value="">\{ADMISSIONS_DIRECT_UNSPECIFIED\}<\/option>/gu)?.length, 2, "one for «Где учится сейчас», one shared by the two language lists");
   assert.doesNotMatch(drawer, /name="educationCurrent"[\s\S]{0,80}<input/u);
   assert.match(drawer, /name="program"/u);
   assert.match(drawer, /name="intake"/u);

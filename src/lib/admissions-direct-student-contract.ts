@@ -122,6 +122,11 @@ export type AdmissionsDirectDraft = Readonly<{
   costCurrency: string;
   signedOn: string;
   payments: readonly AdmissionsDirectPaymentDraft[];
+  /**
+   * Продажник, от которого пришёл клиент (27.11.2026, решение владельца): имя словами, по желанию. Отдельного поля в базе нет —
+   * имя уходит в заметку дела строкой «Продажник: …» (`admissionsDirectNote`), её видит куратор.
+   */
+  salesName: string;
   note: string;
 }>;
 
@@ -133,6 +138,7 @@ export const EMPTY_ADMISSIONS_DIRECT_DRAFT: AdmissionsDirectDraft = Object.freez
   curator: "", stage: "new",
   costAmount: "", costCurrency: "USD", signedOn: "",
   payments: [],
+  salesName: "",
   note: "",
 });
 
@@ -154,12 +160,44 @@ export type AdmissionsDirectPayload = Readonly<{
   note?: string;
 }>;
 
+/** Продажник в заметке дела: строка «Продажник: Имя» перед тем, что написал сотрудник. */
+export const ADMISSIONS_DIRECT_SALES_NOTE_PREFIX = "Продажник: ";
+export const ADMISSIONS_DIRECT_SALES_NAME_MAX = 80;
+/** Предел базы (281) — на всю заметку дела, вместе со строкой «Продажник». */
+export const ADMISSIONS_DIRECT_NOTE_MAX = 3500;
+
+/** Имя продажника, каким оно идёт в заметку: без пробелов по краям, подряд идущие пробельные знаки — один пробел. */
+const salesNameOf = (value: string): string => value.trim().replace(/\s+/gu, " ");
+
+/**
+ * Заметка дела из формы: строка «Продажник: Имя» (если имя есть), под ней — то, что написал сотрудник.
+ * Строка «Продажник» не всегда первая в заметке, которую хранит база: при одном возрасте 281 ставит выше «Возраст: …».
+ * Пустое имя и пустая заметка ничего не добавляют; обе пустые — "".
+ */
+export function admissionsDirectNote(salesName: string, note: string): string {
+  const name = salesNameOf(salesName);
+  return [name ? `${ADMISSIONS_DIRECT_SALES_NOTE_PREFIX}${name}` : "", note.trim()].filter(Boolean).join("\n");
+}
+
+/**
+ * Сколько знаков остаётся на «Что важно знать куратору»: предел базы один на всю заметку дела, а строка «Продажник: Имя»
+ * с переводом строки занимает его часть. Без имени — весь предел. Ту же цифру проверяет `buildAdmissionsDirectPayload`.
+ */
+export function admissionsDirectNoteLimit(salesName: string): number {
+  const name = salesNameOf(salesName);
+  const taken = name ? ADMISSIONS_DIRECT_SALES_NOTE_PREFIX.length + name.length + 1 : 0;
+  return Math.max(0, ADMISSIONS_DIRECT_NOTE_MAX - taken);
+}
+
+const NOTE_ERROR = "Заметка: не больше 3 500 символов.";
+const NOTE_WITH_SALES_ERROR = "Заметка вместе со строкой «Продажник» — не больше 3 500 символов.";
+
 export type AdmissionsDirectField =
   | "firstName" | "lastName" | "phone" | "email" | "birthDate" | "age"
   | "parentRelation" | "parentFirstName" | "parentLastName" | "parentPhone"
   | "country" | "degree" | "program" | "intake"
   | "educationCurrent" | "english" | "chinese"
-  | "curator" | "stage" | "costAmount" | "costCurrency" | "signedOn" | "payments" | "note";
+  | "curator" | "stage" | "costAmount" | "costCurrency" | "signedOn" | "payments" | "salesName" | "note";
 
 export type AdmissionsDirectErrors = Readonly<Partial<Record<AdmissionsDirectField, string>>>;
 
@@ -346,8 +384,15 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
     if (sameCurrency > costMinor) errors.payments = `Получено больше стоимости договора в ${draft.costCurrency}.`;
   }
 
-  const note = draft.note.trim();
-  if (note.length > 3500 || NOTE_CONTROL.test(note)) errors.note = "Заметка: не больше 3 500 символов.";
+  // Имя продажника и заметка проверяются каждое само по себе: ошибка имени не раскрывает пустую «Заметку» (ревью #1614).
+  const salesName = salesNameOf(draft.salesName);
+  const salesNameInvalid = salesName.length > ADMISSIONS_DIRECT_SALES_NAME_MAX || LINE_CONTROL.test(salesName);
+  if (salesNameInvalid) errors.salesName = `Продажник: одной строкой, не больше ${ADMISSIONS_DIRECT_SALES_NAME_MAX} символов.`;
+  const typedNote = draft.note.trim();
+  // Предел базы — на заметку целиком, со строкой «Продажник»; неверное имя в длину заметки не считается: оно уже названо ошибкой.
+  const note = admissionsDirectNote(salesNameInvalid ? "" : salesName, typedNote);
+  if (NOTE_CONTROL.test(typedNote)) errors.note = NOTE_ERROR;
+  else if (note.length > ADMISSIONS_DIRECT_NOTE_MAX) errors.note = salesName && !salesNameInvalid ? NOTE_WITH_SALES_ERROR : NOTE_ERROR;
 
   if (Object.keys(errors).length > 0 || paymentErrors.some((e) => e !== null)) {
     return { ok: false, errors, paymentErrors };
@@ -433,7 +478,7 @@ export function parseAdmissionsDirectPayload(input: unknown): AdmissionsDirectPa
         && amount(payment.amountMinor) && (payment.amountMinor as number) > 0 && typeof payment.currency === "string" && isCurrency(payment.currency)
         && typeof payment.paidOn === "string" && isCalendarDate(payment.paidOn)))) return null;
   }
-  if (note !== undefined && (typeof note !== "string" || note.trim() !== note || note.length === 0 || note.length > 3500 || NOTE_CONTROL.test(note))) return null;
+  if (note !== undefined && (typeof note !== "string" || note.trim() !== note || note.length === 0 || note.length > ADMISSIONS_DIRECT_NOTE_MAX || NOTE_CONTROL.test(note))) return null;
   return input as AdmissionsDirectPayload;
 }
 

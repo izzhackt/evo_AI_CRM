@@ -19,13 +19,16 @@ import {
   effectiveAiAgentInstructions,
 } from "../src/content/ai-agents/index.ts";
 import { AI_AGENT_PROMPT_SOURCES } from "../src/content/ai-agents/prompts.generated.ts";
+import { AI_AGENT_TOOL_GRANTS } from "../src/content/ai-agents/tool-grants.generated.ts";
 import {
   LIMITS,
   generate,
   loadSources,
   normalizeText,
   parseAgentFile,
+  parseToolsFile,
   readCatalogKeys,
+  readToolNames,
   stripHtmlComments,
 } from "../scripts/maintenance/build-ai-agent-prompts.mjs";
 
@@ -38,15 +41,17 @@ const WITH_INSTRUCTIONS = ["director", "sales", "curator-cn", "curator-my"];
 const PLACEHOLDERS = ["curator-eu", "curator-ae", "curator-tr"];
 
 const rawFile = (name) => readFileSync(path.join(CONTENT_DIR, name), "utf8");
+/** Сырой источник инструкции: role.md + rules.md в папке агента. */
+const rawAgent = (key) => rawFile(`${key}/role.md`) + "\n" + rawFile(`${key}/rules.md`);
 const wordCount = (text) => text.split(/\s+/).filter(Boolean).length;
 
 /** Все тексты, которые уходят в промпт, плюс сырые .md (комментарии тоже проверяем: репозиторий публичный). */
 function allTexts() {
   const texts = [];
-  texts.push({ label: "_preamble.md (сырой)", text: rawFile("_preamble.md") });
+  texts.push({ label: "_shared/preamble.md (сырой)", text: rawFile("_shared/preamble.md") });
   texts.push({ label: "преамбула", text: AI_AGENT_PREAMBLE });
   for (const key of AI_AGENT_KEYS) {
-    texts.push({ label: `${key}.md (сырой)`, text: rawFile(`${key}.md`) });
+    texts.push({ label: `${key}/role.md+rules.md (сырой)`, text: rawAgent(key) });
     texts.push({ label: `${key}: инструкция`, text: AI_AGENT_PROMPT_SOURCES[key].instructions });
     const schedule = AI_AGENT_PROMPT_SOURCES[key].schedulePrompt;
     if (schedule) texts.push({ label: `${key}: schedule_prompt`, text: schedule });
@@ -54,7 +59,7 @@ function allTexts() {
   return texts;
 }
 
-test("генератор --check: prompts.generated.ts совпадает с .md", () => {
+test("генератор --check: prompts.generated.ts совпадает с источниками", () => {
   const result = spawnSync(process.execPath, [GENERATOR, "--check"], { cwd: ROOT, encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
@@ -73,7 +78,7 @@ test("ключи каталога читаются из contract.ts и совп�
 
 test("для каждого ключа каталога есть файл, frontmatter key совпадает с именем", () => {
   for (const key of AI_AGENT_KEYS) {
-    const parsed = parseAgentFile(`${key}.md`, rawFile(`${key}.md`));
+    const parsed = parseAgentFile(`${key}/role.md`, rawFile(`${key}/role.md`));
     assert.equal(parsed.key, key);
     assert.ok(key in AI_AGENT_PROMPT_SOURCES, `нет ${key} в сгенерированном модуле`);
     assert.ok(key in AI_AGENT_DEFAULTS, `нет ${key} в AI_AGENT_DEFAULTS`);
@@ -242,8 +247,8 @@ test("безопасность: нет идентификаторов и имё�
 test("красные линии: опасные слова только в абзацах с пометкой red-line; названий VPN нет вовсе", () => {
   const brands = /ExpressVPN|Astrill|NordVPN|VyprVPN|PureVPN|12VPN|Surfshark|ProtonVPN/i;
   const risky = /турист|безвиз|visa on arrival|виз\S*\s+по\s+прилёт/i;
-  for (const name of ["_preamble.md", ...AI_AGENT_KEYS.map((key) => `${key}.md`)]) {
-    const source = rawFile(name);
+  for (const name of ["_shared/preamble.md", ...AI_AGENT_KEYS.map((key) => `${key}/role.md+rules.md`)]) {
+    const source = name.includes("+") ? rawAgent(name.split("/")[0]) : rawFile(name);
     assert.equal(brands.test(source), false, `${name}: названия коммерческих VPN недопустимы`);
     for (const block of source.split(/\n\s*\n/)) {
       const body = block.replace(/<!--(?!\s*red-line\s*-->)[\s\S]*?-->/g, "");
@@ -350,34 +355,87 @@ test("парсер: блок schedule_prompt, комментарии, ошибк
   assert.equal(normalizeText("a  \r\n\r\n\r\n\r\nb \n"), "a\n\nb");
 });
 
-test("загрузка источников: пределы и несоответствие key", () => {
+test("загрузка источников: пределы, несоответствие key и склейка role.md + rules.md", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "ai-agents-content-"));
+  const write = (name, text) => writeFileSync(path.join(dir, name), text);
   try {
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, "_preamble.md"), "Преамбула");
-    writeFileSync(path.join(dir, "one.md"), "---\nkey: one\n---\nТекст");
+    mkdirSync(path.join(dir, "_shared"), { recursive: true });
+    mkdirSync(path.join(dir, "one"), { recursive: true });
+    write("_shared/preamble.md", "Преамбула");
+    write("one/role.md", "---\nkey: one\n---\n# Роль\n");
+    write("one/rules.md", "## Правила\nТекст\n");
+    write("one/tools.json", JSON.stringify({ tools: ["list_leads"] }));
     const loaded = loadSources({ contentDir: dir, keys: ["one"] });
-    assert.deepEqual(loaded.agents.one, { instructions: "Текст", schedulePrompt: null });
+    assert.deepEqual(loaded.agents.one, { instructions: "# Роль\n\n## Правила\nТекст", schedulePrompt: null });
+    assert.deepEqual(loaded.grants.one, ["list_leads", "get_my_settings"]);
 
-    writeFileSync(path.join(dir, "one.md"), "---\nkey: two\n---\nТекст");
-    assert.throws(() => loadSources({ contentDir: dir, keys: ["one"] }), /не совпадает с именем файла/);
+    write("one/role.md", "---\nkey: two\n---\nТекст");
+    assert.throws(() => loadSources({ contentDir: dir, keys: ["one"] }), /не совпадает с именем папки/);
 
-    writeFileSync(path.join(dir, "one.md"), `---\nkey: one\n---\n${"я".repeat(LIMITS.instructionsMaxChars + 1)}`);
+    write("one/role.md", `---\nkey: one\n---\n${"я".repeat(LIMITS.instructionsMaxChars + 1)}`);
     assert.throws(() => loadSources({ contentDir: dir, keys: ["one"] }), /предел/);
 
-    writeFileSync(path.join(dir, "one.md"), `---\nkey: one\nschedule_prompt: |\n  ${"я".repeat(LIMITS.schedulePromptMaxChars + 1)}\n---\nТекст`);
+    write("one/role.md", `---\nkey: one\nschedule_prompt: |\n  ${"я".repeat(LIMITS.schedulePromptMaxChars + 1)}\n---\nТекст`);
     assert.throws(() => loadSources({ contentDir: dir, keys: ["one"] }), /schedule_prompt/);
 
-    writeFileSync(path.join(dir, "one.md"), "---\nkey: one\n---\nТекст");
-    writeFileSync(path.join(dir, "_preamble.md"), "я".repeat(LIMITS.preambleMaxChars + 1));
+    write("one/role.md", "---\nkey: one\n---\nТекст");
+    write("one/rules.md", "---\nkey: one\n---\n");
+    assert.throws(() => loadSources({ contentDir: dir, keys: ["one"] }), /frontmatter допустим только в role.md/);
+    write("one/rules.md", "Правила");
+
+    write("_shared/preamble.md", "я".repeat(LIMITS.preambleMaxChars + 1));
     assert.throws(() => loadSources({ contentDir: dir, keys: ["one"] }), /преамбула/);
 
-    writeFileSync(path.join(dir, "_preamble.md"), "ok\u0000");
+    write("_shared/preamble.md", "ok\u0000");
     assert.throws(() => loadSources({ contentDir: dir, keys: ["one"] }), /NUL/);
 
-    writeFileSync(path.join(dir, "_preamble.md"), "Преамбула");
+    write("_shared/preamble.md", "Преамбула");
     assert.throws(() => loadSources({ contentDir: dir, keys: ["missing"] }), /не найден/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("tools.json: имена только из реестра, без повторов; get_my_settings добавляется всегда", () => {
+  const registry = readToolNames();
+  assert.deepEqual(registry, AI_AGENT_TOOLS.map((tool) => tool.name));
+  assert.deepEqual(parseToolsFile("t.json", '{"tools":["send_message","list_leads"]}', registry), ["list_leads", "send_message", "get_my_settings"].sort((a, b) => registry.indexOf(a) - registry.indexOf(b)));
+  assert.throws(() => parseToolsFile("t.json", "не json", registry), /не JSON/);
+  assert.throws(() => parseToolsFile("t.json", '["list_leads"]', registry), /ожидается объект/);
+  assert.throws(() => parseToolsFile("t.json", '{"tools":["drop_table"]}', registry), /нет в AI_AGENT_TOOL_NAMES/);
+  assert.throws(() => parseToolsFile("t.json", '{"tools":["list_leads","list_leads"]}', registry), /дважды/);
+  assert.throws(() => parseToolsFile("t.json", '{"tools":[],"extra":1}', registry), /неизвестное поле/);
+});
+
+test("наборы инструментов агентов: сгенерированная карта совпадает с tools.json, границы ролей", () => {
+  for (const key of AI_AGENT_KEYS) {
+    const fromFile = JSON.parse(rawFile(`${key}/tools.json`)).tools;
+    for (const name of fromFile) assert.ok(AI_AGENT_TOOLS.some((tool) => tool.name === name), `${key}: ${name}`);
+    assert.ok(AI_AGENT_TOOL_GRANTS[key].includes("get_my_settings"), key);
+    assert.deepEqual([...AI_AGENT_TOOL_GRANTS[key]].sort(), [...new Set([...fromFile, "get_my_settings"])].sort(), key);
+  }
+  const director = AI_AGENT_TOOL_GRANTS.director;
+  for (const name of ["send_message", "get_document_file", "get_conversation", "get_case_chat", "add_note"]) {
+    assert.equal(director.includes(name), false, `director: ${name}`);
+  }
+  const sales = AI_AGENT_TOOL_GRANTS.sales;
+  for (const name of ["payments_summary", "sales_report", "get_document_file", "post_digest", "get_case"]) {
+    assert.equal(sales.includes(name), false, `sales: ${name}`);
+  }
+  assert.ok(AI_AGENT_TOOL_GRANTS["curator-my"].includes("get_document_file"));
+  assert.equal(AI_AGENT_TOOL_GRANTS["curator-my"].includes("sales_report"), false);
+});
+
+test("каждый инструмент, который инструкция или расписание велят вызвать, входит в набор агента", () => {
+  const names = AI_AGENT_TOOLS.map((tool) => tool.name);
+  for (const key of AI_AGENT_KEYS) {
+    const text = `${AI_AGENT_DEFAULTS[key].instructions}\n${AI_AGENT_DEFAULTS[key].schedulePrompt ?? ""}`;
+    // Запретительные упоминания («не открывай ...») — только в строках с пометкой отказа.
+    const positive = text.split("\n").filter((line) => !/не открывай|не вызывай|не используешь|нет доступа/i.test(line)).join("\n");
+    for (const name of names) {
+      if (new RegExp(`\\b${name}\\b`).test(positive)) {
+        assert.ok(AI_AGENT_TOOL_GRANTS[key].includes(name), `${key}: инструкция упоминает ${name}, но его нет в tools.json`);
+      }
+    }
   }
 });

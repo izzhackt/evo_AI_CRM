@@ -2,8 +2,9 @@ import { AI_AGENT_KEYS, type AiAgentKey } from "../../lib/ai-agents/contract.ts"
 import { AI_AGENT_PREAMBLE_TEXT, AI_AGENT_PROMPT_SOURCES } from "./prompts.generated.ts";
 
 /*
- * Тексты агентов «ИИ-агенты» (контракт §E). Источник правды — src/content/ai-agents/*.md;
- * prompts.generated.ts собирает scripts/maintenance/build-ai-agent-prompts.mjs (проверка: --check).
+ * Тексты агентов «ИИ-агенты» (контракт §E). Источник правды — src/content/ai-agents/<key>/{role,rules}.md
+ * (+ tools.json — набор инструментов, _shared/preamble.md — общая преамбула);
+ * prompts.generated.ts и tool-grants.generated.ts собирает scripts/maintenance/build-ai-agent-prompts.mjs (проверка: --check).
  * Модуль чистый: без server-only и fs — его читают и сервер (синхронизация с Claude),
  * и страницы (редактор инструкции).
  */

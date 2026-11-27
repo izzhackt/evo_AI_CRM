@@ -2,12 +2,12 @@
 /**
  * Генератор текстов агентов «ИИ-агенты» (контракт docs/design/ai-agents/contract.md §E.1).
  *
- * Читает src/content/ai-agents/_preamble.md и <key>.md для каждого ключа каталога
- * (src/lib/ai-agents/contract.ts), проверяет их и пишет
- * src/content/ai-agents/prompts.generated.ts.
+ * Читает src/content/ai-agents/_shared/preamble.md и папку <key>/ каждого ключа каталога
+ * (src/lib/ai-agents/contract.ts): role.md + rules.md (инструкция), tools.json (инструменты).
+ * Проверяет их и пишет prompts.generated.ts и tool-grants.generated.ts.
  *
  *   node scripts/maintenance/build-ai-agent-prompts.mjs           — записать сгенерированный файл
- *   node scripts/maintenance/build-ai-agent-prompts.mjs --check   — упасть, если файл расходится с .md
+ *   node scripts/maintenance/build-ai-agent-prompts.mjs --check   — упасть, если файл расходится с источниками
  *
  * Node без зависимостей. Во время работы приложения ни fs, ни .md не используются:
  * тексты живут в TypeScript-модуле (standalone-сборка Next не копирует .md).
@@ -20,6 +20,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const CONTENT_DIR = path.join(ROOT, "src", "content", "ai-agents");
 const CONTRACT_FILE = path.join(ROOT, "src", "lib", "ai-agents", "contract.ts");
 const OUTPUT_FILE = path.join(CONTENT_DIR, "prompts.generated.ts");
+const GRANTS_FILE = path.join(CONTENT_DIR, "tool-grants.generated.ts");
+const ALWAYS_ALLOWED_TOOL = "get_my_settings";
 
 export const LIMITS = Object.freeze({
   instructionsMaxChars: 40_000,
@@ -36,6 +38,39 @@ export function readCatalogKeys(contractSource = readFileSync(CONTRACT_FILE, "ut
   const keys = [...match[1].matchAll(/"([a-z][a-z0-9-]*)"/g)].map((item) => item[1]);
   if (keys.length === 0) throw new Error("AI_AGENT_KEYS пуст.");
   return keys;
+}
+
+/** Реестр инструментов — из contract.ts (AI_AGENT_TOOL_NAMES). */
+export function readToolNames(contractSource = readFileSync(CONTRACT_FILE, "utf8")) {
+  const match = /export const AI_AGENT_TOOL_NAMES = \[([\s\S]*?)\] as const;/.exec(contractSource);
+  if (!match) throw new Error("В contract.ts не найден AI_AGENT_TOOL_NAMES.");
+  const names = [...match[1].matchAll(/"([a-z][a-z0-9_]*)"/g)].map((item) => item[1]);
+  if (names.length === 0) throw new Error("AI_AGENT_TOOL_NAMES пуст.");
+  return names;
+}
+
+/** tools.json: { "tools": [...] }; имена из реестра, без повторов. get_my_settings добавляется всегда. Порядок — как в реестре. */
+export function parseToolsFile(file, source, registry) {
+  let data;
+  try {
+    data = JSON.parse(source);
+  } catch {
+    fail(file, "не JSON.");
+  }
+  if (data === null || typeof data !== "object" || Array.isArray(data) || !Array.isArray(data.tools)) {
+    fail(file, 'ожидается объект { "tools": [...] }.');
+  }
+  const extraKeys = Object.keys(data).filter((name) => name !== "tools");
+  if (extraKeys.length > 0) fail(file, `неизвестное поле «${extraKeys[0]}».`);
+  const seen = new Set();
+  for (const name of data.tools) {
+    if (typeof name !== "string") fail(file, "имя инструмента должно быть строкой.");
+    if (!registry.includes(name)) fail(file, `инструмента «${name}» нет в AI_AGENT_TOOL_NAMES.`);
+    if (seen.has(name)) fail(file, `инструмент «${name}» указан дважды.`);
+    seen.add(name);
+  }
+  seen.add(ALWAYS_ALLOWED_TOOL);
+  return registry.filter((name) => seen.has(name));
 }
 
 /** HTML-комментарии — заметки авторам, в промпт не попадают. */
@@ -101,7 +136,7 @@ export function parseAgentFile(file, source) {
 
 /** Читает и проверяет все источники; возвращает данные для генерации. */
 export function loadSources({ contentDir = CONTENT_DIR, keys = readCatalogKeys() } = {}) {
-  const preambleFile = path.join(contentDir, "_preamble.md");
+  const preambleFile = path.join(contentDir, "_shared", "preamble.md");
   if (!existsSync(preambleFile)) fail(preambleFile, "файл не найден.");
   const preambleRaw = readFileSync(preambleFile, "utf8");
   assertNoNul(preambleFile, preambleRaw);
@@ -111,24 +146,32 @@ export function loadSources({ contentDir = CONTENT_DIR, keys = readCatalogKeys()
     fail(preambleFile, `преамбула ${preamble.length} символов, предел ${LIMITS.preambleMaxChars}.`);
   }
 
+  const registry = readToolNames();
   const agents = {};
+  const grants = {};
   for (const key of keys) {
-    const file = path.join(contentDir, `${key}.md`);
-    if (!existsSync(file)) fail(file, "файл агента не найден.");
-    const source = readFileSync(file, "utf8");
-    assertNoNul(file, source);
-    const parsed = parseAgentFile(file, source);
-    if (parsed.key !== key) fail(file, `key «${parsed.key}» не совпадает с именем файла «${key}».`);
-    const instructions = normalizeText(stripHtmlComments(parsed.body));
+    const roleFile = path.join(contentDir, key, "role.md");
+    const rulesFile = path.join(contentDir, key, "rules.md");
+    const toolsFile = path.join(contentDir, key, "tools.json");
+    for (const file of [roleFile, rulesFile, toolsFile]) if (!existsSync(file)) fail(file, "файл агента не найден.");
+    const roleSource = readFileSync(roleFile, "utf8");
+    const rulesSource = readFileSync(rulesFile, "utf8");
+    assertNoNul(roleFile, roleSource);
+    assertNoNul(rulesFile, rulesSource);
+    const parsed = parseAgentFile(roleFile, roleSource);
+    if (parsed.key !== key) fail(roleFile, `key «${parsed.key}» не совпадает с именем папки «${key}».`);
+    if (rulesSource.startsWith("---\n")) fail(rulesFile, "frontmatter допустим только в role.md.");
+    const instructions = normalizeText(stripHtmlComments(parsed.body + "\n" + rulesSource));
     if (instructions.length > LIMITS.instructionsMaxChars) {
-      fail(file, `инструкция ${instructions.length} символов, предел ${LIMITS.instructionsMaxChars}.`);
+      fail(roleFile, `инструкция ${instructions.length} символов, предел ${LIMITS.instructionsMaxChars}.`);
     }
     if (parsed.schedulePrompt && parsed.schedulePrompt.length > LIMITS.schedulePromptMaxChars) {
-      fail(file, `schedule_prompt ${parsed.schedulePrompt.length} символов, предел ${LIMITS.schedulePromptMaxChars}.`);
+      fail(roleFile, `schedule_prompt ${parsed.schedulePrompt.length} символов, предел ${LIMITS.schedulePromptMaxChars}.`);
     }
     agents[key] = { instructions, schedulePrompt: parsed.schedulePrompt };
+    grants[key] = parseToolsFile(toolsFile, readFileSync(toolsFile, "utf8"), registry);
   }
-  return { preamble, agents, keys };
+  return { preamble, agents, grants, keys };
 }
 
 function tsString(text) {
@@ -154,8 +197,8 @@ export function renderModule({ preamble, agents, keys }) {
   });
   return [
     "/*",
-    " * СГЕНЕРИРОВАНО scripts/maintenance/build-ai-agent-prompts.mjs из src/content/ai-agents/*.md — НЕ РЕДАКТИРОВАТЬ.",
-    " * Правьте .md и запускайте: node scripts/maintenance/build-ai-agent-prompts.mjs (проверка: --check).",
+    " * СГЕНЕРИРОВАНО scripts/maintenance/build-ai-agent-prompts.mjs из src/content/ai-agents/<key>/{role,rules}.md и _shared/preamble.md — НЕ РЕДАКТИРОВАТЬ.",
+    " * Правьте исходники и запускайте: node scripts/maintenance/build-ai-agent-prompts.mjs (проверка: --check).",
     " */",
     'import type { AiAgentKey } from "../../lib/ai-agents/contract.ts";',
     "",
@@ -170,26 +213,54 @@ export function renderModule({ preamble, agents, keys }) {
   ].join("\n");
 }
 
+export function renderGrantsModule({ grants, keys }) {
+  const entries = keys.map((key) => {
+    const names = grants[key].map((name) => `    ${tsString(name)},`).join("\n");
+    return `  ${tsString(key)}: [\n${names}\n  ],`;
+  });
+  return [
+    "/*",
+    " * СГЕНЕРИРОВАНО scripts/maintenance/build-ai-agent-prompts.mjs из src/content/ai-agents/<key>/tools.json — НЕ РЕДАКТИРОВАТЬ.",
+    " * Правьте tools.json и запускайте: node scripts/maintenance/build-ai-agent-prompts.mjs (проверка: --check).",
+    " */",
+    'import type { AiAgentKey, AiAgentToolName } from "../../lib/ai-agents/contract.ts";',
+    "",
+    "/** Инструменты, которые агент видит и может вызывать. get_my_settings разрешён всегда. */",
+    "export const AI_AGENT_TOOL_GRANTS: Readonly<Record<AiAgentKey, readonly AiAgentToolName[]>> = {",
+    ...entries,
+    "};",
+    "",
+  ].join("\n");
+}
+
 export function generate(options) {
   return renderModule(loadSources(options));
 }
 
+export function generateGrants(options) {
+  return renderGrantsModule(loadSources(options));
+}
+
 function main() {
   const check = process.argv.includes("--check");
-  const output = generate();
+  const sources = loadSources();
+  const output = renderModule(sources);
+  const grantsOutput = renderGrantsModule(sources);
   if (check) {
     const current = existsSync(OUTPUT_FILE) ? readFileSync(OUTPUT_FILE, "utf8") : null;
-    if (current !== output) {
+    const currentGrants = existsSync(GRANTS_FILE) ? readFileSync(GRANTS_FILE, "utf8") : null;
+    if (current !== output || currentGrants !== grantsOutput) {
       console.error(
-        "prompts.generated.ts расходится с src/content/ai-agents/*.md. Запустите: node scripts/maintenance/build-ai-agent-prompts.mjs",
+        "prompts.generated.ts или tool-grants.generated.ts расходятся с src/content/ai-agents/<key>/. Запустите: node scripts/maintenance/build-ai-agent-prompts.mjs",
       );
       process.exit(1);
     }
-    console.log("prompts.generated.ts актуален.");
+    console.log("prompts.generated.ts и tool-grants.generated.ts актуальны.");
     return;
   }
   writeFileSync(OUTPUT_FILE, output);
-  console.log(`Записано ${path.relative(ROOT, OUTPUT_FILE)}.`);
+  writeFileSync(GRANTS_FILE, grantsOutput);
+  console.log(`Записано ${path.relative(ROOT, OUTPUT_FILE)} и ${path.relative(ROOT, GRANTS_FILE)}.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

@@ -6332,6 +6332,35 @@ SQL
       exit 1
     fi
   fi
+  # «Сторож сроков» (migration 380, 28.11.2026). Matched by name, not number. Right after the migration a second apply refuses
+  # (a380_already_applied), then the suite, insisting on its marker. The suite proves: the posture (the run is service_role
+  # only, the helpers and the key table closed); the rules row by row on a fixed day (slot in the past, in 3 and in exactly
+  # 7 days, none for 8 and 10 days, empty deadline, approved, removed, retired requirement, closed case, step today, paid and
+  # archived tranche); the dry run (the default) writes nothing; the real run (curator or responsible administrator, exact
+  # Russian title, priority, task event, audit row, key); repeats (same run, next day, closed task, moved date).
+  if [[ "$(basename "$migration")" == *_platform_case_deadline_watch.sql ]]; then
+    t380_again_log="$(mktemp -t evo-t380-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t380_again_log" 2>&1; then
+      echo "migration 380 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a380_already_applied" "$t380_again_log"; then
+      echo "a second apply of migration 380 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t380_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t380_again_log"
+    case_deadline_watch_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_deadline_watch.sql </dev/null)"
+    printf '%s\n' "$case_deadline_watch_log"
+    if ! grep -q 'A380_CASE_DEADLINE_WATCH_SUITE_PASSED' <<<"$case_deadline_watch_log"; then
+      echo "platform_case_deadline_watch.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «ИИ-агенты»: два предохранителя базы (migration 379, ночь 28.11.2026). Matched by name, not number. The migration
   # replaces two function bodies by checked fragments and the reservation function by a new signature: right after it a second
   # apply refuses (a379_already_applied), then the suite, insisting on its marker. The suite proves: the posture (two target

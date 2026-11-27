@@ -14,7 +14,7 @@
 --  3. the dry run (the default) writes nothing: no task, no event, no key, no audit row; it lists the rows;
 --  4. the real run: one task per row for the case curator, or for the responsible administrator when the curator cannot take a
 --     task; the exact Russian title, the priority, the day, no student visibility, the task event, the audit row, the key row;
---  5. repeats: the same run, the next day and the day after a closed task create nothing; a new due date is a new key.
+--  5. the ceiling and repeats: the same run, the next day and the day after a closed task create nothing; a new due date is a new key.
 BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
@@ -141,6 +141,8 @@ UPDATE platform.organization_memberships SET status = 'blocked' WHERE id = pg_te
 --   709 archived tranche, past    710 paid tranche, past      711 live partly paid, past 712 curator blocked, step past
 --   713 removed slot, past        714 two slots of one day    715 slot in exactly 7 days 716 slot in 8 days
 --   717 slot of a retired requirement, past                   718 custom slot (own label), past
+--   719 tranche paid and fully refunded, past                 720 three slots of three days (one row, the earliest)
+--   721 two live tranches of two past days (one row, the earliest)
 SET LOCAL session_replication_role = replica;
 INSERT INTO platform.student_cases (id, organization_id, student_membership_id, responsible_sales_membership_id, current_curator_membership_id,
   source_key, student_display_name, target_country, target_degree, program_direction, intake, operational_stage, state, handoff_at, closed_at,
@@ -157,7 +159,7 @@ SELECT pg_temp.w383_id(c.n), pg_temp.w383_id(1), pg_temp.w383_id(302), pg_temp.w
 FROM (VALUES
   (701, NULL::DATE), (702, NULL), (703, NULL), (704, NULL), (705, DATE '2026-11-20'), (706, NULL), (707, DATE '2026-11-25'),
   (708, DATE '2026-12-01'), (709, NULL), (710, NULL), (711, NULL), (712, DATE '2026-11-26'), (713, NULL), (714, NULL), (715, NULL),
-  (716, NULL), (717, NULL), (718, NULL)) AS c(n, step);
+  (716, NULL), (717, NULL), (718, NULL), (719, NULL), (720, NULL), (721, NULL)) AS c(n, step);
 
 INSERT INTO platform.document_requirements (id, organization_id, target_country, target_degree, program_direction, checklist_version,
   requirement_key, label, instructions, status, retired_at, created_by_membership_id) VALUES
@@ -192,19 +194,26 @@ SELECT pg_temp.w383_slot(1715, 715, 801, 'submitted', TIMESTAMPTZ '2026-12-08 23
 SELECT pg_temp.w383_slot(1716, 716, 801, 'required', TIMESTAMPTZ '2026-12-09 00:30+06');
 SELECT pg_temp.w383_slot(1717, 717, 803, 'required', TIMESTAMPTZ '2026-11-25 12:00+06');
 SELECT pg_temp.w383_slot(1718, 718, NULL, 'required', TIMESTAMPTZ '2026-11-27 12:00+06', FALSE, 'Справка из банка');
+SELECT pg_temp.w383_slot(1720, 720, 801, 'required', TIMESTAMPTZ '2026-11-28 12:00+06');
+SELECT pg_temp.w383_slot(1730, 720, 802, 'required', TIMESTAMPTZ '2026-11-30 12:00+06');
+SELECT pg_temp.w383_slot(1740, 720, NULL, 'required', TIMESTAMPTZ '2026-12-05 12:00+06', FALSE, 'Справка');
 
-CREATE FUNCTION pg_temp.w383_tranche(p_n INTEGER, p_case INTEGER, p_paid BIGINT, p_due TIMESTAMPTZ, p_archived BOOLEAN DEFAULT FALSE)
+CREATE FUNCTION pg_temp.w383_tranche(p_n INTEGER, p_case INTEGER, p_paid BIGINT, p_due TIMESTAMPTZ, p_archived BOOLEAN DEFAULT FALSE,
+  p_refunded BIGINT DEFAULT 0, p_label TEXT DEFAULT NULL)
 RETURNS VOID LANGUAGE sql AS $$
   INSERT INTO platform.payment_obligations(id, organization_id, student_case_id, label, category, amount_minor, currency, due_at, next_action,
-    total_paid_minor, created_by_membership_id, archived_at)
-  VALUES (pg_temp.w383_id(p_n), pg_temp.w383_id(1), pg_temp.w383_id(p_case), 'Взнос ' || p_case, 'evo_service_fee', 100000, 'USD', p_due,
-    'Собрать взнос', p_paid, pg_temp.w383_id(301), CASE WHEN p_archived THEN clock_timestamp() END)
+    total_paid_minor, total_refunded_minor, created_by_membership_id, archived_at)
+  VALUES (pg_temp.w383_id(p_n), pg_temp.w383_id(1), pg_temp.w383_id(p_case), COALESCE(p_label, 'Взнос ' || p_case), 'evo_service_fee', 100000, 'USD', p_due,
+    'Собрать взнос', p_paid, p_refunded, pg_temp.w383_id(301), CASE WHEN p_archived THEN clock_timestamp() END)
 $$;
 SELECT pg_temp.w383_tranche(1805, 705, 0, TIMESTAMPTZ '2026-11-20 10:00+06');
 SELECT pg_temp.w383_tranche(1809, 709, 0, TIMESTAMPTZ '2026-11-20 10:00+06', TRUE);
 SELECT pg_temp.w383_tranche(1810, 710, 100000, TIMESTAMPTZ '2026-11-20 10:00+06');
 SELECT pg_temp.w383_tranche(1811, 711, 40000, TIMESTAMPTZ '2026-11-20 10:00+06');
 SELECT pg_temp.w383_tranche(1812, 703, 0, TIMESTAMPTZ '2026-12-01 10:00+06');
+SELECT pg_temp.w383_tranche(1819, 719, 100000, TIMESTAMPTZ '2026-11-20 10:00+06', FALSE, 100000);
+SELECT pg_temp.w383_tranche(1821, 721, 0, TIMESTAMPTZ '2026-11-18 10:00+06');
+SELECT pg_temp.w383_tranche(1822, 721, 0, TIMESTAMPTZ '2026-11-25 10:00+06', FALSE, 0, 'Взнос 721 б');
 SET LOCAL session_replication_role = origin;
 
 SELECT pg_temp.w383_assert(
@@ -218,7 +227,7 @@ SELECT pg_temp.w383_assert(
   (SELECT p.prosecdef AND p.proconfig = ARRAY['search_path=""']::TEXT[]
      AND has_function_privilege('service_role', p.oid, 'EXECUTE')
      AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE') AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
-   FROM pg_proc p WHERE p.oid = 'platform.case_deadline_watch_run_v1(uuid,date,boolean)'::REGPROCEDURE)
+   FROM pg_proc p WHERE p.oid = 'platform.case_deadline_watch_run_v1(uuid,date,boolean,integer)'::REGPROCEDURE)
   AND (SELECT count(*) = 2 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'platform_private' AND p.proname IN ('case_deadline_watch_rows', 'case_deadline_watch_title')
       AND p.proconfig = ARRAY['search_path=""']::TEXT[]
@@ -249,7 +258,7 @@ SELECT pg_temp.w383_assert((SELECT count(*) = 0 FROM platform.case_tasks WHERE t
 CREATE TEMP TABLE w383_rows AS
   SELECT right(r.case_id::TEXT, 3) AS c, r.reason_code, r.due_date, r.detail
   FROM platform_private.case_deadline_watch_rows(pg_temp.w383_id(1), DATE '2026-12-01') r;
-SELECT pg_temp.w383_assert((SELECT count(*) = 8 FROM w383_rows), 'eight rows in all, got ' || (SELECT count(*)::TEXT FROM w383_rows));
+SELECT pg_temp.w383_assert((SELECT count(*) = 11 FROM w383_rows), 'eleven rows in all, got ' || (SELECT count(*)::TEXT FROM w383_rows));
 SELECT pg_temp.w383_assert(
   EXISTS (SELECT 1 FROM w383_rows WHERE c = '701' AND reason_code = 'slot_due' AND due_date = DATE '2026-11-30' AND detail = '«Паспорт»')
   AND EXISTS (SELECT 1 FROM w383_rows WHERE c = '702' AND reason_code = 'slot_due' AND due_date = DATE '2026-12-04')
@@ -267,7 +276,17 @@ SELECT pg_temp.w383_assert(
     AND detail = '«Аттестат» и ещё 1'),
   'next step of a past day, a live partly paid tranche, and two documents of one day as one row');
 SELECT pg_temp.w383_assert(
-  (SELECT count(*) = 8 FROM platform_private.case_deadline_watch_rows(pg_temp.w383_id(1), DATE '2026-12-01') x
+  EXISTS (SELECT 1 FROM w383_rows WHERE c = '719' AND reason_code = 'tranche_overdue' AND due_date = DATE '2026-11-20')
+  AND NOT EXISTS (SELECT 1 FROM w383_rows WHERE c = '710'),
+  'a tranche paid and then fully refunded is unpaid again (paid minus refunded below the amount); a paid one is not');
+SELECT pg_temp.w383_assert(
+  (SELECT count(*) = 1 FROM w383_rows WHERE c = '720') AND EXISTS (SELECT 1 FROM w383_rows WHERE c = '720'
+    AND reason_code = 'slot_due' AND due_date = DATE '2026-11-28' AND detail = '«Паспорт» и ещё 2')
+  AND (SELECT count(*) = 1 FROM w383_rows WHERE c = '721') AND EXISTS (SELECT 1 FROM w383_rows WHERE c = '721'
+    AND reason_code = 'tranche_overdue' AND due_date = DATE '2026-11-18' AND detail = '«Взнос 721» и ещё 1'),
+  'one row per case and reason: the earliest date, the others counted in «и ещё N»');
+SELECT pg_temp.w383_assert(
+  (SELECT count(*) = 11 FROM platform_private.case_deadline_watch_rows(pg_temp.w383_id(1), DATE '2026-12-01') x
     WHERE x.reason_code IN ('slot_due', 'next_step_overdue', 'tranche_overdue')),
   'only the three reason codes exist (intake_without_id is not computable in SQL and is not here)');
 -- The tranche of a case that is not in work does not count, and neither does the paid one: seen above (705, 710).
@@ -277,12 +296,13 @@ SELECT pg_temp.w383_assert(
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.w383_svc(format('SELECT platform.case_deadline_watch_run_v1(%L, DATE ''2026-12-01'')', pg_temp.w383_id(1))) AS w383_dry \gset
 SELECT pg_temp.w383_assert(
-  (:'w383_dry'::JSONB ->> 'dry_run') = 'true' AND (:'w383_dry'::JSONB ->> 'found') = '8' AND (:'w383_dry'::JSONB ->> 'would_create') = '8'
+  (:'w383_dry'::JSONB ->> 'dry_run') = 'true' AND (:'w383_dry'::JSONB ->> 'found') = '11' AND (:'w383_dry'::JSONB ->> 'would_create') = '11'
+  AND (:'w383_dry'::JSONB ->> 'capped') = '0' AND (:'w383_dry'::JSONB ->> 'max_tasks') = '50'
   AND (:'w383_dry'::JSONB ->> 'created') = '0' AND (:'w383_dry'::JSONB ->> 'skipped') = '0' AND (:'w383_dry'::JSONB ->> 'no_assignee') = '0'
-  AND (:'w383_dry'::JSONB #>> '{by_reason,slot_due,found}') = '5' AND (:'w383_dry'::JSONB #>> '{by_reason,next_step_overdue,found}') = '2'
-  AND (:'w383_dry'::JSONB #>> '{by_reason,tranche_overdue,found}') = '1'
-  AND jsonb_array_length(:'w383_dry'::JSONB -> 'items') = 8 AND (:'w383_dry'::JSONB ->> 'items_truncated') = 'false',
-  'the dry run counts and lists eight rows by reason: ' || :'w383_dry');
+  AND (:'w383_dry'::JSONB #>> '{by_reason,slot_due,found}') = '6' AND (:'w383_dry'::JSONB #>> '{by_reason,next_step_overdue,found}') = '2'
+  AND (:'w383_dry'::JSONB #>> '{by_reason,tranche_overdue,found}') = '3'
+  AND jsonb_array_length(:'w383_dry'::JSONB -> 'items') = 11 AND (:'w383_dry'::JSONB ->> 'items_truncated') = 'false',
+  'the dry run counts and lists eleven rows by reason: ' || :'w383_dry');
 SELECT pg_temp.w383_assert(
   (SELECT count(*) = 0 FROM platform.case_tasks WHERE task_type = 'deadline_watch')
   AND (SELECT count(*) = 0 FROM platform_private.case_deadline_watch_log)
@@ -293,20 +313,43 @@ SELECT pg_temp.w383_assert((:'w383_dry2'::JSONB -> 'by_reason') = (:'w383_dry'::
   AND (SELECT count(*) = 0 FROM platform_private.case_deadline_watch_log), 'a second dry run gives the same answer and still writes nothing');
 
 -- ---------------------------------------------------------------------------
--- 4. The real run.
+-- 4. The ceiling per run: the most overdue first, the rest counted as capped.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.w383_svc(format('SELECT platform.case_deadline_watch_run_v1(%L, DATE ''2026-12-01'', TRUE, 3)', pg_temp.w383_id(1))) AS w383_capdry \gset
+SELECT pg_temp.w383_assert(
+  (:'w383_capdry'::JSONB ->> 'would_create') = '3' AND (:'w383_capdry'::JSONB ->> 'capped') = '8' AND (:'w383_capdry'::JSONB ->> 'found') = '11'
+  AND (SELECT count(*) = 3 FROM jsonb_array_elements(:'w383_capdry'::JSONB -> 'items') i WHERE i ->> 'outcome' = 'would_create'
+    AND right(i ->> 'case_id', 3) IN ('721', '711', '719'))
+  AND (SELECT count(*) = 8 FROM jsonb_array_elements(:'w383_capdry'::JSONB -> 'items') i WHERE i ->> 'outcome' = 'capped'),
+  'the dry run with a ceiling of 3 plans the three oldest dates (721, 711, 719) and caps eight: ' || :'w383_capdry');
+SELECT pg_temp.w383_assert(
+  (pg_temp.w383_svc(format('SELECT platform.case_deadline_watch_run_v1(%L, DATE ''2026-12-01'', TRUE, 0)', pg_temp.w383_id(1))) ->> 'error') = '22023'
+  AND (pg_temp.w383_svc(format('SELECT platform.case_deadline_watch_run_v1(%L, DATE ''2026-12-01'', TRUE, 1001)', pg_temp.w383_id(1))) ->> 'error') = '22023'
+  AND (pg_temp.w383_svc(format('SELECT platform.case_deadline_watch_run_v1(%L, DATE ''2026-12-01'', TRUE, NULL)', pg_temp.w383_id(1))) ->> 'error') = '22023'
+  AND (SELECT count(*) = 0 FROM platform.case_tasks WHERE task_type = 'deadline_watch'),
+  'a ceiling below 1, above 1000 or empty is 22023 and writes nothing');
+SELECT pg_temp.w383_svc(format('SELECT platform.case_deadline_watch_run_v1(%L, DATE ''2026-12-01'', FALSE, 3)', pg_temp.w383_id(1))) AS w383_cap \gset
+SELECT pg_temp.w383_assert(
+  (:'w383_cap'::JSONB ->> 'created') = '3' AND (:'w383_cap'::JSONB ->> 'capped') = '8'
+  AND (SELECT count(*) = 3 FROM platform.case_tasks WHERE task_type = 'deadline_watch'
+    AND student_case_id IN (pg_temp.w383_id(721), pg_temp.w383_id(711), pg_temp.w383_id(719))),
+  'the real run with a ceiling of 3 makes the three most overdue tasks and no other: ' || :'w383_cap');
+
+-- ---------------------------------------------------------------------------
+-- 5. The real run (default ceiling 50): the capped rows are picked up, the three done are skipped.
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.w383_svc(format('SELECT platform.case_deadline_watch_run_v1(%L, DATE ''2026-12-01'', FALSE)', pg_temp.w383_id(1))) AS w383_run \gset
 SELECT pg_temp.w383_assert(
-  (:'w383_run'::JSONB ->> 'dry_run') = 'false' AND (:'w383_run'::JSONB ->> 'created') = '8' AND (:'w383_run'::JSONB ->> 'skipped') = '0'
+  (:'w383_run'::JSONB ->> 'dry_run') = 'false' AND (:'w383_run'::JSONB ->> 'created') = '8' AND (:'w383_run'::JSONB ->> 'skipped') = '3' AND (:'w383_run'::JSONB ->> 'capped') = '0'
   AND (:'w383_run'::JSONB ->> 'would_create') = '0' AND NOT (:'w383_run'::JSONB ? 'items'),
-  'the real run creates eight tasks and returns counters only: ' || :'w383_run');
+  'the real run creates the remaining eight tasks and returns counters only: ' || :'w383_run');
 SELECT pg_temp.w383_assert(
-  (SELECT count(*) = 8 FROM platform.case_tasks WHERE task_type = 'deadline_watch')
-  AND (SELECT count(*) = 8 FROM platform_private.case_deadline_watch_log)
-  AND (SELECT count(*) = 8 FROM platform.case_tasks t JOIN platform_private.case_deadline_watch_log l ON l.case_task_id = t.id
+  (SELECT count(*) = 11 FROM platform.case_tasks WHERE task_type = 'deadline_watch')
+  AND (SELECT count(*) = 11 FROM platform_private.case_deadline_watch_log)
+  AND (SELECT count(*) = 11 FROM platform.case_tasks t JOIN platform_private.case_deadline_watch_log l ON l.case_task_id = t.id
     WHERE t.task_type = 'deadline_watch' AND t.status = 'open' AND NOT t.student_visible AND t.due_on = DATE '2026-12-01'
       AND t.created_by_membership_id = pg_temp.w383_id(301)),
-  'eight open tasks, each with its key, none visible to the student, due the day of the run, made by the responsible administrator');
+  'eleven open tasks, each with its key, none visible to the student, due the day of the run, made by the responsible administrator');
 SELECT pg_temp.w383_assert(
   (SELECT t.title FROM platform.case_tasks t WHERE t.task_type = 'deadline_watch' AND t.student_case_id = pg_temp.w383_id(701))
     = 'Срок документа — «Паспорт»: 30.11.2026'
@@ -317,7 +360,11 @@ SELECT pg_temp.w383_assert(
   AND (SELECT t.title FROM platform.case_tasks t WHERE t.task_type = 'deadline_watch' AND t.student_case_id = pg_temp.w383_id(714))
     = 'Срок документа — «Аттестат» и ещё 1: 02.12.2026'
   AND (SELECT t.title FROM platform.case_tasks t WHERE t.task_type = 'deadline_watch' AND t.student_case_id = pg_temp.w383_id(718))
-    = 'Срок документа — «Справка из банка»: 27.11.2026',
+    = 'Срок документа — «Справка из банка»: 27.11.2026'
+  AND (SELECT t.title FROM platform.case_tasks t WHERE t.task_type = 'deadline_watch' AND t.student_case_id = pg_temp.w383_id(720))
+    = 'Срок документа — «Паспорт» и ещё 2: 28.11.2026'
+  AND (SELECT t.title FROM platform.case_tasks t WHERE t.task_type = 'deadline_watch' AND t.student_case_id = pg_temp.w383_id(721))
+    = 'Платёж просрочен — «Взнос 721» и ещё 1: срок был 18.11.2026',
   'the titles are the exact Russian words of the screen');
 SELECT pg_temp.w383_assert(
   (SELECT t.priority = 'high' FROM platform.case_tasks t WHERE t.task_type = 'deadline_watch' AND t.student_case_id = pg_temp.w383_id(701))
@@ -331,15 +378,15 @@ SELECT pg_temp.w383_assert(
     WHERE t.task_type = 'deadline_watch' AND t.student_case_id = pg_temp.w383_id(712)),
   'the task goes to the case curator; a curator who cannot take tasks sends it to the responsible administrator');
 SELECT pg_temp.w383_assert(
-  (SELECT count(*) = 8 FROM platform.case_task_events e JOIN platform.case_tasks t ON t.id = e.case_task_id
+  (SELECT count(*) = 11 FROM platform.case_task_events e JOIN platform.case_tasks t ON t.id = e.case_task_id
     WHERE t.task_type = 'deadline_watch' AND e.new_status = 'open' AND e.previous_status IS NULL)
-  AND (SELECT count(*) = 8 FROM platform.audit_events a WHERE a.actor_principal = 'ai-agent:case-deadline-watch'
+  AND (SELECT count(*) = 11 FROM platform.audit_events a WHERE a.actor_principal = 'ai-agent:case-deadline-watch'
     AND a.actor_kind = 'service' AND a.resource_type = 'case_task' AND a.action = 'ai.agent.tool.write'
     AND a.resource_id IN (SELECT id FROM platform.case_tasks WHERE task_type = 'deadline_watch')),
   'one task event and one audit row per task');
 SELECT pg_temp.w383_assert(EXISTS (SELECT 1 FROM platform_private.case_deadline_watch_log
   WHERE watch_key = 'watch:' || pg_temp.w383_id(701)::TEXT || ':slot_due:2026-11-30'), 'the key of a task is watch:<case>:<reason>:<date>');
-SELECT pg_temp.w383_assert((SELECT count(*) = 8 FROM platform_private.case_deadline_watch_log l
+SELECT pg_temp.w383_assert((SELECT count(*) = 11 FROM platform_private.case_deadline_watch_log l
   JOIN platform.case_tasks t ON t.id = l.case_task_id
   WHERE l.watch_key = 'watch:' || t.student_case_id::TEXT || ':'
     || CASE WHEN t.title LIKE 'Срок документа%' THEN 'slot_due' WHEN t.title LIKE 'Следующий шаг%' THEN 'next_step_overdue' ELSE 'tranche_overdue' END
@@ -347,24 +394,24 @@ SELECT pg_temp.w383_assert((SELECT count(*) = 8 FROM platform_private.case_deadl
   'every key matches the reason and the date of its task title');
 
 -- ---------------------------------------------------------------------------
--- 5. Repeats.
+-- 6. Repeats.
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.w383_svc(format('SELECT platform.case_deadline_watch_run_v1(%L, DATE ''2026-12-01'', FALSE)', pg_temp.w383_id(1))) AS w383_again \gset
-SELECT pg_temp.w383_assert((:'w383_again'::JSONB ->> 'created') = '0' AND (:'w383_again'::JSONB ->> 'skipped') = '8'
-  AND (SELECT count(*) = 8 FROM platform.case_tasks WHERE task_type = 'deadline_watch'), 'the same run again makes no duplicate: ' || :'w383_again');
+SELECT pg_temp.w383_assert((:'w383_again'::JSONB ->> 'created') = '0' AND (:'w383_again'::JSONB ->> 'skipped') = '11'
+  AND (SELECT count(*) = 11 FROM platform.case_tasks WHERE task_type = 'deadline_watch'), 'the same run again makes no duplicate: ' || :'w383_again');
 -- The next day: the old rows keep their keys; three things are new: the slot that has just come within 7 days (716), the step
 -- of 708 that was due «today» yesterday, and the tranche of 703 that was due «today» yesterday.
 SELECT pg_temp.w383_svc(format('SELECT platform.case_deadline_watch_run_v1(%L, DATE ''2026-12-02'', FALSE)', pg_temp.w383_id(1))) AS w383_next \gset
-SELECT pg_temp.w383_assert((:'w383_next'::JSONB ->> 'created') = '3' AND (:'w383_next'::JSONB ->> 'skipped') = '8'
+SELECT pg_temp.w383_assert((:'w383_next'::JSONB ->> 'created') = '3' AND (:'w383_next'::JSONB ->> 'skipped') = '11'
   AND (SELECT count(*) = 3 FROM platform.case_tasks t WHERE t.task_type = 'deadline_watch'
     AND t.student_case_id IN (pg_temp.w383_id(716), pg_temp.w383_id(708), pg_temp.w383_id(703)))
-  AND (SELECT count(*) = 11 FROM platform.case_tasks WHERE task_type = 'deadline_watch'),
+  AND (SELECT count(*) = 14 FROM platform.case_tasks WHERE task_type = 'deadline_watch'),
   'the next day only the three newly due rows are new: ' || :'w383_next');
 -- Tasks closed by the curator: not recreated, while the key stands.
 UPDATE platform.case_tasks SET status = 'done' WHERE task_type = 'deadline_watch';
 SELECT pg_temp.w383_svc(format('SELECT platform.case_deadline_watch_run_v1(%L, DATE ''2026-12-03'', FALSE)', pg_temp.w383_id(1))) AS w383_closed \gset
-SELECT pg_temp.w383_assert((:'w383_closed'::JSONB ->> 'created') = '0' AND (:'w383_closed'::JSONB ->> 'skipped') = '11'
-  AND (SELECT count(*) = 11 FROM platform.case_tasks WHERE task_type = 'deadline_watch' AND status = 'done'),
+SELECT pg_temp.w383_assert((:'w383_closed'::JSONB ->> 'created') = '0' AND (:'w383_closed'::JSONB ->> 'skipped') = '14'
+  AND (SELECT count(*) = 14 FROM platform.case_tasks WHERE task_type = 'deadline_watch' AND status = 'done'),
   'closed tasks are not recreated by the next run: ' || :'w383_closed');
 -- A moved due date is a new key and a new task.
 SET LOCAL session_replication_role = replica;

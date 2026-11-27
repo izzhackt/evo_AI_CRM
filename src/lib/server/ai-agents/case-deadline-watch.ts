@@ -14,25 +14,34 @@ import { readOrganizationId } from "./env.ts";
  * В журнал уходят только счётчики и фиксированные слова: ни названий, ни имён, ни идентификаторов дел.
  */
 
-export const CASE_DEADLINE_WATCH_USAGE = "Usage: node case-deadline-watch.mjs [--once] [--dry-run | --apply]\n";
+export const CASE_DEADLINE_WATCH_USAGE = "Usage: node case-deadline-watch.mjs [--once] [--dry-run | --apply] [--max-tasks N]\n";
 export const CASE_DEADLINE_WATCH_REASONS = ["slot_due", "next_step_overdue", "tranche_overdue"] as const;
-const COUNTERS = ["found", "created", "would_create", "skipped", "no_assignee"] as const;
+const COUNTERS = ["found", "created", "would_create", "skipped", "no_assignee", "capped"] as const;
 
-export type CaseDeadlineWatchCommand = Readonly<{ apply: boolean }>;
+export type CaseDeadlineWatchCommand = Readonly<{ apply: boolean; maxTasks?: number }>;
 
-/** `--once` (единственный режим, можно не писать), `--dry-run` (по умолчанию) или `--apply`; всё остальное — ошибка. */
+/**
+ * `--once` (единственный режим, можно не писать), `--dry-run` (по умолчанию) или `--apply`, `--max-tasks N` (1…1000;
+ * без него потолок задаёт база, 50 задач за запуск); всё остальное — ошибка.
+ */
 export function parseCaseDeadlineWatchArgs(args: readonly string[]): CaseDeadlineWatchCommand {
   let dryRun = false;
   let apply = false;
   let once = false;
-  for (const name of args) {
-    if (name === "--dry-run" && !dryRun) dryRun = true;
+  let maxTasks: number | undefined;
+  for (let index = 0; index < args.length; index++) {
+    const name = args[index];
+    if (name === "--max-tasks" && maxTasks === undefined) {
+      const value = args[++index];
+      if (value === undefined || !/^[1-9][0-9]{0,3}$/u.test(value) || Number(value) > 1000) throw new Error("invalid_arguments");
+      maxTasks = Number(value);
+    } else if (name === "--dry-run" && !dryRun) dryRun = true;
     else if (name === "--apply" && !apply) apply = true;
     else if (name === "--once" && !once) once = true;
     else throw new Error("invalid_arguments");
   }
   if (dryRun && apply) throw new Error("invalid_arguments");
-  return { apply };
+  return maxTasks === undefined ? { apply } : { apply, maxTasks };
 }
 
 export type CaseDeadlineWatchReport = Readonly<{
@@ -73,6 +82,7 @@ export async function runCaseDeadlineWatch(
     // `p_today` не передаётся: день считает база по Asia/Bishkek.
     const outcome = await callRpc(client, "case_deadline_watch_run_v1", {
       p_organization_id: organizationId, p_dry_run: !command.apply,
+      ...(command.maxTasks === undefined ? {} : { p_max_tasks: command.maxTasks }),
     });
     if (!outcome.ok || !isRecord(outcome.data)) {
       log.status = "failed";

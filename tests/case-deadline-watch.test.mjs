@@ -25,7 +25,7 @@ const read = (path) => readFileSync(join(root, path), "utf8");
 
 const PERSON_MARKER = "Иванова";
 const ANSWER = {
-  dry_run: true, today: "2026-12-01", found: 6, created: 0, would_create: 5, skipped: 1, no_assignee: 0,
+  dry_run: true, today: "2026-12-01", found: 8, created: 0, would_create: 5, skipped: 1, no_assignee: 0, capped: 2,
   by_reason: { slot_due: { found: 3, created: 0, would_create: 2, skipped: 1, no_assignee: 0 }, next_step_overdue: { found: 2, created: 0, would_create: 2, skipped: 0, no_assignee: 0 }, tranche_overdue: { found: 1, created: 0, would_create: 1, skipped: 0, no_assignee: 0 } },
   // Список дел и названия не должны попасть в журнал.
   items: [{ case_id: "33333333-3333-4333-8333-333333333333", reason_code: "slot_due", due_date: "2026-11-30", outcome: PERSON_MARKER }],
@@ -48,6 +48,15 @@ test("аргументы: без флагов — сухой прогон; --onc
   assert.deepEqual(parseCaseDeadlineWatchArgs(["--once", "--apply"]), { apply: true });
 });
 
+test("аргументы: --max-tasks N (1…1000) — потолок задач за запуск; без него решает база", () => {
+  assert.deepEqual(parseCaseDeadlineWatchArgs(["--apply", "--max-tasks", "20"]), { apply: true, maxTasks: 20 });
+  assert.deepEqual(parseCaseDeadlineWatchArgs(["--max-tasks", "1000", "--dry-run"]), { apply: false, maxTasks: 1000 });
+  for (const args of [["--max-tasks"], ["--max-tasks", "0"], ["--max-tasks", "1001"], ["--max-tasks", "-5"], ["--max-tasks", "5.5"],
+    ["--max-tasks", "abc"], ["--max-tasks", "--apply"], ["--max-tasks=5"], ["--max-tasks", "5", "--max-tasks", "6"]]) {
+    assert.throws(() => parseCaseDeadlineWatchArgs(args), /invalid_arguments/u, JSON.stringify(args));
+  }
+});
+
 test("аргументы: оба режима сразу, повтор и всё незнакомое — ошибка, а не молчаливая запись", () => {
   for (const args of [["--dry-run", "--apply"], ["--apply", "--dry-run"], ["--apply", "--apply"], ["--once", "--once"],
     ["--apply=1"], ["apply"], ["--org", ORG], ["--today", "2026-12-01"], ["-a"], [""]]) {
@@ -68,12 +77,22 @@ test("сухой прогон: RPC вызван с p_dry_run=true, день не
   assert.equal(report.log.mode, "dry_run");
   assert.equal(report.log.status, "ok");
   assert.equal(report.log.today, "2026-12-01");
-  assert.equal(report.log.found, 6);
+  assert.equal(report.log.found, 8);
+  assert.equal(report.log.capped, 2);
   assert.equal(report.log.would_create, 5);
   assert.equal(report.log.by_reason.slot_due_found, 3);
   assert.equal(report.log.by_reason.tranche_overdue_would_create, 1);
   const text = JSON.stringify(report.log);
   assert.ok(!text.includes(PERSON_MARKER) && !text.includes("33333333") && !text.includes("items") && !text.includes(ORG));
+});
+
+test("--max-tasks N уходит в RPC как p_max_tasks; без него параметра нет", async () => {
+  const { service, deps } = setup(() => ({ data: ANSWER }));
+  await runCaseDeadlineWatch({ apply: true, maxTasks: 7 }, deps);
+  assert.deepEqual(service.calls[0].args, { p_organization_id: ORG, p_dry_run: false, p_max_tasks: 7 });
+  const none = setup(() => ({ data: ANSWER }));
+  await runCaseDeadlineWatch({ apply: true }, none.deps);
+  assert.ok(!("p_max_tasks" in none.service.calls[0].args));
 });
 
 test("--apply: RPC вызван с p_dry_run=false", async () => {

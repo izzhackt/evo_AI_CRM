@@ -312,33 +312,69 @@ test("«Продажи»: события, квалификация, курсы, 
   }
 });
 
-test("«Продажи»: карточка курсов владельца 23.10 - цены, сроки, группа, пробный урок, без выдумок", () => {
+test("«Продажи»: курсы берутся из фактов, правила остаются в тексте", () => {
   const sales = AI_AGENT_DEFAULTS.sales.instructions;
-  // Карточка: SAT 10 недель 299 вместо 349, IELTS 8 недель 249 вместо 299, до 12 человек, скидка 50 за последние места.
-  assert.match(sales, /SAT, групповой курс, 10 недель: 299 долларов вместо обычных 349/);
-  assert.match(sales, /IELTS, групповой курс, 8 недель: 249 долларов вместо обычных 299/);
-  assert.match(sales, /не больше 12 человек/);
-  assert.match(sales, /Скидка 50 долларов действует для тех, кто успеет занять последние места/);
+  // Цифры курсов в тексте не живут: ссылка на инструмент и на тему course.
+  assert.match(sales, /`get_company_facts` \(`topic_prefix: course\.`\)/);
   assert.match(sales, /бесплатный пробный урок/i);
-  assert.match(sales, /Приглашение на урок присылает менеджер/);
+  assert.match(sales, /менеджер пришлёт приглашение/);
   assert.match(sales, /Ссылки у тебя нет: не придумывай её/);
   assert.match(sales, /продавай курсы/);
-  // Цели 1500+ и высокий балл - стремление, не гарантия; подготовка к CSCA - «уточню у менеджера».
-  assert.match(sales, /Это стремление, а не обещание/);
-  assert.match(sales, /Подготовка к CSCA: цена, длительность и условия группы тебе не даны/);
+  // Цель курса - стремление; подготовка к CSCA и срок скидки - «уточню у менеджера»; дефицит не изобретается.
+  assert.match(sales, /это стремление, а не обещание/);
   assert.match(sales, /уточню у менеджера и вернусь с точной информацией/);
-  // Срок скидки и число мест не выдумываются, дефицит не изобретается.
-  assert.match(sales, /не называй ни дату, ни цифру/);
   assert.match(sales, /Не придумывай срочность/);
+  assert.match(sales, /не называй цену/);
   // Права организаторов экзаменов не присваиваются.
   assert.match(sales, /Не называй EVO официальным партнёром, центром тестирования или представителем организаторов/);
-  // Только суммы карточки: 299, 349, 249, 50 (цены в долларах США); других денежных сумм нет.
-  const amounts = [...sales.matchAll(/(\d[\d\s]*)\s*(?:долл|USD|сом|тенге|\$)/giu)].map((match) => Number(match[1].replace(/\s+/g, "")));
-  assert.ok(amounts.length >= 6, "суммы карточки есть в тексте");
-  for (const amount of amounts) assert.ok([299, 349, 249, 50].includes(amount), `неожиданная сумма в «Продажах»: ${amount}`);
-  assert.equal(/\$\s?\d/.test(sales), false, "суммы пишутся словами «долларов», не знаком валюты");
+  assert.match(sales, /Рассрочку и дополнительные скидки не обещай/);
   // В тексте нет ссылок и приглашений, а номера и адреса сканер безопасности ловит отдельно.
   assert.equal(/https?:\/\/|t\.me|wa\.me|chat\.whatsapp/i.test(sales), false);
+});
+
+test("факты в инструменте, не в промпте: нет сумм, дат набора и «по состоянию на»; красные линии на месте", () => {
+  const MONTHS = "января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря";
+  // Единственная дата, которая остаётся в тексте: когда владелец утвердил основу инструкции. Это не данные набора.
+  const approval = /утвердил его для работы ИИ-агентов 23 октября 2026 года/g;
+  const rules = [
+    ["сумма в валюте", /\d[\d\s]*\s*(?:USD|\$|долл|сом(?:ов|а)?(?![\p{L}])|KGS|юан|CNY|RMB|RM(?![\p{L}])|MYR|ринггит|евро|EUR|тенге)/iu],
+    ["сумма со знаком валюты впереди", /(?:\$|USD|€)\s?\d/iu],
+    ["числовая дата", /\b\d{1,2}[./]\d{1,2}[./](?:20)?\d\d\b/u],
+    ["дата словами с годом", new RegExp(`\\d{1,2}\\s+(?:${MONTHS})\\s+20\\d\\d`, "iu")],
+    ["срок «до <число> <месяц>»", new RegExp(`(?<![\\p{L}])до\\s+\\d{1,2}\\s+(?:${MONTHS})`, "iu")],
+    ["год набора", /\b(?:2026|2027|2028)\b/u],
+    ["«по состоянию на»", /по состоянию на|данные владельца на|данные на \d/iu],
+  ];
+  for (const { label, text } of allTexts()) {
+    const stripped = text.replace(approval, "");
+    for (const [name, pattern] of rules) {
+      const match = pattern.exec(stripped);
+      assert.equal(match, null, `${label}: ${name}: «${match?.[0]}»`);
+    }
+  }
+  // Каждая роль с данными знает, где их брать; в преамбуле одна общая строка.
+  assert.match(AI_AGENT_PREAMBLE, /Цифры, даты, цены и сроки — только из `get_company_facts` и досье, с датой проверки; в тексте инструкции их нет\./);
+  for (const key of WITH_INSTRUCTIONS) assert.ok(AI_AGENT_TOOL_GRANTS[key].includes("get_company_facts"), `${key}: get_company_facts в наборе`);
+  const facts = (key) => AI_AGENT_DEFAULTS[key].instructions;
+  assert.match(facts("sales"), /topic_prefix: course\./);
+  assert.match(facts("curator-cn"), /topic_prefix: calendar\.cn\./);
+  assert.match(facts("curator-cn"), /topic_prefix: docs\.cn\./);
+  assert.match(facts("curator-cn"), /topic_prefix: visa\.cn\./);
+  assert.match(facts("curator-cn"), /На прошедшую дату не опирайся/);
+  assert.match(facts("curator-my"), /topic_prefix: uni\.my\./);
+  assert.match(facts("curator-my"), /topic_prefix: visa\.my\./);
+  assert.match(facts("director"), /metric\.funnel\.stuck_lead/);
+  // Правила остаются дословно, даже если тот же смысл есть фактом (факт может истечь, правило нет).
+  assert.ok(AI_AGENT_PREAMBLE.includes("Никаких гарантий поступления, визы, стипендии, сроков решения университета, посольства и других третьих сторон."));
+  assert.ok(AI_AGENT_PREAMBLE.includes("Скидку агента или партнёрскую скидку никогда не называй стипендией."));
+  assert.ok(AI_AGENT_PREAMBLE.includes("Не придумывай реквизиты и инструкции по оплате."));
+  for (const key of ["curator-cn", "curator-my"]) assert.match(facts(key), /без партнёра/);
+  assert.ok(facts("curator-cn").includes("зачисление, стипендию и визу не гарантируй"));
+  assert.ok(facts("curator-cn").includes("Не называй предварительное решение зачислением"));
+  assert.ok(facts("curator-cn").includes("Никаких гарантий зачисления, стипендии или визы."));
+  assert.ok(facts("curator-my").includes("гарантий поступления и визы не давай"));
+  assert.ok(facts("sales").includes("Не гарантируй поступление, визу, стипендию, сроки решений и балл на экзамене."));
+  assert.ok(facts("sales").includes("Рассрочку и дополнительные скидки не обещай"));
 });
 
 test("парсер: блок schedule_prompt, комментарии, ошибки", () => {

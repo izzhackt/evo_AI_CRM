@@ -95,4 +95,3 @@ export function buildColumns(canEdit: boolean, onEdit: (fact: CompanyFact) => vo
   }
   return columns;
 }
-

@@ -547,6 +547,28 @@ describe("кнопка «Выйти»: сначала досылка неотп�
     expect(mockOrder.filter((step) => step === "clearAllLocalData")).toHaveLength(1); // хвост прежнего входа чужой и пропущен
   });
 
+  it("за досылкой (до 3 с) сессию снял SIGNED_OUT и начат другой вход: хвост прежнего выхода не бросает и не отзывает новую сессию (ревью #1615)", async () => {
+    await mountProvider();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => void (release = resolve));
+    flusher(() => gate);
+    let old!: Promise<void>;
+    await act(async () => {
+      old = probe.current!.signOut();
+      await Promise.resolve();
+    });
+    await emit("SIGNED_OUT", null); // пока досылка ждёт, сессию снял сам Supabase
+    await act(async () => {
+      await probe.current?.signIn("test.student", "wrong"); // и начат другой вход: эпоха сдвинулась (неверный пароль: экран входа свободен)
+    });
+    mockOrder.length = 0; // дальше только то, что сделает хвост прежнего выхода
+    await act(async () => {
+      release();
+      await old; // вызов не отклоняется
+    });
+    expect(mockOrder).toEqual([]); // ни сигнала (сессии записи нового входа не бросаются), ни отзыва токена нового входа, ни очистки телефона
+  });
+
   it("с настоящей сессией теста на время: выбор, не успевший уйти по таймеру, уходит ДО отзыва токена; после выхода ничего не копится", async () => {
     const start = { ...fx("csca_test_start_diagnostic"), serverNow: new Date().toISOString(), deadlineAt: new Date(Date.now() + 240_000).toISOString() };
     const { transport, calls } = fakeTransport({

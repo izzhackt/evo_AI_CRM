@@ -5327,6 +5327,31 @@ SQL
       exit 1
     fi
   fi
+  # «Досье лида и дела одним вызовом для ИИ-агентов» (migration 382, план «ИИ-агенты: мозг компании», 28.11.2026). Matched by name,
+  # not number. Only additions (two tools, their schema rows, closed helpers): right after it a second apply refuses
+  # (a382_already_applied), then the suite, insisting on its marker. The suite proves: stage in words with the key only in `keys`;
+  # the channel apart from source_key; three stages of a case apart with the mismatch flag; money in three blocks, the archived
+  # tranche never summed, currencies apart; intake identity; no file data; consent declined = no chat text; foreign organization
+  # not_found; every read audited; the size ceiling on a huge lead and a huge case.
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_dossiers.sql ]]; then
+    t382_again_log="$(mktemp -t evo-t382-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t382_again_log" 2>&1; then
+      echo "migration 382 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a382_already_applied" "$t382_again_log"; then
+      echo "a second apply of migration 382 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t382_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t382_again_log"
+    agent_dossiers_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_ai_agent_dossiers.sql </dev/null)"
+    printf '%s\n' "$agent_dossiers_log"
+    if ! grep -q 'A382_AI_AGENT_DOSSIERS_SUITE_PASSED' <<<"$agent_dossiers_log"; then
+      echo "platform_ai_agent_dossiers.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «При одобрении анкеты в дело копируется вся анкета» (migration 337, решение владельца 03.11.2026). Matched by name, not number.
   # Fragment-anchored replace in both approval branches: right after it a second apply refuses (a337_already_applied), then the
   # suite, insisting on its marker. The suite proves, by a real submit and approval: countries, study fields, levels, English and

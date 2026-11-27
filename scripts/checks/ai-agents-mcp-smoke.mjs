@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Smoke test for the EVO CRM MCP server of the AI agents (contract §B.8):
-// initialize -> notifications/initialized -> tools/list (24 tools) -> tools/call get_my_settings.
+// initialize -> notifications/initialized -> tools/list (27 tools) -> tools/call get_my_settings.
 // Run it after a release and before connecting the agent to Claude.
 //
 //   EVO_MCP_SMOKE_TOKEN=<agent token> node scripts/checks/ai-agents-mcp-smoke.mjs https://crm.example/api/mcp/v1
@@ -8,7 +8,7 @@
 //
 // Prints only ok/FAIL lines and HTTP codes. The token is never printed.
 
-const EXPECTED_TOOLS = 24;
+const EXPECTED_TOOLS = 27;
 const TIMEOUT_MS = 20_000;
 
 const [url, tokenArgument] = process.argv.slice(2);

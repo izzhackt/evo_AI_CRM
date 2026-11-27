@@ -121,7 +121,7 @@ SHA=$(printf %s "$TOKEN" | shasum -a 256 | cut -d' ' -f1)
 node scripts/checks/ai-agents-mcp-smoke.mjs https://crm.evoadmissions.com/api/mcp/v1 "$TOKEN"
 ```
 
-Скрипт проходит `initialize` → `tools/list` (25 инструментов) →
+Скрипт проходит `initialize` → `tools/list` (27 инструментов) →
 `get_my_settings` и печатает только «ok/ошибка» с кодами HTTP. Что значат отказы:
 
 - `401 invalid_token` — токен неизвестен или просрочен (старый токен после

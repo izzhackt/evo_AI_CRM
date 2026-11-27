@@ -1,6 +1,7 @@
 {
   "tools": [
     "get_my_settings",
+    "get_lead_dossier",
     "search_clients",
     "get_client_card",
     "list_leads",

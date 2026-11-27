@@ -2336,4 +2336,3 @@ export function agentSuggestionOutcome(value: string): string | null {
   };
   return labels[value] ?? null;
 }
-

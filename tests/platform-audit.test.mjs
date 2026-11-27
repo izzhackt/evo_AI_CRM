@@ -109,6 +109,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["358_platform_student_payment_receipts.sql", "student_receipts"],
   // «Чек студента к уже принятой оплате»: одно действие finance.receipt.attach, объект payment_receipt_file (нового типа нет).
   ["360_platform_student_payment_proof.sql", "student_payment_proof"],
+  // «Мозг компании» (факты со сроком годности для ИИ-агентов): одно действие ai.fact.change и тип объекта ai_company_fact.
+  ["381_platform_company_facts.sql", "company_facts"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -242,6 +244,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "ai.agent.tool.write",
     "ai.consent.decline",
     "ai.consent.grant",
+    "ai.fact.change",
     "ai.proposal.review",
     "application.document.review",
     "application.partner.details.update",
@@ -363,6 +366,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "ai_agent",
     "ai_agent_draft",
     "ai_agent_run",
+    "ai_company_fact",
     "ai_prompt_artifact_version",
     "client",
     "communication_media",
@@ -701,6 +705,18 @@ test("client.duplicate.merge journal action and the client object type are allow
     rows: [{ ...SAFE_ROW, action: "client.duplicate.merge", resource_type: "client_x", actor_display_label: "Staff", changed_field_codes: ["record_status"] }],
   }).rows;
   assert.equal(unknown.recognized, false);
+});
+
+// «Мозг компании» (миграция 381): действие ai.fact.change и тип объекта ai_company_fact видны в «Журнале действий» словами,
+// без сырых кодов; строка берёт ветку ["ai_status"] (как серверный `ai.%`).
+test("ai.fact.change and ai_company_fact (381) are allowlisted and worded in Russian", () => {
+  assert.ok(PLATFORM_AUDIT_ACTIONS.includes("ai.fact.change"));
+  assert.ok(PLATFORM_AUDIT_RESOURCE_TYPES.includes("ai_company_fact"));
+  assert.equal(journalEvent("ai.fact.change"), "Факт компании для ИИ-агентов изменён");
+  assert.equal(journalObject("ai_company_fact"), "Факт компании");
+  assert.equal(journalObject("ai_company_facts"), null);
+  // Прежнее «ai.fact.record» (память помощника) осталось отдельным действием.
+  assert.equal(journalEvent("ai.fact.record"), "Факт ИИ записан");
 });
 
 // «ИИ-агенты» на Claude Managed Agents (миграция 317): одиннадцать действий ai.agent.* и три типа объектов

@@ -1,3 +1,4 @@
+import { CompanyFactsNext } from "./CompanyFactsNext";
 import { PaymentDetailsNext } from "./PaymentDetailsNext";
 import { CountryCuratorsNext } from "./CountryCuratorsNext";
 import { DeletionNext } from "./DeletionNext";
@@ -35,6 +36,7 @@ function SectionBody(props: SettingsNextProps) {
       ? <StudentAccountsNext {...props.studentAccounts} />
       : <p className="t-body-compact text-fg-2">В режиме просмотра роли кабинеты не создаются.</p>;
   }
+  if (section === "facts" && props.companyFacts) return <CompanyFactsNext {...props.companyFacts} />;
   if (section === "journal" && props.journal) return <JournalNext {...props.journal} />;
   if (section === "deletion" && props.deletion) return <DeletionNext {...props.deletion} nowIso={props.nowIso} />;
   if (section === "documents" && props.gates) return <DocumentsNext gates={props.gates} />;

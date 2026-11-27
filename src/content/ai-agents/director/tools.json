@@ -12,6 +12,7 @@
     "list_staff",
     "recent_calls",
     "search_knowledge",
+    "get_company_facts",
     "post_digest",
     "create_task",
     "notify_staff"

@@ -1,5 +1,5 @@
 /**
- * «ИИ-агенты» на Claude Managed Agents — общий ЗАМОРОЖЕННЫЙ контракт
+ * «ИИ-агенты» на Claude Managed Agents — общий контракт
  * (docs/design/ai-agents/contract.md, ADR 0035). Чистый модуль: без React,
  * сервера и ввода-вывода. Его импортируют все пять строителей (БД, MCP, рантайм,
  * UI, контент), поэтому правьте его осторожно и малыми шагами (владелец 28.11.2026
@@ -330,7 +330,7 @@ export const AI_AGENT_MCP_RPC = {
 export const AI_AGENT_TOOL_NAMES = [
   "search_clients", "get_client_card", "list_leads", "get_lead", "list_student_cases", "get_case",
   "get_document_file", "list_conversations", "get_conversation", "get_case_chat", "sales_report",
-  "payments_summary", "funnel_stats", "list_tasks", "search_catalog", "search_knowledge",
+  "payments_summary", "funnel_stats", "list_tasks", "search_catalog", "search_knowledge", "get_company_facts",
   "recent_calls", "list_staff", "get_my_settings",
   "create_task", "add_note", "send_message", "post_digest", "notify_staff",
 ] as const;
@@ -485,6 +485,15 @@ export const AI_AGENT_TOOLS: readonly AiAgentToolDefinition[] = [
       query: textArg("Question or keywords.", 200, 2), audience: enumArg(["client", "internal", "both"], "Knowledge audience.", "both"),
       limit: intArg("Max passages.", 1, 10, 5),
     }, ["query"]),
+  },
+  {
+    name: "get_company_facts", title: "Факты компании", kind: "read", audit: "none", rpc: toolRpc("get_company_facts"),
+    description: "Verified company facts with an expiry date: course prices and terms, promises and refusals, intake calendars, procedure terms. Only active, unexpired facts are returned; name verified_at when quoting a price or a date. Default audience: client for the sales agent, both for every other agent (default: client for sales, both for other agents); an explicit audience wins. По умолчанию: у агента продаж только клиентские факты, у остальных агентов оба вида; явный audience сильнее. Проверенные факты компании со сроком годности: цены и условия курсов, обещания, календари наборов, процедурные сроки.",
+    inputSchema: objectArg({
+      topic_prefix: { type: "string", pattern: "^[a-z0-9][a-z0-9._-]*$", minLength: 1, maxLength: 80, description: "Topic prefix, e.g. course. or calendar.cn." },
+      audience: enumArg(["client", "internal", "both"], "Fact audience: client (may be told to clients), internal, or both. Default: client for sales, both for other agents."),
+      limit: intArg("Max facts.", 1, 50, 20),
+    }),
   },
   {
     name: "recent_calls", title: "Звонки", kind: "read", audit: "none", rpc: toolRpc("recent_calls"),

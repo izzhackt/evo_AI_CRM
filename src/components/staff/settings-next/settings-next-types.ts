@@ -1,6 +1,7 @@
 import type { PaymentDetailsRead } from "@/lib/v3/student-receipts-source";
 import type { PlatformWhatsAppTransport } from "@/lib/platform-whatsapp-transport";
 import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
+import type { CompanyFactsRead } from "@/lib/ai-agents/company-facts";
 import type { CountryCuratorDirection, CountryCuratorsRead } from "@/lib/country-curator-contract";
 import type { ReportKey, ReportLinkRead } from "@/lib/report-link-contract";
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
@@ -75,6 +76,8 @@ export type SettingsNextProps = Readonly<{
   paymentDetails?: Readonly<{ read: PaymentDetailsRead; readOnly: boolean; requestId: string }>;
   /** «Кабинеты студентов» (миграция 342): id запроса формы и адрес кабинета для текста рассылки; в просмотре роли — нет. */
   studentAccounts?: Readonly<{ requestId: string; portalOrigin: string }>;
+  /** «Факты» (миграция 381): чтение фактов компании и режим просмотра роли. */
+  companyFacts?: Readonly<{ read: CompanyFactsRead; readOnly: boolean }>;
   journal?: SettingsJournalProps;
   deletion?: Readonly<{ queue: AccountDeletionQueueRead | undefined; detail: AccountDeletionDetailRead | null; listHref: string }>;
   gates?: GateFacts;

@@ -332,7 +332,7 @@ test("the sections list gets «Телефония» right after «Интегра
   const keys = [...types.matchAll(/\{ key: "([a-z]+)", view: (?:"[a-z]+"|null), title: "([^"]+)" \}/gu)].map((match) => `${match[1]}:${match[2]}`);
   assert.deepEqual(keys, ["staff:Сотрудники", "staff:Роли и доступ", "staff:Отделы", "integrations:Интеграции", "telephony:Телефония", "reports:Отчёты",
     // Позже добавлены «Кураторы стран», «Реквизиты для оплаты» и «Кабинеты студентов» (после «Отчётов», до «Журнала действий»).
-    "curators:Кураторы стран", "payment:Реквизиты для оплаты", "students:Кабинеты студентов",
+    "curators:Кураторы стран", "payment:Реквизиты для оплаты", "students:Кабинеты студентов", "facts:Факты",
     "journal:Журнал действий", "deletion:Запросы на удаление", "documents:Документы и передача", "platform:Платформа"]);
   assert.match(source("src/components/staff/settings-next/SettingsSection.tsx"), /section === "telephony" && props\.telephony\) return <TelephonyNext \{\.\.\.props\.telephony\}/u);
 });

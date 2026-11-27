@@ -320,14 +320,14 @@ test("initialize negotiates the protocol version and describes the server", asyn
   assert.equal(noParams.json.result.protocolVersion, AI_AGENTS_MCP_PROTOCOL_VERSIONS[0]);
 });
 
-test("tools/list returns exactly the 24 registry tools with their schemas", async () => {
+test("tools/list returns exactly the 25 registry tools with their schemas", async () => {
   const { handler } = harness();
   const { response, json } = await call(handler, rpcRequest("tools/list"));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
   assert.equal(response.headers.get("cache-control"), "no-store");
   const tools = json.result.tools;
-  assert.equal(tools.length, 24);
+  assert.equal(tools.length, 25);
   assert.deepEqual(
     tools.map((tool) => tool.name),
     AI_AGENT_TOOLS.map((tool) => tool.name),
@@ -503,6 +503,41 @@ test("tools/call: success returns the database value as JSON text and logs the a
   assert.equal(logged.p_error_code, null);
   assert.equal(logged.p_agent_key, "sales");
   assert.equal(Number.isInteger(logged.p_duration_ms), true);
+});
+
+test("get_company_facts: the registry entry, the defaults, the database function and the bounds of its arguments", async () => {
+  const tool = AI_AGENT_TOOLS.find((candidate) => candidate.name === "get_company_facts");
+  assert.equal(tool.kind, "read");
+  assert.equal(tool.audit, "none");
+  assert.equal(tool.rpc, "ai_agent_tool_get_company_facts_v1");
+  const schema = schemaOf("get_company_facts");
+  // Everything is optional; the defaults are the ones the database function applies.
+  assert.deepEqual(validateToolArguments(schema, {}).value, { audience: "both", limit: 20 });
+  assert.deepEqual(validateToolArguments(schema, { topic_prefix: "calendar.cn.", audience: "client", limit: 50 }).value, { topic_prefix: "calendar.cn.", audience: "client", limit: 50 });
+  const issues = (value) => validateToolArguments(schema, value).issues;
+  assert.deepEqual(issues({ limit: 51 }), [{ path: "limit", problem: "maximum" }]);
+  assert.deepEqual(issues({ limit: 0 }), [{ path: "limit", problem: "minimum" }]);
+  assert.deepEqual(issues({ audience: "everyone" }), [{ path: "audience", problem: "enum" }]);
+  assert.deepEqual(issues({ topic_prefix: "Course!" }), [{ path: "topic_prefix", problem: "pattern" }]);
+  assert.deepEqual(issues({ topic_prefix: "a".repeat(81) }), [{ path: "topic_prefix", problem: "max_length" }]);
+  assert.deepEqual(issues({ query: "x" }), [{ path: "query", problem: "unknown_property" }]);
+
+  const data = { facts: [{ fact_id: AGENT_USER, topic: "course.sat.group", statement: { ru: "Тест" }, audience: "client", source: "owner", verified_at: "2026-10-23", valid_until: "2026-12-31" }], today: "2026-11-28", truncated: false };
+  const { handler, toolCalls, logCalls } = harness({ rpc: rpcWith(() => ({ data, error: null })) });
+  const { result, body } = await toolCall(handler, "get_company_facts", { topic_prefix: "course." });
+  assert.equal(result.isError, false);
+  assert.deepEqual(body, data);
+  assert.equal(toolCalls()[0].functionName, "ai_agent_tool_get_company_facts_v1");
+  assert.deepEqual(toolCalls()[0].args.p_args, { topic_prefix: "course.", audience: "both", limit: 20 });
+  assert.equal(logCalls()[0].args.p_tool, "get_company_facts");
+  assert.equal(logCalls()[0].args.p_status, "ok");
+});
+
+test("get_company_facts: a disabled agent gets agent_disabled from the database function", async () => {
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: null, error: { code: "55000", message: "agent_disabled" } })) });
+  const { result, body } = await toolCall(handler, "get_company_facts", {});
+  assert.equal(result.isError, true);
+  assert.equal(body.error_code, "agent_disabled");
 });
 
 test("tools/call: invalid arguments never reach the tool and list fields without values", async () => {
@@ -947,7 +982,7 @@ test("MCP-Protocol-Version: известная версия или отсутс�
   for (const version of AI_AGENTS_MCP_PROTOCOL_VERSIONS) {
     const { response, json } = await call(handler, rpcRequest("tools/list"), { headers: { "mcp-protocol-version": version } });
     assert.equal(response.status, 200, version);
-    assert.equal(json.result.tools.length, 24);
+    assert.equal(json.result.tools.length, 25);
   }
   const absent = await call(handler, rpcRequest("tools/list"));
   assert.equal(absent.response.status, 200, "без заголовка — совместимость со старыми клиентами");

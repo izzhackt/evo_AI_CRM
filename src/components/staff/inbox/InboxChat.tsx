@@ -61,7 +61,7 @@ import { useInboxPulse } from "./useInboxPulse";
 /** Часы ленты: «не ушло» и «итог неизвестен» зависят от времени, а не только от сервера. */
 const CLOCK_TICK_MS = 15_000;
 /** Подкраска рамки поля после «Добавить в поле ответа» окна ИИ. */
-const AI_ADDED_TINT_MS = 380;
+const AI_ADDED_TINT_MS = 381;
 
 export type InboxChatData = Readonly<{
   messages: readonly InboxChatMessage[];
@@ -588,7 +588,7 @@ export function InboxChat({
 
   /**
    * «Добавить в поле ответа» окна ИИ: к написанному, фокус — в конец поля, рамка
-   * поля на 380 мс подкрашивается (ai-agent.css, только без reduced motion);
+   * поля на 381 мс подкрашивается (ai-agent.css, только без reduced motion);
    * ничего не отправляется.
    */
   const [aiAdded, setAiAdded] = useState(0);

@@ -60,15 +60,23 @@ const SOURCE_336 = readFileSync(new URL("../supabase/migrations/336_platform_ai_
 const SCHEMA_UPDATES = new Map([...SOURCE_336.matchAll(/UPDATE platform_private\.ai_agent_tool_schemas SET input_schema = \$j\$(.*?)\$j\$::jsonb\s*WHERE tool = '([a-z_]+)';/gsu)]
   .map(([, schema, name]) => [name, JSON.parse(schema)]));
 const SUITE_322 = readFileSync(new URL("../supabase/tests/platform_ai_agents_daily_spend.sql", import.meta.url), "utf8");
+// 381 («мозг компании», 28.11.2026): the 25th tool, get_company_facts, its schema row, the facts table and three staff functions.
+const SOURCE_381 = readFileSync(new URL("../supabase/migrations/381_platform_company_facts.sql", import.meta.url), "utf8");
+const SUITE_381 = readFileSync(new URL("../supabase/tests/platform_company_facts.sql", import.meta.url), "utf8");
 const TEST_SCRIPT = readFileSync(new URL("../scripts/test-runners/test-postgres-authorization.sh", import.meta.url), "utf8");
 
 test("the tool schema table is the contract's registry, row for row", () => {
-  const rows = [...SOURCE.matchAll(/\('([a-z_]+)', '(read|write)', '(none|read|write)', \$j\$(.*?)\$j\$::jsonb\)/gsu)].map(
+  const rowPattern = /\('([a-z_]+)', '(read|write)', '(none|read|write)', \$j\$(.*?)\$j\$::jsonb\)/gsu;
+  const rows317 = [...SOURCE.matchAll(rowPattern)].map(
     ([, name, kind, audit, schema]) => ({ name, kind, audit, schema: SCHEMA_UPDATES.get(name) ?? JSON.parse(schema) }),
   );
+  const rows381 = [...SOURCE_381.matchAll(rowPattern)].map(([, name, kind, audit, schema]) => ({ name, kind, audit, schema: JSON.parse(schema) }));
+  assert.equal(rows317.length, 24, "317 seeds the first 24 tools");
+  assert.deepEqual(rows381.map((row) => row.name), ["get_company_facts"], "381 adds exactly the get_company_facts row");
+  const rows = [...rows317, ...rows381];
   assert.deepEqual([...SCHEMA_UPDATES.keys()], ["get_case"], "336 updates exactly the get_case row");
   assert.equal(rows.length, AI_AGENT_TOOLS.length);
-  assert.equal(rows.length, 24);
+  assert.equal(rows.length, 25);
   for (const tool of AI_AGENT_TOOLS) {
     const row = rows.find((candidate) => candidate.name === tool.name);
     assert.ok(row, `${tool.name} is seeded`);
@@ -81,6 +89,7 @@ test("the tool schema table is the contract's registry, row for row", () => {
 test("every RPC the contract names exists in the migration, in the right schema", () => {
   const created = new Set([...SOURCE.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
   const created318 = new Set([...SOURCE_318.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
+  const created381 = new Set([...SOURCE_381.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
   for (const name of created318) assert.ok(!created.has(name), `${name} is new in 318`);
   for (const name of [
     ...Object.values(AI_AGENT_STAFF_RPC),
@@ -88,7 +97,7 @@ test("every RPC the contract names exists in the migration, in the right schema"
     ...Object.values(AI_AGENT_MCP_RPC),
     ...AI_AGENT_TOOLS.map((tool) => tool.rpc),
   ]) {
-    assert.ok(created.has(name) || created318.has(name), `platform.${name} is created by 317 or 318`);
+    assert.ok(created.has(name) || created318.has(name) || created381.has(name), `platform.${name} is created by 317, 318 or 381`);
   }
   // Nothing extra in the public schema: 9 + 14 + 3 + 24 functions in 317, the two environment-lease functions in 318.
   assert.equal(created.size, 9 + 14 + 3 + 24);
@@ -729,4 +738,83 @@ test("355 widens the consent source list to the app's sources, drift-safe, and t
   // The replaced fragment is the one 320 wrote; 320 itself is not edited.
   assert.ok(SOURCE_320.includes("p_source NOT IN ('portal_web', 'ios')"));
   assert.doesNotMatch(SOURCE_355, /\bGRANT\b|\bREVOKE\b|CREATE FUNCTION/u, "grants, owner and search_path come from CREATE OR REPLACE");
+});
+
+test("381 adds the 25th tool and the company facts, closed to every API role, without touching what exists", () => {
+  const tool = AI_AGENT_TOOLS.find((candidate) => candidate.name === "get_company_facts");
+  assert.ok(tool, "the contract names the tool");
+  assert.equal(tool.rpc, "ai_agent_tool_get_company_facts_v1");
+  assert.equal(tool.kind, "read");
+  assert.equal(tool.audit, "none");
+  assert.deepEqual(
+    [...SOURCE_381.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name).sort(),
+    ["ai_agent_tool_get_company_facts_v1", "ai_company_facts_list_v1", "ai_company_facts_retire_v1", "ai_company_facts_save_v1"],
+  );
+  assert.match(SOURCE_381, /ALTER TABLE platform_private\.company_facts FORCE ROW LEVEL SECURITY;/u);
+  assert.match(SOURCE_381, /REVOKE ALL ON TABLE platform_private\.company_facts\s+FROM PUBLIC, anon, authenticated, service_role/u);
+  assert.doesNotMatch(SOURCE_381, /CREATE POLICY|GRANT (SELECT|INSERT|UPDATE|DELETE|ALL)/u, "no policy and no table grant");
+  // Rights: reading is `ai.agent.use`, writing is `ai.agent.manage`, the tool begins like every other tool.
+  assert.match(functionBody(SOURCE_381, "CREATE FUNCTION platform.ai_company_facts_list_v1("), /ai_staff_actor\(p_organization_id, 'ai\.agent\.use'\)/u);
+  assert.match(functionBody(SOURCE_381, "CREATE FUNCTION platform.ai_company_facts_save_v1("), /ai_staff_actor\(p_organization_id, 'ai\.agent\.manage'\)/u);
+  assert.match(functionBody(SOURCE_381, "CREATE FUNCTION platform.ai_company_facts_retire_v1("), /ai_staff_actor\(p_organization_id, 'ai\.agent\.manage'\)/u);
+  const toolBody = functionBody(SOURCE_381, "CREATE FUNCTION platform.ai_agent_tool_get_company_facts_v1(");
+  assert.match(toolBody, /ai_agent_tool_begin\(p_organization_id, p_agent_key, 'get_company_facts', p_args\)/u);
+  assert.match(toolBody, /f\.status = 'active' AND \(f\.valid_until IS NULL OR f\.valid_until >= v_today\)/u, "only active, unexpired facts");
+  assert.match(SOURCE_381, /AT TIME ZONE 'Asia\/Bishkek'\)::DATE/u, "today is the Bishkek day");
+  assert.match(SOURCE_381, /GRANT EXECUTE ON FUNCTION platform\.ai_agent_tool_get_company_facts_v1\(UUID, TEXT, JSONB\) TO service_role;/u);
+  // The limits of the contract and the table agree.
+  assert.match(SOURCE_381, /char_length\(statement_ru\) BETWEEN 1 AND 1500/u);
+  assert.equal(tool.inputSchema.properties.limit.maximum, 50);
+  assert.deepEqual(tool.inputSchema.properties.audience.enum, ["client", "internal", "both"]);
+  assert.ok(SOURCE_381.includes("topic ~ '^[a-z0-9]+(\\.[a-z0-9_-]+)+$'"), "the topic shape is checked in the table");
+});
+
+test("381 keeps one active row per organization, topic and audience, and a version chain", () => {
+  assert.match(SOURCE_381, /CREATE UNIQUE INDEX company_facts_active_key ON platform_private\.company_facts \(organization_id, topic, audience\)\s+WHERE status = 'active';/u);
+  assert.match(SOURCE_381, /supersedes_id UUID REFERENCES platform_private\.company_facts\(id\)/u);
+  const save = functionBody(SOURCE_381, "CREATE FUNCTION platform.ai_company_facts_save_v1(");
+  assert.match(save, /SET status = 'retired'/u, "the old version is retired");
+  assert.match(save, /company_fact_verification_required/u, "a changed text needs «Проверено»");
+  assert.match(save, /company_fact_stale/u);
+  assert.match(save, /'ai\.fact\.change', 'ai_company_fact'/u, "one journal row, in the same transaction");
+  assert.doesNotMatch(save, /statement_ru[^;]*audit|jsonb_build_object\([^)]*'statementRu'/u, "the journal never carries the text");
+});
+
+test("381 seeds every organization once from the agent instructions, without personal data", () => {
+  assert.match(SOURCE_381, /ON CONFLICT \(organization_id, topic, audience\) WHERE status = 'active' DO NOTHING/u);
+  assert.match(SOURCE_381, /SELECT platform_private\.company_facts_seed\(o\.id\) FROM platform\.organizations o;/u);
+  const seed = JSON.parse(/\$seed\$(\[.*?\])\$seed\$/su.exec(SOURCE_381)[1]);
+  assert.ok(seed.length >= 60);
+  const keys = new Set(seed.map((row) => `${row.topic}|${row.audience}`));
+  assert.equal(keys.size, seed.length, "no duplicate topic and audience");
+  for (const row of seed) {
+    assert.match(row.topic, /^[a-z0-9]+(\.[a-z0-9_-]+)+$/u, row.topic);
+    assert.ok(row.statement_ru.length >= 10 && row.statement_ru.length <= 1500, row.topic);
+    assert.match(row.source_ref, /^src\/content\/ai-agents\/(sales|curator-cn|curator-my|director|_preamble)\.md#.+/u, row.topic);
+    assert.match(row.verified_at, /^\d{4}-\d{2}-\d{2}$/u);
+    assert.ok(row.valid_until >= row.verified_at, row.topic);
+    assert.doesNotMatch(row.statement_ru, /sk-ant-|\+996\d|@[a-z0-9-]+\.[a-z]|https?:\/\//iu, `${row.topic} holds no contact or secret`);
+  }
+  const bySat = seed.find((row) => row.topic === "course.sat.group");
+  assert.match(bySat.statement_ru, /299/u);
+  assert.match(bySat.statement_ru, /10 недель/u);
+  assert.match(seed.find((row) => row.topic === "course.ielts.group").statement_ru, /249.*8 недель|8 недель.*249/su);
+  // Every file the seed cites is a real instruction file, and every section it cites is a real heading of it.
+  for (const row of seed) {
+    const [file, heading] = row.source_ref.split("#");
+    const text = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    assert.ok(text.split("\n").some((line) => /^#{1,4} /u.test(line) && line.replace(/^#+ /u, "").trim() === heading), `${row.topic}: «${heading}» is a heading of ${file}`);
+  }
+  assert.doesNotMatch(SOURCE_381, /sk-ant-|Bearer [A-Za-z0-9]/u);
+});
+
+test("381 suite: marker, rollback, no secret, no address, no real person; hooked into the Postgres script", () => {
+  assert.doesNotMatch(SUITE_381, /sk-ant-|Bearer [A-Za-z0-9]|\+996\d{6,}|@gmail\.|@mail\./u);
+  assert.match(SUITE_381, /A381_COMPANY_FACTS_SUITE_PASSED/u);
+  assert.match(SUITE_381, /ROLLBACK;\s*$/u, "the suite leaves nothing behind");
+  assert.match(TEST_SCRIPT, /\*_platform_company_facts\.sql/u);
+  assert.match(TEST_SCRIPT, /a381_already_applied/u);
+  assert.match(TEST_SCRIPT, /platform_company_facts\.sql[\s\S]*A381_COMPANY_FACTS_SUITE_PASSED/u);
+  assert.ok(TEST_SCRIPT.indexOf("*_platform_company_facts.sql") > TEST_SCRIPT.indexOf("A322_AI_AGENTS_DAILY_SPEND_SUITE_PASSED"));
+  assert.ok(TEST_SCRIPT.indexOf("*_platform_company_facts.sql") < TEST_SCRIPT.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
 });

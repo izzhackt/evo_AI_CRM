@@ -59,6 +59,10 @@ export type McpToolRuntime = Readonly<{
   maxOutputChars: number;
   now(): number;
   log(entry: Readonly<Record<string, string | number | boolean>>): void;
+  /** Вектор вопроса для `search_knowledge`; нет функции (ключа нет) — поиск без вектора. */
+  embedQuery?: ((text: string) => Promise<readonly number[] | null>) | null;
+  /** Срок ожидания вектора вопроса, мс (по умолчанию 3000). */
+  embedDeadlineMs?: number;
 }>;
 
 /* ------------------------------------------------------------------- реестр */
@@ -532,6 +536,40 @@ export function refuseToolCall(
 
 type RpcResponse = Readonly<{ data: unknown; error: unknown }>;
 
+const QUERY_EMBEDDING_DIMENSIONS = 1_536;
+const DEFAULT_EMBED_DEADLINE_MS = 3_000;
+
+/**
+ * Вектор вопроса для `search_knowledge` в виде литерала `[…]` для `p_query_embedding`. null — вектора нет: ключа нет,
+ * ошибка или таймаут (тихо: поиск остаётся полнотекстовым; в журнал приложения идёт только причина без текста и ключа).
+ */
+async function embedSearchQuery(
+  runtime: McpToolRuntime,
+  ctx: McpToolContext,
+  query: unknown,
+): Promise<string | null> {
+  const embed = runtime.embedQuery;
+  if (typeof embed !== "function" || typeof query !== "string" || query.trim() === "") return null;
+  try {
+    const vector = await withDeadline(embed(query), runtime.embedDeadlineMs ?? DEFAULT_EMBED_DEADLINE_MS);
+    if (
+      vector === null ||
+      vector.length !== QUERY_EMBEDDING_DIMENSIONS ||
+      vector.some((item) => typeof item !== "number" || !Number.isFinite(item))
+    ) {
+      throw new Error("bad_vector");
+    }
+    return `[${vector.join(",")}]`;
+  } catch {
+    try {
+      runtime.log({ event: "ai_agents_mcp", reason: "query_embedding_unavailable", tool: "search_knowledge", agent: ctx.agentKey });
+    } catch {
+      // Журнал не должен менять ответ.
+    }
+    return null;
+  }
+}
+
 /** Один вызов инструмента: проверка аргументов → функция базы → разбор ответа. Не бросает. */
 export async function executeAiAgentTool(
   runtime: McpToolRuntime,
@@ -557,6 +595,8 @@ export async function executeAiAgentTool(
   if (!checked.ok) return fail("invalid_arguments", keysOnly(rawArguments), { fields: checked.issues });
   const args = checked.value;
 
+  const queryEmbedding = def.name === "search_knowledge" ? await embedSearchQuery(runtime, ctx, args.query) : null;
+
   let response: RpcResponse;
   try {
     response = (await withDeadline(
@@ -564,6 +604,7 @@ export async function executeAiAgentTool(
         p_organization_id: ctx.organizationId,
         p_agent_key: ctx.agentKey,
         p_args: args,
+        ...(queryEmbedding === null ? {} : { p_query_embedding: queryEmbedding }),
       }),
       runtime.rpcDeadlineMs,
     )) as RpcResponse;

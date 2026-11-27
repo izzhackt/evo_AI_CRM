@@ -18,6 +18,7 @@ import {
   readClientAddress,
 } from "../src/lib/server/ai-agents/mcp-auth.ts";
 import { AI_AGENT_TOOL_GRANTS } from "../src/content/ai-agents/tool-grants.generated.ts";
+import { createKnowledgeQueryEmbedder } from "../src/lib/server/ai-agents/mcp-knowledge-query.ts";
 import { createAiAgentsMcpHandler } from "../src/lib/server/ai-agents/mcp-server.ts";
 import {
   classifyRpcError,
@@ -74,6 +75,8 @@ function harness({
   callLimiter,
   toolDeadlineMs,
   now,
+  embedQuery,
+  embedDeadlineMs,
 } = {}) {
   const state = { calls: [], logs: [], dispatches: [], schemas: [] };
   const defaultRpc = (name) => {
@@ -89,6 +92,8 @@ function harness({
     ...(failureLimiter === undefined ? {} : { failureLimiter }),
     ...(callLimiter === undefined ? {} : { callLimiter }),
     ...(toolDeadlineMs === undefined ? {} : { toolDeadlineMs }),
+    ...(embedQuery === undefined ? {} : { embedQuery }),
+    ...(embedDeadlineMs === undefined ? {} : { embedDeadlineMs }),
     mcpOrigin,
     sendWhatsAppDraft: async (input) => {
       state.dispatches.push(input);
@@ -1037,4 +1042,95 @@ test("MCP-Protocol-Version: порядок отказов — токен, зат
   assert.equal(wrongType.status, 415);
   const origin = await call(handler, rpcRequest("ping"), { headers: { origin: "https://evil.example.test", "mcp-protocol-version": "2025-11-25" } });
   assert.equal(origin.response.status, 200, "проверку Origin сознательно не вводим (решение владельца)");
+});
+
+/* ------------------------------------------------- search_knowledge: вектор вопроса */
+
+const EMBEDDING_KEY = `gemini-test-${randomBytes(12).toString("hex")}`;
+const unitVector = () => Array.from({ length: 1536 }, (_unused, index) => (index === 0 ? 1 : 0));
+const knowledgeRpc = rpcWith(() => ({ data: { results: [] }, error: null }));
+
+test("search_knowledge: без ключа эмбеддингов вектор не считается и в базу не передаётся", async () => {
+  const { handler, toolCalls } = harness({ rpc: knowledgeRpc });
+  const { result } = await toolCall(handler, "search_knowledge", { query: "dormitory fee" });
+  assert.equal(result.isError, false);
+  assert.equal(toolCalls().length, 1);
+  assert.equal("p_query_embedding" in toolCalls()[0].args, false);
+  assert.deepEqual(toolCalls()[0].args.p_args.query, "dormitory fee");
+});
+
+test("search_knowledge: с ключом вектор вопроса уходит в базу строкой на 1536 чисел; другие инструменты вектор не получают", async () => {
+  const asked = [];
+  const { handler, toolCalls } = harness({
+    rpc: knowledgeRpc,
+    embedQuery: async (text) => { asked.push(text); return unitVector(); },
+  });
+  const { result } = await toolCall(handler, "search_knowledge", { query: "Жатакана канча турат?" });
+  assert.equal(result.isError, false);
+  assert.deepEqual(asked, ["Жатакана канча турат?"]);
+  const sent = toolCalls()[0].args.p_query_embedding;
+  assert.equal(typeof sent, "string");
+  assert.match(sent, /^\[1(,0){1535}\]$/u);
+  assert.equal(toolCalls()[0].args.p_args.query, "Жатакана канча турат?", "аргументы инструмента не меняются");
+
+  await toolCall(handler, "search_catalog", { query: "hangzhou" });
+  assert.equal(asked.length, 1, "эмбеддинг считается только для search_knowledge");
+  assert.equal("p_query_embedding" in toolCalls()[1].args, false);
+});
+
+test("search_knowledge: ошибка, таймаут и вектор не той длины — тихо без вектора, ответ инструмента не меняется", async () => {
+  for (const [label, embedQuery] of [
+    ["ошибка", async () => { throw new Error(`provider said ${EMBEDDING_KEY}`); }],
+    ["пустой ответ", async () => null],
+    ["не та длина", async () => [1, 2, 3]],
+    ["не число", async () => Array.from({ length: 1536 }, () => Number.NaN)],
+    ["завис", () => new Promise(() => undefined)],
+  ]) {
+    const { handler, toolCalls, state } = harness({ rpc: knowledgeRpc, embedQuery, embedDeadlineMs: 20 });
+    const started = Date.now();
+    const { result, body } = await toolCall(handler, "search_knowledge", { query: "dormitory fee" });
+    assert.equal(result.isError, false, label);
+    assert.deepEqual(body, { results: [] }, label);
+    assert.equal("p_query_embedding" in toolCalls()[0].args, false, label);
+    assert.ok(Date.now() - started < 2_000, `${label}: не ждёт дольше срока`);
+    const text = JSON.stringify(state.logs);
+    assert.ok(!text.includes(EMBEDDING_KEY), `${label}: ключ и текст ошибки не попадают в журнал`);
+    assert.ok(!text.includes("dormitory fee"), `${label}: текст вопроса не попадает в журнал`);
+    assert.ok(state.logs.some((entry) => entry.reason === "query_embedding_unavailable"), `${label}: в журнале только причина`);
+  }
+});
+
+test("createKnowledgeQueryEmbedder: нет ключа — null; с ключом один запрос тем же клиентом, моделью и размерностью, без повторов", async () => {
+  assert.equal(createKnowledgeQueryEmbedder({}), null);
+  assert.equal(createKnowledgeQueryEmbedder({ EVO_PLATFORM_GEMINI_API_KEY: "   " }), null);
+
+  const calls = [];
+  const embed = createKnowledgeQueryEmbedder({ EVO_PLATFORM_GEMINI_API_KEY: EMBEDDING_KEY }, async (url, init) => {
+    calls.push({ url, init });
+    return new Response(JSON.stringify({ embeddings: [{ values: unitVector() }] }), { status: 200 });
+  });
+  const vector = await embed("How much is the dormitory?");
+  assert.equal(vector.length, 1536);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents");
+  assert.equal(calls[0].init.headers["x-goog-api-key"], EMBEDDING_KEY);
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.requests.length, 1);
+  assert.equal(body.requests[0].model, "models/gemini-embedding-2");
+  assert.equal(body.requests[0].outputDimensionality, 1536);
+  assert.equal(body.requests[0].content.parts[0].text, "task: search result | query: How much is the dormitory?");
+
+  const failing = createKnowledgeQueryEmbedder({ EVO_PLATFORM_GEMINI_API_KEY: EMBEDDING_KEY }, async () => {
+    calls.push("again");
+    return new Response("{}", { status: 429 });
+  });
+  await assert.rejects(failing("x y z"));
+  assert.equal(calls.filter((call) => call === "again").length, 1, "429 не повторяется: поиск не ждёт провайдера");
+});
+
+test("search_knowledge: описание инструмента называет русский, simple, вектор и языки", () => {
+  const description = AI_AGENT_TOOLS.find((tool) => tool.name === "search_knowledge").description;
+  assert.match(description, /full text ru \+ simple/u);
+  assert.match(description, /vector/u);
+  assert.match(description, /ru\/ky\/en/u);
 });

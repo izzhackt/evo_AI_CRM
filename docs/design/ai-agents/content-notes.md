@@ -7,7 +7,7 @@
 
 | Файл | Что это |
 |---|---|
-| `src/content/ai-agents/_preamble.md` | Общая преамбула всех агентов (≈730 слов, 5100 символов из 8000 допустимых) |
+| `src/content/ai-agents/_shared/preamble.md` | Общая преамбула всех агентов (≈730 слов, 5100 символов из 8000 допустимых) |
 | `director.md`, `sales.md`, `curator-cn.md`, `curator-my.md` | Инструкции четырёх ролей. Frontmatter: `key`, у «Директора» ещё `schedule_prompt` (поручение для запуска `0 9 * * 1`) |
 | `curator-eu.md`, `curator-ae.md`, `curator-tr.md` | Заготовки: только frontmatter и комментарий «Инструкции пока нет» (`hasInstructions=false`, синхронизация даст `instructions_empty`) |
 | `prompts.generated.ts` | Сгенерированный модуль (не править). Его читает `index.ts`; в образе приложения ни `fs`, ни `.md` не нужны |

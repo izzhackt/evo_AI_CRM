@@ -1,0 +1,19 @@
+{
+  "tools": [
+    "get_my_settings",
+    "sales_report",
+    "payments_summary",
+    "funnel_stats",
+    "list_leads",
+    "list_student_cases",
+    "get_case",
+    "list_conversations",
+    "list_tasks",
+    "list_staff",
+    "recent_calls",
+    "search_knowledge",
+    "post_digest",
+    "create_task",
+    "notify_staff"
+  ]
+}

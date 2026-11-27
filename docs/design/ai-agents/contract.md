@@ -121,7 +121,7 @@
 
 ### E — контент
 
-- `src/content/ai-agents/_preamble.md`, `director.md`, `sales.md`, `curator-cn.md`, `curator-my.md`, `curator-eu.md`, `curator-ae.md`, `curator-tr.md`
+- `src/content/ai-agents/_shared/preamble.md` и папки `director/`, `sales/`, `curator-cn/`, `curator-my/`, `curator-eu/`, `curator-ae/`, `curator-tr/` (см. «Папки агентов» ниже)
 - `src/content/ai-agents/index.ts` (заменяет заглушку), `src/content/ai-agents/prompts.generated.ts`
 - `scripts/maintenance/build-ai-agent-prompts.mjs`
 - `tests/ai-agents-content.test.mjs`
@@ -640,6 +640,8 @@
 Рабочие пути этой сессии (временные, вне репозитория): `CURATOR_DOCS=/private/tmp/claude-502/-Users-iskhak-tazhibaev-Documents-01-Projects-EVO-evo-AI-CRM/bd4d44a8-ba6b-4692-a7b6-3f89f01f3e49/scratchpad/curator-docs`, `AI_DEPT=/private/tmp/claude-502/-Users-iskhak-tazhibaev-Documents-01-Projects-EVO-evo-AI-CRM/bd4d44a8-ba6b-4692-a7b6-3f89f01f3e49/scratchpad/ai-dept` (в `ai-dept` — проверенные исследования `curator-docs.md`, `evo-current.md`, `managed-agents.md`). Если путей нет, E работает по тексту разбора в этом контракте и просит оркестратора передать файлы.
 
 ### E.1 Файлы и формат
+
+**Папки агентов и наборы инструментов (28.11.2026, заменяет `<key>.md`).** Один каталог на агента: `src/content/ai-agents/<key>/{role.md, rules.md, tools.json, examples/}`. `role.md` — frontmatter (`key`, `schedule_prompt`) и роль, цель, тон; `rules.md` — регламент; инструкция агента = `role.md` + `rules.md` (текст и хеш конфигурации не менялись при переезде). Общая преамбула — `_shared/preamble.md`. `tools.json` — `{ "tools": [...] }` с именами из `AI_AGENT_TOOL_NAMES`; генератор пишет карту `AI_AGENT_TOOL_GRANTS` в `tool-grants.generated.ts`. MCP-сервер отдаёт в `tools/list` только инструменты набора агента (`get_my_settings` всегда), а вызов чужого инструмента отклоняет ошибкой инструмента `forbidden` и строкой `denied` в журнале действий, не доходя до базы. Проверка прав в базе (`ai_agent_tool_begin`) и права сотрудников не менялись. Новый инструмент: имя в реестр `contract.ts` и в `tools.json` нужных агентов (см. `src/content/ai-agents/README.md`).
 
 - `src/content/ai-agents/<key>.md` — один файл на агента (7) + `_preamble.md` (общая преамбула). Формат файла агента: frontmatter YAML между `---` с полями `key` (равен имени файла и ключу каталога), `schedule_prompt` (многострочный блок `|`; нет расписания — поле опущено), затем тело — **инструкция** (система-промпт без преамбулы). HTML-комментарии `<!-- … -->` — заметки авторам: генератор их вырезает, в промпт они не попадают.
 - `scripts/maintenance/build-ai-agent-prompts.mjs`: читает `.md`, проверяет (frontmatter, ключи, пределы: инструкция ≤ 40 000 символов, преамбула ≤ 8 000, `schedule_prompt` ≤ 4 000, без NUL), пишет `src/content/ai-agents/prompts.generated.ts` (экспорт `AI_AGENT_PROMPT_SOURCES: Record<AiAgentKey, {instructions: string; schedulePrompt: string | null}>` и `AI_AGENT_PREAMBLE_TEXT: string`; шапка «сгенерировано, не править»). Режим `--check` падает, если сгенерированный файл расходится с `.md`. Генератор — Node без зависимостей; frontmatter разбирается самописно (только `key` и блок `schedule_prompt`).

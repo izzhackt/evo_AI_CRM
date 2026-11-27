@@ -15,6 +15,7 @@ import {
   type AiAgentToolDefinition,
   type AiAgentToolErrorCode,
 } from "../../ai-agents/contract.ts";
+import { AI_AGENT_TOOL_GRANTS } from "../../../content/ai-agents/tool-grants.generated.ts";
 import { MCP_TOKEN_PATTERN, withDeadline } from "./mcp-auth.ts";
 import type { AiAgentWhatsAppSendResult } from "./whatsapp-send.ts";
 
@@ -70,14 +71,20 @@ export function findAiAgentTool(name: unknown): AiAgentToolDefinition | null {
   return typeof name === "string" ? (TOOL_BY_NAME.get(name) ?? null) : null;
 }
 
-/** Ответ `tools/list`: реестр без изменений, подпись — полем `title`. */
-export function listAiAgentMcpTools(): readonly Readonly<{
+/** Входит ли инструмент в набор агента (`src/content/ai-agents/<key>/tools.json`). `get_my_settings` разрешён всем. */
+export function isAiAgentToolGranted(agentKey: AiAgentKey, toolName: string): boolean {
+  if (toolName === "get_my_settings") return true;
+  return (AI_AGENT_TOOL_GRANTS[agentKey] as readonly string[] | undefined)?.includes(toolName) ?? false;
+}
+
+/** Ответ `tools/list` (только инструменты агента): реестр без изменений, подпись — полем `title`. */
+export function listAiAgentMcpTools(agentKey: AiAgentKey): readonly Readonly<{
   name: string;
   title: string;
   description: string;
   inputSchema: AiAgentJsonSchema;
 }>[] {
-  return AI_AGENT_TOOLS.map((tool) => ({
+  return AI_AGENT_TOOLS.filter((tool) => isAiAgentToolGranted(agentKey, tool.name)).map((tool) => ({
     name: tool.name,
     title: tool.title,
     description: tool.description,
@@ -508,13 +515,14 @@ export function keysOnly(rawArguments: unknown): Record<string, unknown> {
   return Object.fromEntries(Object.keys(rawArguments).slice(0, 30).map((key) => [key, null]));
 }
 
-/** Результат отказа до вызова базы: агент выключен, лимит вызовов. */
+/** Результат отказа до вызова базы: агент выключен, лимит вызовов, инструмент вне набора агента. */
 export function refuseToolCall(
-  code: "agent_disabled" | "rate_limited",
+  code: "agent_disabled" | "rate_limited" | "forbidden",
   rawArguments: unknown,
+  message?: string,
 ): McpToolOutcome {
   return {
-    result: toolErrorResult(code),
+    result: toolErrorResult(code, message === undefined ? {} : { message }),
     status: "denied",
     errorCode: code,
     durationMs: 0,

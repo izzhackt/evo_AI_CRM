@@ -256,7 +256,7 @@ test("329: the staff sees that a student has no cabinet and the agent gets an ho
   assert.match(thread, /page\.studentHasPortal === false \?/u, "null stays silent: only a confirmed absence warns");
   assert.match(thread, /У студента нет кабинета: он не увидит это сообщение\./u);
   for (const agent of ["curator-my", "curator-cn"]) {
-    const prompt = fileOf(`src/content/ai-agents/${agent}.md`);
+    const prompt = fileOf(`src/content/ai-agents/${agent}/role.md`) + fileOf(`src/content/ai-agents/${agent}/rules.md`);
     assert.match(prompt, /`student_has_portal: false`/u, agent);
     assert.match(prompt, /`no_student_portal`/u, agent);
   }

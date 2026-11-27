@@ -390,11 +390,14 @@ SELECT pg_temp.a381_assert(
   'a valid-until before the verification date is refused and changes nothing');
 -- Replay by request id.
 SELECT count(*) AS a381_rows_before FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1) \gset
+-- Separate statements: one statement sees one snapshot, so row counts must be read after each write.
+SELECT pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-03-31"}', pg_temp.a381_id(7134)) ->> 'status' AS a381_first \gset
+SELECT count(*) AS a381_rows_after_first FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1) \gset
+SELECT pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-03-31"}', pg_temp.a381_id(7134)) ->> 'status' AS a381_replay \gset
 SELECT pg_temp.a381_assert(
-  pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-03-31"}', pg_temp.a381_id(7134)) ->> 'status' = 'saved'
-  AND (SELECT count(*) FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1)) = :a381_rows_before + 1
-  AND pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-03-31"}', pg_temp.a381_id(7134)) ->> 'status' = 'saved'
-  AND (SELECT count(*) FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1)) = :a381_rows_before + 1
+  :'a381_first' = 'saved' AND :a381_rows_after_first = :a381_rows_before + 1
+  AND :'a381_replay' = 'saved'
+  AND (SELECT count(*) FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1)) = :a381_rows_after_first
   AND (SELECT count(*) = 1 FROM platform.audit_events WHERE request_id = pg_temp.a381_id(7134))
   AND pg_temp.a381_err(pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-04-30"}', pg_temp.a381_id(7134))) = '40001'
   AND pg_temp.a381_msg(pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-04-30"}', pg_temp.a381_id(7134))) = 'company_fact_request_conflict'
@@ -406,8 +409,9 @@ SELECT pg_temp.a381_assert(
 -- ---------------------------------------------------------------------------
 SELECT id AS a381_fact_live FROM platform_private.company_facts
   WHERE organization_id = pg_temp.a381_id(1) AND topic = 'promise.test' AND status = 'active' \gset
+SELECT pg_temp.a381_retire(4, :'a381_fact_live', pg_temp.a381_id(7140)) AS a381_retired \gset
 SELECT pg_temp.a381_assert(
-  pg_temp.a381_retire(4, :'a381_fact_live', pg_temp.a381_id(7140)) = jsonb_build_object('factId', :'a381_fact_live'::UUID, 'status', 'retired')
+  :'a381_retired'::JSONB = jsonb_build_object('factId', :'a381_fact_live'::UUID, 'status', 'retired')
   AND (SELECT status = 'retired' FROM platform_private.company_facts WHERE id = :'a381_fact_live')
   AND pg_temp.a381_retire(4, :'a381_fact_live', pg_temp.a381_id(7140)) ->> 'status' = 'retired'
   AND (SELECT count(*) = 1 FROM platform.audit_events WHERE request_id = pg_temp.a381_id(7140))

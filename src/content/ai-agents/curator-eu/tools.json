@@ -1,0 +1,24 @@
+{
+  "tools": [
+    "get_my_settings",
+    "search_clients",
+    "get_client_card",
+    "get_lead",
+    "list_student_cases",
+    "get_case",
+    "get_document_file",
+    "get_case_chat",
+    "list_conversations",
+    "get_conversation",
+    "payments_summary",
+    "list_tasks",
+    "list_staff",
+    "search_catalog",
+    "search_knowledge",
+    "get_company_facts",
+    "create_task",
+    "add_note",
+    "send_message",
+    "notify_staff"
+  ]
+}

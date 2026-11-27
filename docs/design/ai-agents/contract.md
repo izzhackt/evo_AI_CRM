@@ -121,7 +121,7 @@
 
 ### E — контент
 
-- `src/content/ai-agents/_preamble.md`, `director.md`, `sales.md`, `curator-cn.md`, `curator-my.md`, `curator-eu.md`, `curator-ae.md`, `curator-tr.md`
+- `src/content/ai-agents/_shared/preamble.md` и папки `director/`, `sales/`, `curator-cn/`, `curator-my/`, `curator-eu/`, `curator-ae/`, `curator-tr/` (см. «Папки агентов» ниже)
 - `src/content/ai-agents/index.ts` (заменяет заглушку), `src/content/ai-agents/prompts.generated.ts`
 - `scripts/maintenance/build-ai-agent-prompts.mjs`
 - `tests/ai-agents-content.test.mjs`
@@ -642,12 +642,14 @@
 
 ### E.1 Файлы и формат
 
-- `src/content/ai-agents/<key>.md` — один файл на агента (7) + `_preamble.md` (общая преамбула). Формат файла агента: frontmatter YAML между `---` с полями `key` (равен имени файла и ключу каталога), `schedule_prompt` (многострочный блок `|`; нет расписания — поле опущено), затем тело — **инструкция** (система-промпт без преамбулы). HTML-комментарии `<!-- … -->` — заметки авторам: генератор их вырезает, в промпт они не попадают.
-- `scripts/maintenance/build-ai-agent-prompts.mjs`: читает `.md`, проверяет (frontmatter, ключи, пределы: инструкция ≤ 40 000 символов, преамбула ≤ 8 000, `schedule_prompt` ≤ 4 000, без NUL), пишет `src/content/ai-agents/prompts.generated.ts` (экспорт `AI_AGENT_PROMPT_SOURCES: Record<AiAgentKey, {instructions: string; schedulePrompt: string | null}>` и `AI_AGENT_PREAMBLE_TEXT: string`; шапка «сгенерировано, не править»). Режим `--check` падает, если сгенерированный файл расходится с `.md`. Генератор — Node без зависимостей; frontmatter разбирается самописно (только `key` и блок `schedule_prompt`).
+**Папки агентов и наборы инструментов (28.11.2026, заменяет `<key>.md`).** Один каталог на агента: `src/content/ai-agents/<key>/{role.md, rules.md, tools.json, examples/}`. `role.md` — frontmatter (`key`, `schedule_prompt`) и роль, цель, тон; `rules.md` — регламент; инструкция агента = `role.md` + `rules.md` (текст и хеш конфигурации не менялись при переезде). Общая преамбула — `_shared/preamble.md`. `tools.json` — `{ "tools": [...] }` с именами из `AI_AGENT_TOOL_NAMES`; генератор пишет карту `AI_AGENT_TOOL_GRANTS` в `tool-grants.generated.ts`. MCP-сервер отдаёт в `tools/list` только инструменты набора агента (`get_my_settings` всегда), а вызов чужого инструмента отклоняет ошибкой инструмента `forbidden` и строкой `denied` в журнале действий, не доходя до базы. Проверка прав в базе (`ai_agent_tool_begin`) и права сотрудников не менялись. Новый инструмент: имя в реестр `contract.ts` и в `tools.json` нужных агентов (см. `src/content/ai-agents/README.md`).
+
+- ~~`src/content/ai-agents/<key>.md`~~ — ЗАМЕНЕНО 28.11.2026 папками агентов (абзац выше): `<key>/role.md` (frontmatter `key`, `schedule_prompt` + роль) и `<key>/rules.md` (регламент) склеиваются в инструкцию; общая преамбула — `_shared/preamble.md`. Пределы прежние: инструкция ≤ 40 000 символов, преамбула ≤ 8 000, `schedule_prompt` ≤ 4 000.
+- `scripts/maintenance/build-ai-agent-prompts.mjs`: читает `<key>/role.md`, `<key>/rules.md`, `<key>/tools.json` и `_shared/preamble.md` (раньше `<key>.md` и `_preamble.md`), проверяет (frontmatter, ключи, пределы: инструкция ≤ 40 000 символов, преамбула ≤ 8 000, `schedule_prompt` ≤ 4 000, без NUL), пишет `src/content/ai-agents/prompts.generated.ts` (экспорт `AI_AGENT_PROMPT_SOURCES: Record<AiAgentKey, {instructions: string; schedulePrompt: string | null}>` и `AI_AGENT_PREAMBLE_TEXT: string`; шапка «сгенерировано, не править»). Режим `--check` падает, если сгенерированный файл расходится с `.md`. Генератор — Node без зависимостей; frontmatter разбирается самописно (только `key` и блок `schedule_prompt`).
 - `src/content/ai-agents/index.ts` (заменяет заглушку): сохраняет экспорты `AiAgentDefault`, `AI_AGENT_PREAMBLE`, `AI_AGENT_DEFAULTS`, `effectiveAiAgentInstructions`, `buildAiAgentSystemPrompt` и сигнатуры, берёт тексты из `prompts.generated.ts`. `hasInstructions = instructions.trim() !== ""`. Чистый модуль (без `server-only`, без `fs`): его читают и сервер, и (через D) страницы.
 - Тексты в образе приложения живут как TypeScript-модуль (никакого `fs` во время работы: standalone-сборка Next не прихватывает `.md`).
 
-### E.2 Преамбула (`_preamble.md`) — обязательное содержание
+### E.2 Преамбула (`_shared/preamble.md`) — обязательное содержание
 
 Короткая (≈ 600–900 слов), на русском, повелительным тоном к модели. Обязательно:
 

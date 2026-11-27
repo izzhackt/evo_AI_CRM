@@ -1,0 +1,21 @@
+{
+  "tools": [
+    "get_my_settings",
+    "search_clients",
+    "get_client_card",
+    "list_leads",
+    "get_lead",
+    "list_conversations",
+    "get_conversation",
+    "recent_calls",
+    "search_catalog",
+    "search_knowledge",
+    "get_company_facts",
+    "list_tasks",
+    "list_staff",
+    "create_task",
+    "add_note",
+    "send_message",
+    "notify_staff"
+  ]
+}

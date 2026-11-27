@@ -86,7 +86,7 @@ INSERT INTO platform_private.ai_documents (id, organization_id, title, kind, aud
   (pg_temp.a384_id(1302), pg_temp.a384_id(1), 'Жатакана КР', 'knowledge', 'client', 'ready', 'seed_kb'),
   (pg_temp.a384_id(1303), pg_temp.a384_id(1), 'Dormitory EN', 'knowledge', 'client', 'ready', 'seed_kb'),
   (pg_temp.a384_id(1304), pg_temp.a384_id(1), 'Внутренний регламент', 'text', 'internal', 'ready', 'upload'),
-  (pg_temp.a384_id(1305), pg_temp.a384_id(1), 'Черновик общежития', 'text', 'client', 'pending', 'upload'),
+  (pg_temp.a384_id(1305), pg_temp.a384_id(1), 'Черновик общежития', 'text', 'client', 'review', 'upload'),
   (pg_temp.a384_id(1306), pg_temp.a384_id(1), 'Старое общежитие', 'text', 'client', 'superseded', 'upload'),
   (pg_temp.a384_id(1307), pg_temp.a384_id(2), 'Dormitory other org', 'knowledge', 'client', 'ready', 'seed_kb');
 -- Unit vectors: Китай 1, жатакана 2, dormitory 3, регламент 4, черновик 5, старое 6, чужая организация 7.
@@ -117,7 +117,7 @@ SELECT pg_temp.a384_assert(
   to_regprocedure('platform.ai_agent_tool_search_knowledge_v1(uuid,text,jsonb)') IS NULL
   AND (SELECT count(*) = 1 FROM pg_proc p WHERE p.pronamespace = 'platform'::REGNAMESPACE AND p.proname = 'ai_agent_tool_search_knowledge_v1'
       AND p.pronargs = 4 AND p.pronargdefaults = 1 AND p.prosecdef AND p.proconfig = ARRAY['search_path=""']::TEXT[]
-      AND p.proargtypes::oid[] = ARRAY['uuid'::REGTYPE, 'text'::REGTYPE, 'jsonb'::REGTYPE, 'public.halfvec'::REGTYPE]::oid[]
+      AND p.proargtypes::TEXT = concat_ws(' ', 'uuid'::REGTYPE::OID, 'text'::REGTYPE::OID, 'jsonb'::REGTYPE::OID, 'public.halfvec'::REGTYPE::OID)
       AND has_function_privilege('service_role', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
       AND NOT has_function_privilege('anon', p.oid, 'EXECUTE'))
   AND (SELECT count(*) = 24 FROM pg_proc p WHERE p.pronamespace = 'platform'::REGNAMESPACE AND p.proname LIKE 'ai\_agent\_tool\_%'

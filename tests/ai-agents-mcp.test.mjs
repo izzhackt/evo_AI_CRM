@@ -320,14 +320,14 @@ test("initialize negotiates the protocol version and describes the server", asyn
   assert.equal(noParams.json.result.protocolVersion, AI_AGENTS_MCP_PROTOCOL_VERSIONS[0]);
 });
 
-test("tools/list returns exactly the 24 registry tools with their schemas", async () => {
+test("tools/list returns exactly the 26 registry tools with their schemas", async () => {
   const { handler } = harness();
   const { response, json } = await call(handler, rpcRequest("tools/list"));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
   assert.equal(response.headers.get("cache-control"), "no-store");
   const tools = json.result.tools;
-  assert.equal(tools.length, 24);
+  assert.equal(tools.length, 26);
   assert.deepEqual(
     tools.map((tool) => tool.name),
     AI_AGENT_TOOLS.map((tool) => tool.name),
@@ -687,6 +687,88 @@ test("tools/call: the authority code reaches the tool but never the action log",
   assert.equal(logCalls()[0].args.p_args.authority_code, "<redacted>");
 });
 
+/* ------------------------------------------------------------------- досье (381) */
+
+const DOSSIER_CASE = "77300000-0000-4000-8000-0000000000f2";
+
+test("dossier tools: the registry lists them first, read + audited, with one required id each", () => {
+  assert.deepEqual(AI_AGENT_TOOLS.slice(0, 2).map((tool) => tool.name), ["get_lead_dossier", "get_case_dossier"]);
+  for (const tool of AI_AGENT_TOOLS.slice(0, 2)) {
+    assert.equal(tool.kind, "read");
+    assert.equal(tool.audit, "read");
+    assert.equal(tool.rpc, `ai_agent_tool_${tool.name}_v1`);
+    assert.match(tool.description, /^Start here: one call returns the whole /u, tool.name);
+    assert.match(tool.description, /Начните отсюда/u, tool.name);
+  }
+  assert.deepEqual(schemaOf("get_lead_dossier").required, ["lead_id"]);
+  assert.deepEqual(schemaOf("get_case_dossier").required, ["case_id"]);
+  assert.equal(schemaOf("get_case_dossier").additionalProperties, false);
+});
+
+test("get_case_dossier: the app fills the timeline step from the keys of the database answer, and nothing else changes", async () => {
+  const dossier = {
+    case: { case_id: DOSSIER_CASE, student_name: "Тест" },
+    process_stage: { label: "Этап процесса", word: "подача заявок в университеты" },
+    board_column: { label: "Колонка доски", word: "Готовы к подаче" },
+    timeline_step: null,
+    stage_mismatch: false,
+    keys: { operational_stage: "applications", pipeline_stage: "ready_to_submit", country_code: "MY" },
+    money: { catalog: { note: "не долг клиента" } },
+  };
+  const { handler, toolCalls } = harness({ rpc: rpcWith(() => ({ data: dossier, error: null })) });
+  const { result, body } = await toolCall(handler, "get_case_dossier", { case_id: DOSSIER_CASE });
+  assert.equal(result.isError, false);
+  assert.equal(toolCalls()[0].functionName, "ai_agent_tool_get_case_dossier_v1");
+  assert.deepEqual(toolCalls()[0].args.p_args, { case_id: DOSSIER_CASE });
+  assert.equal(body.timeline_step.text, "3 из 7, Малайзия");
+  assert.equal(body.timeline_step.position, 3);
+  assert.equal(body.timeline_step.of, 7);
+  assert.equal(body.timeline_step.finished, false);
+  assert.equal(body.process_stage.word, "подача заявок в университеты");
+  assert.equal(body.board_column.word, "Готовы к подаче");
+  assert.deepEqual(body.money, dossier.money);
+  assert.equal("timeline_step_note" in body, false);
+
+  // A country outside the six: null with a reason, never a guess.
+  const other = { ...dossier, keys: { ...dossier.keys, country_code: null } };
+  const second = harness({ rpc: rpcWith(() => ({ data: other, error: null })) });
+  const answer = await toolCall(second.handler, "get_case_dossier", { case_id: DOSSIER_CASE });
+  assert.equal(answer.body.timeline_step, null);
+  assert.match(answer.body.timeline_step_note, /не из шести/u);
+});
+
+test("get_lead_dossier passes the answer through untouched; the lead tool has no timeline", async () => {
+  const dossier = { lead: { lead_id: AGENT_USER, sales_stage: "Квалифицирован" }, keys: { country_code: "MY", operational_stage: "applications" }, truncated: false };
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: dossier, error: null })) });
+  const { body } = await toolCall(handler, "get_lead_dossier", { lead_id: AGENT_USER });
+  assert.deepEqual(body, dossier);
+});
+
+test("get_case_dossier: a database answer at the ceiling plus the step still fits the 12 000 characters the contract promises", async () => {
+  const filler = "я".repeat(11_500 - 900);
+  const dossier = {
+    case: { case_id: DOSSIER_CASE, note: filler },
+    timeline_step: null,
+    keys: { operational_stage: "visa_and_predeparture", pipeline_stage: "visa", country_code: "CN" },
+  };
+  assert.ok(JSON.stringify(dossier).length < 11_500);
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: dossier, error: null })) });
+  const { result, body } = await toolCall(handler, "get_case_dossier", { case_id: DOSSIER_CASE });
+  assert.ok(result.content[0].text.length <= 12_000, `${result.content[0].text.length}`);
+  assert.equal(body.timeline_step.country, "Китай");
+});
+
+test("the dossier tools validate their arguments before any database call", async () => {
+  const { handler, toolCalls } = harness({ rpc: rpcWith(() => ({ data: {}, error: null })) });
+  const missing = await toolCall(handler, "get_case_dossier", {});
+  assert.equal(missing.body.error_code, "invalid_arguments");
+  const extra = await toolCall(handler, "get_lead_dossier", { lead_id: AGENT_USER, include: ["notes"] });
+  assert.equal(extra.body.error_code, "invalid_arguments");
+  const bad = await toolCall(handler, "get_lead_dossier", { lead_id: "nope" });
+  assert.equal(bad.body.error_code, "invalid_arguments");
+  assert.equal(toolCalls().length, 0);
+});
+
 /* --------------------------------------------------------------- send_message */
 
 const SEND_ARGS = { channel: "whatsapp", conversation_id: CONVERSATION, text: "Здравствуйте, это EVO." };
@@ -947,7 +1029,7 @@ test("MCP-Protocol-Version: известная версия или отсутс�
   for (const version of AI_AGENTS_MCP_PROTOCOL_VERSIONS) {
     const { response, json } = await call(handler, rpcRequest("tools/list"), { headers: { "mcp-protocol-version": version } });
     assert.equal(response.status, 200, version);
-    assert.equal(json.result.tools.length, 24);
+    assert.equal(json.result.tools.length, 26);
   }
   const absent = await call(handler, rpcRequest("tools/list"));
   assert.equal(absent.response.status, 200, "без заголовка — совместимость со старыми клиентами");

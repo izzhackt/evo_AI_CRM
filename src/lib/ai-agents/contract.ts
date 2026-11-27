@@ -2,8 +2,10 @@
  * «ИИ-агенты» на Claude Managed Agents — общий ЗАМОРОЖЕННЫЙ контракт
  * (docs/design/ai-agents/contract.md, ADR 0035). Чистый модуль: без React,
  * сервера и ввода-вывода. Его импортируют все пять строителей (БД, MCP, рантайм,
- * UI, контент), поэтому менять файл может только архитектор: нужна правка —
- * запишите её в handoff, а не в этот файл.
+ * UI, контент), поэтому правка здесь всегда идёт вместе с миграцией (строка
+ * platform_private.ai_agent_tool_schemas), тестами сверки и прогоном
+ * tests/ai-agents-db-contract.test.mjs. С 28.11.2026 владелец разрешил менять файл
+ * исполнителям: заморозка ослаблена, но сверки остаются.
  *
  * Импорты внутри src/lib — относительные с `.ts`: тесты идут через
  * `node --experimental-strip-types` и не знают алиаса `@/`.
@@ -327,6 +329,7 @@ export const AI_AGENT_MCP_RPC = {
 /* ----------------------------------------------------- реестр MCP-инструментов */
 
 export const AI_AGENT_TOOL_NAMES = [
+  "get_lead_dossier", "get_case_dossier",
   "search_clients", "get_client_card", "list_leads", "get_lead", "list_student_cases", "get_case",
   "get_document_file", "list_conversations", "get_conversation", "get_case_chat", "sales_report",
   "payments_summary", "funnel_stats", "list_tasks", "search_catalog", "search_knowledge",
@@ -373,6 +376,17 @@ const CURSOR = textArg("Opaque next_cursor from the previous page. Курсор 
 const toolRpc = (name: AiAgentToolName): string => `ai_agent_tool_${name}_v1`;
 
 export const AI_AGENT_TOOLS: readonly AiAgentToolDefinition[] = [
+  // 381: досье — первая остановка агента. Остальные инструменты чтения нужны, чтобы догрузить то, что в досье обрезано.
+  {
+    name: "get_lead_dossier", title: "Досье лида", kind: "read", audit: "read", rpc: toolRpc("get_lead_dossier"),
+    description: "Start here: one call returns the whole lead card (about 6 000 characters) — stage in words, where the client heard of EVO (apart from the contact channel), sale conditions before the contract (labelled, not a debt), next action and due date, open tasks, latest notes, the last 15 WhatsApp messages (only if the student allows AI helpers), calls of 14 days and the link to the student case. Use get_lead, get_conversation and the other read tools only to load more. Начните отсюда: вся карточка лида одним вызовом, этап словами, откуда узнал, условия до договора, следующее действие, задачи, заметки, переписка WhatsApp (при согласии), звонки, ссылка на дело.",
+    inputSchema: objectArg({ lead_id: uuidArg("Lead id.") }, ["lead_id"]),
+  },
+  {
+    name: "get_case_dossier", title: "Досье дела студента", kind: "read", audit: "read", rpc: toolRpc("get_case_dossier"),
+    description: "Start here: one call returns the whole student case (about 12 000 characters) — curator, country, degree, THREE separate stages (process stage, curator board column, step of the country path) with a mismatch flag, next step, the student's own questionnaire (self-reported), document slots without files, applications with intake, MONEY IN THREE BLOCKS that are never added (sale conditions before the contract, live contract tranches and payments, catalog prices that are not a debt), open tasks, notes, the last 10 cabinet chat messages (only if the student allows AI helpers) and the lead source. Use get_case, get_case_chat, get_document_file and the other read tools only to load more. Начните отсюда: всё дело одним вызовом, три этапа отдельно, деньги тремя блоками, документы, заявки, задачи, чат кабинета (при согласии).",
+    inputSchema: objectArg({ case_id: uuidArg("Student case id.") }, ["case_id"]),
+  },
   {
     name: "search_clients", title: "Поиск клиента", kind: "read", audit: "none", rpc: toolRpc("search_clients"),
     description: "Find clients by name, phone digits or e-mail fragment; contacts are masked. Найти клиента по имени, цифрам телефона или части e-mail; контакты замаскированы.",

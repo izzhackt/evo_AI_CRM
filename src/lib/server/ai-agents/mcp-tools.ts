@@ -15,6 +15,7 @@ import {
   type AiAgentToolDefinition,
   type AiAgentToolErrorCode,
 } from "../../ai-agents/contract.ts";
+import { attachDossierTimelineStep } from "../../ai-agents/dossier-timeline.ts";
 import { MCP_TOKEN_PATTERN, withDeadline } from "./mcp-auth.ts";
 import type { AiAgentWhatsAppSendResult } from "./whatsapp-send.ts";
 
@@ -570,6 +571,8 @@ export async function executeAiAgentTool(
   if (data === null || data === undefined) return fail("internal_error", args);
 
   let value: unknown = data;
+  // 381: база не видит файлы путей стран; шаг пути («3 из 7, Малайзия») считает приложение теми же функциями, что кабинет студента.
+  if (def.name === "get_case_dossier") value = attachDossierTimelineStep(data);
   if (def.name === "get_document_file" || def.name === "send_message") {
     if (!isPlainObject(data)) return fail("internal_error", args);
     if (def.name === "get_document_file") {

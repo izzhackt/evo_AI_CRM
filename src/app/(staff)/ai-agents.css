@@ -124,3 +124,14 @@
     75% { transform: translateY(-3px) rotate(6deg); }
   }
 }
+
+/*
+ * Шапка страницы агента на телефоне (25.11.2026): имя кеглем карточки в одну строку рядом со стрелкой и маскотом —
+ * крупный заголовок страницы переносил «Директор / Аналитик» на две строки, и шапка занимала почти весь экран.
+ */
+@media (max-width: 639.98px) {
+  .v3-world[data-surface="staff"] [data-testid="v3-ai-agent-page"] h1.t-page-title {
+    font-size: var(--type-record-title);
+    line-height: var(--type-record-title-leading);
+  }
+}

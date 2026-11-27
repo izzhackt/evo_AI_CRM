@@ -336,6 +336,7 @@ const universityStubs = (cookie, who, overrides = {}) => ({
     canManageCatalogGeography: (actor) => actor.systemRole === "admin" && actor.presentationRole === null, canConfirmAgencyCosts: () => true,
     readStaffCatalogGeography: async () => ({ cities: [], countries: [], rates: [] }), geographyPhotoBase: () => null,
     readStaffInstitutionGeography: async () => ({ cities: [], countries: [], rates: [] }),
+    readStaffCatalogGeographyBrowse: async () => ({ cities: [], institutions: [] }),
   },
   "src/components/staff/universities/geography/UniversityGeographyPanel.tsx": { UniversityGeographyPanel: () => createElement("section", { "data-testid": "geography-panel" }, "Город и стоимость") },
   "src/components/staff/universities/geography/FxRates.tsx": { FxRates: () => createElement("section", { "data-testid": "fx-rates" }, "Курсы") },
@@ -397,13 +398,13 @@ test("«Университеты»: карточка вуза — програм
       assert.match(html, /aria-label="Наборы: /u);
       if (who === ADMIN) {
         assert.match(html, /data-testid="geography-panel"/u, "панель города и стоимости — прежняя, под карточкой");
-        assert.match(html, /Бланки университета/u);
+        assert.match(html, /data-testid="university-manage-menu"/u, "управление каталогом — меню «⋯»");
       } else assert.doesNotMatch(html, /data-testid="geography-panel"/u, `${label}: панель города — только редактору`);
       assert.doesNotMatch(html, /<a [^>]*target="_blank"(?![^>]*rel="noopener noreferrer")/u, "внешние ссылки — в новой вкладке и безопасно");
     }
   }
   const staff = text(await universityPage("[id]/page.tsx", "next", STAFF, { __id: id }).run());
-  assert.doesNotMatch(staff, /Предложить обновление|Бланки университета/u, "без права управлять — без кнопок управления");
+  assert.doesNotMatch(staff, /Предложить обновление|Бланки университета|university-manage-menu/u, "без права управлять — без кнопок управления");
   await assert.rejects(universityPage("[id]/page.tsx", "next", ADMIN, { __id: "not-a-uuid" }).run(), /NEXT_NOT_FOUND/u);
 });
 

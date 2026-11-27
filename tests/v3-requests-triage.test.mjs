@@ -276,7 +276,8 @@ test("migration 250 is forward-only, definer with an empty search path, and keep
 
 test("«Звонки» (телефония T9): the page reads v3 only, v3 is the v2 body plus phone_call behind ui_enabled, and v2 stays for the previous release", () => {
   const source = read("src/lib/v3/requests-queue-source.ts");
-  assert.match(source, /rpc\("staff_requests_queue_v3",/u);
+  // 377: страница читает v4 — то же тело v3 плюс смещение для номеров страниц (проверка 377 — в requests-queue.test.mjs).
+  assert.match(source, /rpc\("staff_requests_queue_v4",/u);
   assert.doesNotMatch(source, /staff_requests_queue_v2/u, "no parallel adapter: the page reads one version");
   const file = readdirSync(new URL("../supabase/migrations/", import.meta.url)).find((name) => name.endsWith("_platform_telephony_unknown_leads.sql"));
   assert.ok(file, "the migration is found by name, not by number");
@@ -356,7 +357,7 @@ test("«Звонки»: the tab, its number and its rows exist only when the rea
   assert.deepEqual(requestTabs(selection, null).map((tab) => tab.key), ["all", "website", "whatsapp", "platform_application", "portal_consultation"]);
   const queue = (phoneCalls) => ({
     rows: [], states: { lead: "ready", application: "ready", consultation: "ready" }, phoneCalls,
-    counts: { website: 0, whatsapp: 0, phone_call: phoneCalls ? 0 : null, application: 0, consultation: 0 }, latestAt: null, nextCursor: null, previousCursor: null,
+    counts: { website: 0, whatsapp: 0, phone_call: phoneCalls ? 0 : null, application: 0, consultation: 0 }, latestAt: null, nextCursor: null, previousCursor: null, offset: 0,
   });
   assert.match(requestEmptyWhat(queue(true), "all"), /звонки с неизвестных номеров/u);
   assert.doesNotMatch(requestEmptyWhat(queue(false), "all"), /звонки/u);

@@ -239,10 +239,10 @@ function draft(fields = {}) {
     access: { documents: true, finance: true, studentProfile: true, contract: true },
     routeTarget: { leadId: null, studentCaseId: CASE_ID }, responsible: "Айгүл Осмонова", provider: null, person: [], study: [],
     profileFields: null, studentApplication: null, profileFieldSources: [], documents: [], otherFiles: [],
-    budget: "1 500 $", currency: "USD", paid: "600 $", remaining: "900 $", paidPercent: 40,
+    budget: "1 500 USD", currency: "USD", paid: "600 USD", remaining: "900 USD", paidPercent: 40,
     payments: [
-      { name: "Первый платёж", amount: "600 $", state: "paid", at: "2026-09-12T08:00:00.000Z" },
-      { name: "Второй платёж — после оффера", amount: "900 $", state: "overdue", at: "2026-09-20T18:00:00.000Z" },
+      { id: "obligation-1", name: "Первый платёж", amount: "600 USD", paidPart: null, state: "paid", at: "2026-09-12T08:00:00.000Z" },
+      { id: "obligation-2", name: "Второй платёж — после оффера", amount: "900 USD", paidPart: null, state: "overdue", at: "2026-09-20T18:00:00.000Z" },
     ],
     admissions: {
       studentCaseId: CASE_ID, caseState: "active", isCabinetCase: false, direction: "CN", applications: [], visa: null,

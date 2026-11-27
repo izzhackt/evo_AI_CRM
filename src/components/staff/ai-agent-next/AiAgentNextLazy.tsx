@@ -7,5 +7,5 @@ import { NextScreenLoading } from "@/components/staff/admin-next/NextScreenLoadi
 
 /** Вход «ИИ-агента» (ответы Gemini в чате) в новом виде: таблицы, панели и подсказки на Radix не идут в первую загрузку сотрудников с прежним видом (см. `TodayNextLazy`). Границу `Suspense` над куском держит сам вход (`loading`), а не `loading.tsx` маршрута: файл маршрута менял бы и прежний вид. */
 export const AiAgentNextLazy = dynamic(() => import("./AiAgentNextPage").then((module) => module.AiAgentNextPage).catch(onScreenLoadFailed), {
-  loading: () => <NextScreenLoading label="Загружаем ИИ-агента…" />,
+  loading: () => <NextScreenLoading label="Загружаем помощника в чате…" />,
 });

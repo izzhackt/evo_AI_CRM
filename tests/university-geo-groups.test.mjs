@@ -16,6 +16,7 @@ import {
   parseCountryView,
   parseGeoCityParam,
   parseGeoCountryCode,
+  universityCityName,
   universityCityRef,
 } from "../src/lib/university-geo-groups.ts";
 
@@ -176,4 +177,24 @@ test("ответ чтения городов: точный набор ключе
   assert.equal(parseBrowseGeography({ ...browse(), cities: [browseCity("alpha-city", { country: "ZZ" })] }, ORG), null);
   assert.equal(parseBrowseGeography(null, ORG), null);
   assert.equal(parseBrowseGeography([], ORG), null);
+});
+
+test("название города в строке и шапке: русское из справочника по связи или по ru/en, иначе подпись карточки (25.11.2026)", () => {
+  const directory = {
+    cities: [{ key: "shanghai", nameRu: "Шанхай", nameEn: "Shanghai" }, { key: "guangzhou", nameRu: "Гуанчжоу", nameEn: "Guangzhou" }],
+    institutions: [{ id: "linked", cityKey: "guangzhou" }],
+  };
+  const latin = { id: "a", content: { name: "A", city: "SHANGHAI" } };
+  const russian = { id: "b", content: { name: "B", city: "Шанхай" } };
+  const linked = { id: "linked", content: { name: "C", city: "Canton" } };
+  const unknown = { id: "d", content: { name: "D", city: "Ningbo" } };
+  assert.equal(universityCityName(latin, directory), "Шанхай", "латиница в любом регистре — русское название справочника");
+  assert.equal(universityCityName(russian, directory), "Шанхай");
+  assert.equal(universityCityName(linked, directory), "Гуанчжоу", "связь с городом важнее подписи карточки");
+  assert.equal(universityCityName(unknown, directory), "Ningbo", "города нет в справочнике — подпись карточки как есть");
+  assert.equal(universityCityName(latin, null), "SHANGHAI", "справочник не прочитался — подпись карточки");
+  assert.equal(universityCityName({ id: "e", content: { name: "E", city: "  " } }, directory), null);
+  // Латинская и русская подписи одного города — одна группа.
+  const groups = groupCountryUniversities([latin, russian, linked], directory);
+  assert.deepEqual(groups.map((group) => [group.label, group.items.length]), [["Гуанчжоу", 1], ["Шанхай", 2]]);
 });

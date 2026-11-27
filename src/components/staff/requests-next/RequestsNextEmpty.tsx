@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
-import { requestsHref, type RequestsQueue } from "@/lib/requests-queue-contract";
+import { requestsHref, requestsPastFirstPage, type RequestsQueue } from "@/lib/requests-queue-contract";
 import { requestCallsOff, requestClosedKinds, requestLatestLine } from "@/lib/v3/requests-view";
 
 import type { ViewProps } from "../requests/RequestsQueueView";
@@ -15,11 +15,12 @@ import type { ViewProps } from "../requests/RequestsQueueView";
  */
 export function RequestsNextEmpty({ queue, props, now }: Readonly<{ queue: RequestsQueue; props: ViewProps; now: Date }>) {
   const { selection } = props;
-  if (selection.cursor) {
+  // Не первая страница (курсор или номер, 377): очередь успела уменьшиться — «Новых заявок нет» было бы неправдой.
+  if (requestsPastFirstPage(selection)) {
     return (
       <EmptyState
         title="На этой странице заявок больше нет: список изменился."
-        action={<Button variant="outline" asChild><Link href={requestsHref({ ...selection, cursor: null })}>К началу очереди</Link></Button>}
+        action={<Button variant="outline" asChild><Link href={requestsHref({ ...selection, cursor: null, page: undefined })}>К началу очереди</Link></Button>}
       />
     );
   }
@@ -28,7 +29,7 @@ export function RequestsNextEmpty({ queue, props, now }: Readonly<{ queue: Reque
   if (requestCallsOff(queue, selection.source)) return <EmptyState title="Звонки пока не подключены." />;
   const latest = requestLatestLine(queue.latestAt, now);
   const more = selection.status === "waiting" && queue.latestAt
-    ? <Button variant="outline" asChild><Link href={requestsHref({ ...selection, status: "all", cursor: null })}>Показать все</Link></Button> : null;
+    ? <Button variant="outline" asChild><Link href={requestsHref({ ...selection, status: "all", cursor: null, page: undefined })}>Показать все</Link></Button> : null;
   return (
     <EmptyState
       title={selection.status === "waiting" ? "Новых заявок нет" : "Заявок нет"}

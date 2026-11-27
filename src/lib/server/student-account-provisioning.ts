@@ -5,7 +5,6 @@ import { randomInt, randomUUID } from "node:crypto";
 import {
   ACCOUNT_NAME_PREFILL_KEY,
   TECHNICAL_STUDENT_EMAIL_DOMAIN,
-  TEMPORARY_PASSWORD_ALPHABET,
   TEMPORARY_PASSWORD_FLAG,
   type StudentAccountInput,
   type StudentAccountResult,
@@ -26,10 +25,9 @@ import { createPlatformSupabaseServiceClient } from "./platform-supabase-service
  * доступ к делу, привязывает дело и открывает кабинет — в одной транзакции базы.
  */
 
-/** 14 знаков: три группы по 4 без похожих символов, crypto.randomInt. */
+/** 6 цифр, первая не ноль (100000–999999), crypto.randomInt. */
 export function newTemporaryPassword(): string {
-  const group = () => Array.from({ length: 4 }, () => TEMPORARY_PASSWORD_ALPHABET[randomInt(TEMPORARY_PASSWORD_ALPHABET.length)]).join("");
-  return `${group()}-${group()}-${group()}`;
+  return String(randomInt(100000, 1000000));
 }
 
 /** Без почты — служебный адрес в зоне .invalid (RFC 2606): никуда не доставляется; студент позже добавит свою почту. */

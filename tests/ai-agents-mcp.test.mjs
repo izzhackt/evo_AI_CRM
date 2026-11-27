@@ -1134,3 +1134,30 @@ test("search_knowledge: описание инструмента называет
   assert.match(description, /vector/u);
   assert.match(description, /ru\/ky\/en/u);
 });
+
+test("search_knowledge: база не знает аргумента вектора (PGRST202 / 42883) — один повтор без вектора; другие ошибки не повторяются", async () => {
+  for (const code of ["PGRST202", "42883"]) {
+    const { handler, toolCalls } = harness({
+      embedQuery: async () => unitVector(),
+      rpc: rpcWith((_name, args) => ("p_query_embedding" in args
+        ? { data: null, error: { code, message: "Could not find the function" } }
+        : { data: { results: [{ document_title: "ok" }] }, error: null })),
+    });
+    const { result, body } = await toolCall(handler, "search_knowledge", { query: "dormitory fee" });
+    assert.equal(result.isError, false, code);
+    assert.equal(body.results[0].document_title, "ok", code);
+    assert.equal(toolCalls().length, 2, code);
+    assert.equal("p_query_embedding" in toolCalls()[0].args, true, code);
+    assert.equal("p_query_embedding" in toolCalls()[1].args, false, code);
+  }
+  const other = harness({
+    embedQuery: async () => unitVector(),
+    rpc: rpcWith(() => ({ data: null, error: { code: "XX000", message: "boom" } })),
+  });
+  const { result } = await toolCall(other.handler, "search_knowledge", { query: "dormitory fee" });
+  assert.equal(result.isError, true);
+  assert.equal(other.toolCalls().length, 1, "прочие ошибки без повтора");
+  const noVector = harness({ rpc: rpcWith(() => ({ data: null, error: { code: "PGRST202", message: "x" } })) });
+  await toolCall(noVector.handler, "search_knowledge", { query: "dormitory fee" });
+  assert.equal(noVector.toolCalls().length, 1, "без вектора повтора нет");
+});

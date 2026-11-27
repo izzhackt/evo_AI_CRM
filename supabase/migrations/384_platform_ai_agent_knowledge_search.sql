@@ -62,18 +62,21 @@ CREATE INDEX ai_chunks_fts_simple_gin ON platform_private.ai_chunks USING gin (f
 -- ---------------------------------------------------------------------------
 CREATE FUNCTION platform_private.ai_agent_search_any_word_query(p_query TEXT)
 RETURNS TSQUERY LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
-  SELECT NULLIF(pg_catalog.string_agg(pg_catalog.plainto_tsquery('pg_catalog.simple'::regconfig, w.word)::TEXT, ' | '
-      ORDER BY pg_catalog.char_length(w.word) DESC, w.word), '')::TSQUERY
+  SELECT NULLIF(pg_catalog.string_agg('(' || w.q::TEXT || ')', ' | ' ORDER BY pg_catalog.char_length(w.word) DESC, w.word), '')::TSQUERY
   FROM (
-    SELECT word FROM pg_catalog.unnest(pg_catalog.tsvector_to_array(pg_catalog.to_tsvector('pg_catalog.simple'::regconfig, COALESCE(p_query, '')))) AS word
-    WHERE pg_catalog.char_length(word) >= 3
-      AND word <> ALL (ARRAY[
-        'the', 'and', 'for', 'with', 'from', 'that', 'this', 'are', 'was', 'were', 'what', 'how', 'does', 'can', 'you', 'your', 'have', 'has', 'about', 'into',
-        'что', 'как', 'для', 'это', 'при', 'или', 'про', 'над', 'под', 'без', 'его', 'она', 'они', 'все', 'так', 'чем', 'где', 'кто', 'есть', 'нужно', 'можно',
-        'үчүн', 'жана', 'эмне', 'кандай', 'болот', 'бул', 'бар', 'же', 'жок', 'менен', 'деген', 'керек', 'болуп']::TEXT[])
-    ORDER BY pg_catalog.char_length(word) DESC, word
-    LIMIT 12
+    SELECT t.word, pg_catalog.plainto_tsquery('pg_catalog.simple'::regconfig, t.word) AS q
+    FROM (
+      SELECT word FROM pg_catalog.unnest(pg_catalog.tsvector_to_array(pg_catalog.to_tsvector('pg_catalog.simple'::regconfig, COALESCE(p_query, '')))) AS word
+      WHERE pg_catalog.char_length(word) >= 3
+        AND word <> ALL (ARRAY[
+          'the', 'and', 'for', 'with', 'from', 'that', 'this', 'are', 'was', 'were', 'what', 'how', 'does', 'can', 'you', 'your', 'have', 'has', 'about', 'into',
+          'что', 'как', 'для', 'это', 'при', 'или', 'про', 'над', 'под', 'без', 'его', 'она', 'они', 'все', 'так', 'чем', 'где', 'кто', 'есть', 'нужно', 'можно',
+          'үчүн', 'жана', 'эмне', 'кандай', 'болот', 'бул', 'бар', 'же', 'жок', 'менен', 'деген', 'керек', 'болуп']::TEXT[])
+      ORDER BY pg_catalog.char_length(word) DESC, word
+      LIMIT 12
+    ) t
   ) w
+  WHERE pg_catalog.numnode(w.q) > 0
 $$;
 REVOKE ALL ON FUNCTION platform_private.ai_agent_search_any_word_query(TEXT)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
@@ -188,5 +191,7 @@ $$;
 REVOKE ALL ON FUNCTION platform.ai_agent_tool_search_knowledge_v1(UUID, TEXT, JSONB, public.halfvec)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
 GRANT EXECUTE ON FUNCTION platform.ai_agent_tool_search_knowledge_v1(UUID, TEXT, JSONB, public.halfvec) TO service_role;
+
+NOTIFY pgrst, 'reload schema';
 
 COMMIT;

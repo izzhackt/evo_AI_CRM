@@ -536,6 +536,11 @@ export function refuseToolCall(
 
 type RpcResponse = Readonly<{ data: unknown; error: unknown }>;
 
+function isFunctionMissingError(error: unknown): boolean {
+  const code = isPlainObject(error) && typeof error.code === "string" ? error.code : "";
+  return code === "PGRST202" || code === "42883";
+}
+
 const QUERY_EMBEDDING_DIMENSIONS = 1_536;
 const DEFAULT_EMBED_DEADLINE_MS = 3_000;
 
@@ -597,17 +602,24 @@ export async function executeAiAgentTool(
 
   const queryEmbedding = def.name === "search_knowledge" ? await embedSearchQuery(runtime, ctx, args.query) : null;
 
-  let response: RpcResponse;
-  try {
-    response = (await withDeadline(
+  const callRpc = async (embedding: string | null): Promise<RpcResponse> =>
+    (await withDeadline(
       runtime.client.schema("platform").rpc(def.rpc, {
         p_organization_id: ctx.organizationId,
         p_agent_key: ctx.agentKey,
         p_args: args,
-        ...(queryEmbedding === null ? {} : { p_query_embedding: queryEmbedding }),
+        ...(embedding === null ? {} : { p_query_embedding: embedding }),
       }),
       runtime.rpcDeadlineMs,
     )) as RpcResponse;
+
+  let response: RpcResponse;
+  try {
+    response = await callRpc(queryEmbedding);
+    // База без миграции 384 (или с устаревшим кэшем схемы) не знает аргумента: один повтор без вектора.
+    if (queryEmbedding !== null && response.error && isFunctionMissingError(response.error)) {
+      response = await callRpc(null);
+    }
   } catch {
     return fail("unavailable", args);
   }

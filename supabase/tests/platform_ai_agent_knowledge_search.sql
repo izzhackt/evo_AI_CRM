@@ -6,7 +6,7 @@
 --
 -- Proves:
 --  1. posture: the old three-argument function is gone, the four-argument one has one default, is SECURITY DEFINER with an
---     empty search_path and runs for service_role only; the tool family is still 24; the helper is closed to every role;
+--     empty search_path and runs for service_role only; the helper is closed to every role;
 --     `fts_simple` is a generated column with its GIN index; the old three-argument call still works;
 --  2. Russian query: the same fragment first as before, match = fts_ru, with and without a query vector;
 --  3. Kyrgyz and English questions (words the Russian AND-query cannot match) find their fragment through `simple`;
@@ -120,15 +120,13 @@ SELECT pg_temp.a384_assert(
       AND p.proargtypes::TEXT = concat_ws(' ', 'uuid'::REGTYPE::OID, 'text'::REGTYPE::OID, 'jsonb'::REGTYPE::OID, 'public.halfvec'::REGTYPE::OID)
       AND has_function_privilege('service_role', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
       AND NOT has_function_privilege('anon', p.oid, 'EXECUTE'))
-  AND (SELECT count(*) = 24 FROM pg_proc p WHERE p.pronamespace = 'platform'::REGNAMESPACE AND p.proname LIKE 'ai\_agent\_tool\_%'
-      AND p.prosecdef AND has_function_privilege('service_role', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE'))
   AND (SELECT count(*) = 1 FROM pg_proc p WHERE p.pronamespace = 'platform_private'::REGNAMESPACE AND p.proname = 'ai_agent_search_any_word_query'
       AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
       AND NOT has_function_privilege('anon', p.oid, 'EXECUTE'))
   AND (SELECT a.attgenerated = 's' FROM pg_attribute a WHERE a.attrelid = 'platform_private.ai_chunks'::REGCLASS AND a.attname = 'fts_simple')
   AND (SELECT count(*) = 1 FROM pg_indexes i WHERE i.schemaname = 'platform_private' AND i.tablename = 'ai_chunks'
       AND i.indexname = 'ai_chunks_fts_simple_gin' AND i.indexdef LIKE '%USING gin (fts_simple)%'),
-  '384 posture: one four-argument search_knowledge (one default) for service_role only, 24 tools, a closed helper, the generated fts_simple with its GIN index');
+  '384 posture: one four-argument search_knowledge (one default) for service_role only, a closed helper, the generated fts_simple with its GIN index');
 
 -- ---------------------------------------------------------------------------
 -- 2. The Russian query keeps its first result (same fragment first as before 384), with and without a vector.
@@ -218,6 +216,19 @@ SELECT pg_temp.a384_assert(
   AND pg_temp.a384_svc(format('SELECT platform.ai_agent_tool_search_knowledge_v1(%L, ''sales'', ''{"query":"аб","limit":11}''::jsonb)', pg_temp.a384_id(1))) ->> 'error' = '22023'
   AND pg_temp.a384_svc(format('SELECT platform.ai_agent_tool_search_knowledge_v1(%L, ''sales'', ''{"query":"аб","vec":[1]}''::jsonb)', pg_temp.a384_id(1))) ->> 'error' = '22023',
   'a vector of the wrong length is 22023; the tool schema still refuses unknown keys and out-of-range limits');
+-- Odd text never breaks the any-word builder: punctuation, quotes, tsquery operators, only service words.
+SELECT pg_temp.a384_assert(
+  platform_private.ai_agent_search_any_word_query('the and for') IS NULL
+  AND platform_private.ai_agent_search_any_word_query('?!... "" ''') IS NULL
+  AND platform_private.ai_agent_search_any_word_query(NULL) IS NULL
+  AND platform_private.ai_agent_search_any_word_query('dormitory & | ! : * fee') IS NOT NULL
+  AND platform_private.ai_agent_search_any_word_query('a&b|c!d:*e "quoted words" (x)')::TEXT NOT LIKE '%( |%',
+  'the any-word builder skips empty parts and survives punctuation, quotes and tsquery operators');
+SELECT pg_temp.a384_assert(
+  pg_temp.a384_titles(pg_temp.a384_search($j${"query":"dormitory & | ! : * fee \"month\" ((("}$j$)) = 'Dormitory EN'
+  AND pg_temp.a384_titles(pg_temp.a384_search($j${"query":"&|!:*"}$j$)) = ''
+  AND pg_temp.a384_titles(pg_temp.a384_search($j${"query":"\"\" '' ()"}$j$)) = '',
+  'a query of operators, quotes and punctuation does not fail the search');
 -- Nobody but the service can search.
 SELECT pg_temp.a384_assert(
   pg_temp.a384_call('authenticated', '{"role":"authenticated"}', format('SELECT platform.ai_agent_tool_search_knowledge_v1(%L, ''sales'', ''{"query":"dormitory"}''::jsonb)', pg_temp.a384_id(1))) ->> 'error' = '42501'

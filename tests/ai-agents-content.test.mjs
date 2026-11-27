@@ -315,7 +315,7 @@ test("«Продажи»: события, квалификация, курсы, 
 test("«Продажи»: курсы берутся из фактов, правила остаются в тексте", () => {
   const sales = AI_AGENT_DEFAULTS.sales.instructions;
   // Цифры курсов в тексте не живут: ссылка на инструмент и на тему course.
-  assert.match(sales, /`get_company_facts` \(`topic_prefix: course\.`\)/);
+  assert.match(sales, /`get_company_facts` \(`topic_prefix: course\.`/);
   assert.match(sales, /бесплатный пробный урок/i);
   assert.match(sales, /менеджер пришлёт приглашение/);
   assert.match(sales, /Ссылки у тебя нет: не придумывай её/);
@@ -334,15 +334,15 @@ test("«Продажи»: курсы берутся из фактов, прав�
 
 test("факты в инструменте, не в промпте: нет сумм, дат набора и «по состоянию на»; красные линии на месте", () => {
   const MONTHS = "января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря";
-  // Единственная дата, которая остаётся в тексте: когда владелец утвердил основу инструкции. Это не данные набора.
+  // Белый список узкий: только фраза про дату утверждения основы инструкции (это история, не данные набора).
   const approval = /утвердил его для работы ИИ-агентов 23 октября 2026 года/g;
+  const CURRENCY = "USD|EUR|KGS|CNY|RMB|MYR|RUB|KZT|долл\\p{L}*|сом(?:ов|а)?(?![\\p{L}])|руб\\p{L}*|юан\\p{L}*|ринггит\\p{L}*|евро|тенге|тг|RM(?![\\p{L}])";
   const rules = [
-    ["сумма в валюте", /\d[\d\s]*\s*(?:USD|\$|долл|сом(?:ов|а)?(?![\p{L}])|KGS|юан|CNY|RMB|RM(?![\p{L}])|MYR|ринггит|евро|EUR|тенге)/iu],
-    ["сумма со знаком валюты впереди", /(?:\$|USD|€)\s?\d/iu],
-    ["числовая дата", /\b\d{1,2}[./]\d{1,2}[./](?:20)?\d\d\b/u],
-    ["дата словами с годом", new RegExp(`\\d{1,2}\\s+(?:${MONTHS})\\s+20\\d\\d`, "iu")],
-    ["срок «до <число> <месяц>»", new RegExp(`(?<![\\p{L}])до\\s+\\d{1,2}\\s+(?:${MONTHS})`, "iu")],
-    ["год набора", /\b(?:2026|2027|2028)\b/u],
+    ["сумма в валюте", new RegExp(`\\d[\\d\\s.,]*\\s*(?:тыс(?:\\.|\\p{L}*)?\\s*)?(?:${CURRENCY}|[$€₸¥₽])`, "iu")],
+    ["знак валюты перед суммой", /[$€₸¥₽]\s?\d|(?:USD|EUR|CNY|RMB|MYR|RM)\s?\d/u],
+    ["день и месяц (15 марта, с 1 сентября, не позднее 1 октября)", new RegExp(`\\d{1,2}\\s+(?:${MONTHS})`, "iu")],
+    ["числовая дата 15.03 или 15/03/2027", /(?<![\d.,])\d{1,2}[./](?:0?[1-9]|1[0-2])(?:[./](?:20)?\d\d)?(?![\d])/u],
+    ["любой год 20xx (в марте 2029)", /(?<!\d)20\d\d(?!\d)/u],
     ["«по состоянию на»", /по состоянию на|данные владельца на|данные на \d/iu],
   ];
   for (const { label, text } of allTexts()) {
@@ -375,6 +375,35 @@ test("факты в инструменте, не в промпте: нет су�
   assert.ok(facts("curator-my").includes("гарантий поступления и визы не давай"));
   assert.ok(facts("sales").includes("Не гарантируй поступление, визу, стипендию, сроки решений и балл на экзамене."));
   assert.ok(facts("sales").includes("Рассрочку и дополнительные скидки не обещай"));
+});
+
+test("темы фактов в инструкциях: существуют в посеве 381 и доступны агенту по умолчанию или по указанному audience", () => {
+  const sql = readFileSync(path.join(ROOT, "supabase", "migrations", "381_platform_company_facts.sql"), "utf8");
+  const seed = JSON.parse(/\$seed\$(\[.*?\])\$seed\$/su.exec(sql)[1]);
+  // Умолчание инструмента: продажи видят клиентские факты, остальные роли клиентские и внутренние (both).
+  const defaultAudience = (key) => (key === "sales" ? "client" : "both");
+  for (const key of WITH_INSTRUCTIONS) {
+    const instructions = AI_AGENT_DEFAULTS[key].instructions;
+    const lines = instructions.split("\n");
+    const refs = [];
+    for (const line of lines) {
+      for (const m of line.matchAll(/topic_prefix:\s*([a-z0-9][a-z0-9._-]*)/g)) refs.push({ ref: m[1], line });
+      for (const m of line.matchAll(/`((?:course|promise|calendar|process|exam|docs|visa|arrival|uni|housing|payments|metric)\.[a-z0-9._-]*)`/g)) refs.push({ ref: m[1], line });
+    }
+    assert.ok(refs.length >= 1, `${key}: инструкция называет темы фактов`);
+    for (const { ref, line } of refs) {
+      const matched = seed.filter((row) => row.topic === ref || row.topic.startsWith(ref.endsWith(".") ? ref : `${ref}.`));
+      assert.ok(matched.length > 0, `${key}: темы «${ref}» нет в посеве 381`);
+      const needsInternal = matched.some((row) => row.audience === "internal");
+      const explicit = /audience:\s*"(?:both|internal)"/.test(line);
+      if (needsInternal && defaultAudience(key) === "client") {
+        assert.ok(explicit, `${key}: «${ref}» включает внутренние факты, а по умолчанию агент видит только client: нужен audience: "both" в той же строке`);
+      }
+      if (!needsInternal) assert.ok(matched.every((row) => row.audience === "client") || explicit || defaultAudience(key) === "both", `${key}: ${ref}`);
+    }
+  }
+  // Внутренние факты называют только роли, у которых к ним есть доступ.
+  assert.match(AI_AGENT_DEFAULTS.sales.instructions, /topic_prefix: course\.`, `audience: "both"`/);
 });
 
 test("парсер: блок schedule_prompt, комментарии, ошибки", () => {

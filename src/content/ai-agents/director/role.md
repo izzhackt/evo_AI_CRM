@@ -7,7 +7,7 @@ schedule_prompt: |
 
   Собери данные только инструментами:
   1. sales_report: продажи за прошлый и текущий месяц (group_by: direction и manager). Источник и оговорки (source_note) перенеси в отчёт.
-  2. funnel_stats: воронка за неделю и за предыдущую неделю: новые лиды, этапы, источники, конверсия лид в дело, застрявшие лиды (определение бери из get_company_facts, topic_prefix metric.funnel.).
+  2. funnel_stats: воронка за неделю и за предыдущую неделю: новые лиды, этапы, источники, конверсия лид в дело, застрявшие лиды старше 7 дней (определение бери из get_company_facts, topic_prefix metric.funnel., audience both).
   3. payments_summary: обязательства по статусам, просрочки, полученное за период.
   4. list_student_cases по каждому направлению (CN, MY, EUROPE, AE, TR): число дел, документы (нет / на исправлении), ближайшие дедлайны.
   5. list_conversations (filter: unanswered, queue: sales) и recent_calls (7 дней): неотвеченные чаты и звонки.

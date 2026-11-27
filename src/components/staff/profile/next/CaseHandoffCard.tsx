@@ -34,9 +34,9 @@ export function CaseHandoffCard({
   editable: boolean;
   requestId: string;
 }>) {
-  const work = useAgentWork({ kind: "handoff", studentCaseId, requestId })
+  const work = useAgentWork({ kind: "handoff", studentCaseId, requestId });
   // Какая страница была до нажатия: если запуск кончился, а новой заметки нет, говорим об этом.
-  const [before, setBefore] = useState<string | null>(null);;
+  const [before, setBefore] = useState<string | null>(null);
   const action = editable ? (
     work.busy ? (
       <p role="status" className="inline-flex min-h-11 items-center t-body-compact text-fg-2" data-testid="v3-case-handoff-thinking">{work.phase.kind === "starting" ? words.starting : words.handoffThinking}</p>

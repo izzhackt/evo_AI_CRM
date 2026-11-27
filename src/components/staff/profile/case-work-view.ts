@@ -72,6 +72,8 @@ export type CaseWorkActivity =
  */
 export type CaseWorkAgent = Readonly<{
   suggestion: AgentSuggestion | null;
+  /** Чтение предложения: `unavailable` — не удалось (честное слово на экране), `forbidden` — права нет (ничего не показываем). */
+  suggestionRead: "ready" | "forbidden" | "unavailable";
   handoff: Readonly<{ kind: "ready"; note: HandoffNote | null }> | Readonly<{ kind: "unavailable" }> | Readonly<{ kind: "not_read" }>;
   nextStepRequestId: string;
   handoffRequestId: string;

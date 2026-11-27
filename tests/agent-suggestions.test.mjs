@@ -396,3 +396,13 @@ test("слова отказов запуска берутся из словар�
   assert.match(smoke, /EXPECTED_TOOLS = readToolNames\(\)\.length/u);
   assert.doesNotMatch(read("docs/runbooks/ai-agents-managed.md"), /\(26 инструментов\)/u);
 });
+
+test("предложение не прочиталось — об этом сказано словами, а не пустым местом; «Передача» без лишних знаков", () => {
+  assert.match(read("src/lib/v3/case-work-source.ts"), /suggestionRead: suggestion\.kind/u);
+  const ui = read("src/components/staff/profile/AgentNextStep.tsx");
+  assert.match(ui, /data-testid="v3-agent-unread">\{words\.suggestionUnread\}/u);
+  assert.match(agentSuggestionWords.suggestionUnread, /Не удалось прочитать предложение агента/u);
+  const card = read("src/components/staff/profile/next/CaseHandoffCard.tsx");
+  assert.doesNotMatch(card, /;;|\)\n\s*\/\/ Какая/u);
+  assert.match(read("supabase/migrations/383_platform_agent_suggestions.sql"), /\|aed\)\\y\)'\)\)/u, "денежная ветка словами кончается границей слова");
+});

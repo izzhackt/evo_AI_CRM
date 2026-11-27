@@ -21,6 +21,8 @@ export type AgentNextStepProps = Readonly<{
   editable: boolean;
   version: string | null;
   suggestion: AgentSuggestion | null;
+  /** Предложение не удалось прочитать: об этом сказано словами, а не молчанием. */
+  unread: boolean;
   today: string;
   requestId: string;
   /** Шаг записан «Принять»: строка шага берёт квитанцию и id РЕШЕНИЯ (не запуска агента). */
@@ -94,7 +96,7 @@ export function AgentNextStep(props: AgentNextStepProps) {
 
   const shown = noStep && suggestion !== null && suggestion.id !== decidedId ? suggestion : null;
   const { phase, busy: running } = work;
-  if (!editable && !shown && !feedback) return null;
+  if (!editable && !shown && !feedback && !(props.unread && noStep)) return null;
   if (!noStep && !feedback) return null;
 
   return (
@@ -116,6 +118,7 @@ export function AgentNextStep(props: AgentNextStepProps) {
           </p>
         )
       ) : null}
+      {props.unread && noStep && !shown ? <p role="status" className="t-body-compact text-fg-2" data-testid="v3-agent-unread">{words.suggestionUnread}</p> : null}
       {phase.kind === "failed" ? <p role="alert" className="t-body-compact text-danger" data-testid="v3-agent-failed">{phase.message}</p> : null}
       {feedback ? (
         <p role={feedback.tone === "ok" ? "status" : "alert"} className={`t-body-compact ${feedback.tone === "ok" ? "text-ok" : "text-danger"}`}>{feedback.text}</p>

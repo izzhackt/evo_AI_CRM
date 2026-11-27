@@ -167,6 +167,10 @@ SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden(
 SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Снять 2 сомнения студента', TRUE), '2 сомнения passes');
 SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Пройти 3 рубежа подготовки', TRUE), '3 рубежа passes');
 SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Подготовить 4 лирических текста', TRUE), '4 лирических passes');
+SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Позвонить в тысячелетний сомнительный рубеж', TRUE), 'a thousand-word followed by an ordinary word does not trip');
+SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Собрать миллион европейских справок', TRUE), 'миллион европейских passes');
+SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Заказать тысячу рубежных копий', TRUE), 'тысячу рубежных passes');
+SELECT pg_temp.a383_assert(platform_private.agent_suggestion_text_forbidden('Доплатить тысяч сомов', TRUE), 'тысяч сомов is forbidden');
 
 -- ---------------------------------------------------------------------------
 -- 1. propose, repeat, replace.

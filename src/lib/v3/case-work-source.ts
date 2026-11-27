@@ -98,6 +98,7 @@ async function readCaseAgent(actor: ActivePlatformActor, target: CaseWorkTarget,
   ]);
   return Object.freeze({
     suggestion: suggestion.kind === "ready" ? suggestion.value : null,
+    suggestionRead: suggestion.kind,
     handoff: handoff === null ? Object.freeze({ kind: "not_read" as const })
       : handoff.kind === "ready" ? Object.freeze({ kind: "ready" as const, note: handoff.value })
         : Object.freeze({ kind: "unavailable" as const }),

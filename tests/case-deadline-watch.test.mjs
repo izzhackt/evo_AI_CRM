@@ -146,7 +146,7 @@ test("образ несёт /app/case-deadline-watch.mjs, сборка вход�
     /^COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/\.next\/case-deadline-watch\.mjs \.\/case-deadline-watch\.mjs$/mu);
   const scripts = JSON.parse(read("package.json")).scripts;
   assert.equal(scripts["build:case-deadline-watch"], "node scripts/maintenance/build-case-deadline-watch.mjs");
-  assert.match(scripts.build, /&& npm run build:case-deadline-watch && npm run build:ai-agents-maintenance$/u);
+  assert.match(scripts.build, /&& npm run build:knowledge-maintenance && npm run build:case-deadline-watch && npm run build:telephony-maintenance && /u);
   assert.match(read("scripts/maintenance/build-case-deadline-watch.mjs"), /outfile: "\.next\/case-deadline-watch\.mjs"/u);
 });
 

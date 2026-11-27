@@ -8,7 +8,7 @@
     "predev": "node scripts/checks/check-node-runtime.mjs",
     "dev": "next dev",
     "prebuild": "node scripts/checks/check-node-runtime.mjs",
-    "build": "next build && npm run check:client-bundle && npm run build:platform-knowledge-import && npm run build:document-recognition-worker && npm run build:document-classification-batch && npm run build:knowledge-maintenance && npm run build:telephony-maintenance && npm run build:whatsapp-health-maintenance && npm run build:case-deadline-watch && npm run build:ai-agents-maintenance",
+    "build": "next build && npm run check:client-bundle && npm run build:platform-knowledge-import && npm run build:document-recognition-worker && npm run build:document-classification-batch && npm run build:knowledge-maintenance && npm run build:case-deadline-watch && npm run build:telephony-maintenance && npm run build:whatsapp-health-maintenance && npm run build:ai-agents-maintenance",
     "clean:next-dev-types": "node scripts/local-dev/clean-next-dev-types.mjs",
     "typecheck": "npm run clean:next-dev-types && next typegen && tsc --noEmit",
     "check:client-bundle": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/checks/check-client-bundle-prompts.mjs",

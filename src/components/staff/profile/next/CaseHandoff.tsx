@@ -16,8 +16,6 @@ export function CaseHandoff({ input }: Readonly<{ input: CaseOverviewInput }>) {
       note={agent.handoff.kind === "ready" ? agent.handoff.note : null}
       unavailable={agent.handoff.kind === "unavailable"}
       editable={input.handoffEditable === true && row !== null}
-      direction={row?.admissionsDirection ?? null}
-      country={row?.targetCountry ?? null}
       requestId={agent.handoffRequestId}
     />
   );

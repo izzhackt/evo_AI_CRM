@@ -1120,9 +1120,14 @@ export const AI_AGENTS_ERROR_COPY: Readonly<Record<string, string>> = {
   version_conflict: "Настройки уже изменились — обновите страницу.",
   request_conflict: "Запрос уже выполнен с другими данными — обновите страницу.",
   not_found: "Не найдено.",
+  no_agent: "Для направления этого дела агента нет.",
+  not_active: "Дело не в работе: агента по нему не запустить.",
   conflict: "Данные уже изменились — обновите страницу.",
   not_ready: "Раздел готовится: база ещё не обновлена.",
 };
+
+/** Отказ запуска агента по кнопкам карточки дела: слова раздела «ИИ-агенты» (`AI_AGENTS_ERROR_COPY`), второго словаря нет. */
+export const agentRunStartOutcome = (code: string): string => aiAgentsErrorCopy(code);
 
 export const aiAgentsErrorCopy = (code: string | null | undefined): string => (code && AI_AGENTS_ERROR_COPY[code]) || AI_AGENTS_ERROR_COPY.unavailable;
 

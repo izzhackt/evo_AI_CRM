@@ -24,8 +24,6 @@ import { createSupabaseServerClient } from "./supabase/server";
 import { agentSuggestionOutcome } from "./v3/wording";
 
 const CONTROL = /[\u0000-\u001f\u007f]/u;
-const DIRECTION = /^[A-Za-z]{2,12}$/u;
-const COUNTRY_MAX = 80;
 const DISMISS_REASON_MAX = 300;
 
 /* ----------------------------------------------------------- запуск агента */
@@ -45,27 +43,22 @@ async function authorize(): Promise<Authorized> {
 }
 
 /**
- * «Предложить шаг» (`kind=next_step`) и «Собрать передачу» (`kind=handoff`): поручение агенту-куратору по стране и
- * направлению дела. Поля: `student_case_id`, `kind`, `direction`, `country`, `request_id`.
+ * «Предложить шаг» (`kind=next_step`) и «Собрать передачу» (`kind=handoff`): поручение агенту-куратору. Поля формы:
+ * `student_case_id`, `kind`, `request_id`; страну и направление сервер читает сам (`runAgentWork`), из формы их нет.
  */
 export async function requestAgentWorkAction(_previous: AgentWorkActionState, form: FormData): Promise<AgentWorkActionState> {
   let requestId: string | null = null;
   try {
-    const fields = exactActionStringFields(form, ["student_case_id", "kind", "direction", "country", "request_id"]);
+    const fields = exactActionStringFields(form, ["student_case_id", "kind", "request_id"]);
     requestId = parseQueueUuid(fields?.get("request_id"));
     const studentCaseId = parseQueueUuid(fields?.get("student_case_id"));
     const kind = fields?.get("kind");
-    const direction = (fields?.get("direction") ?? "").trim();
-    const country = (fields?.get("country") ?? "").trim();
-    if (!fields || !requestId || !studentCaseId || (kind !== "next_step" && kind !== "handoff")
-      || (direction !== "" && !DIRECTION.test(direction)) || [...country].length > COUNTRY_MAX || CONTROL.test(country)) {
+    if (!fields || !requestId || !studentCaseId || (kind !== "next_step" && kind !== "handoff")) {
       return agentWorkFailed("invalid_input", requestId);
     }
     const access = await authorize();
     if (!access.ok) return agentWorkFailed(access.code, requestId);
-    return await runAgentWork(access.ctx, {
-      kind, studentCaseId, direction: direction || null, country: country || null, requestId,
-    });
+    return await runAgentWork(access.ctx, { kind, studentCaseId, requestId });
   } catch {
     return agentWorkFailed("unavailable", requestId);
   }

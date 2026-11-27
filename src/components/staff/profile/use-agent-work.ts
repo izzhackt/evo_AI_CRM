@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { pollAgentWorkAction, requestAgentWorkAction } from "@/lib/platform-agent-suggestions-actions";
 import { agentSuggestionWords } from "@/lib/v3/wording";
@@ -12,7 +12,9 @@ const POLL_LIMIT_MS = 180_000;
 
 export type AgentWorkPhase =
   | Readonly<{ kind: "idle" }>
+  | Readonly<{ kind: "starting" }>
   | Readonly<{ kind: "thinking"; runId: string }>
+  | Readonly<{ kind: "lost" }>
   | Readonly<{ kind: "failed"; message: string }>
   | Readonly<{ kind: "finished" }>
   | Readonly<{ kind: "slow" }>;
@@ -25,15 +27,16 @@ export type AgentWorkPhase =
 export function useAgentWork(input: Readonly<{
   kind: "next_step" | "handoff";
   studentCaseId: string;
-  direction: string | null;
-  country: string | null;
   requestId: string;
 }>) {
   const router = useRouter();
+  // Перечитывание страницы после конца запуска: пока оно идёт, «ничего не появилось» ещё говорить рано.
+  const [refreshing, startRefresh] = useTransition();
   const [phase, setPhase] = useState<AgentWorkPhase>({ kind: "idle" });
   const [requestId, setRequestId] = useState(input.requestId);
   const lock = useRef(false);
   const startedAt = useRef(0);
+  const misses = useRef(0);
 
   useEffect(() => {
     if (phase.kind !== "thinking") return;
@@ -42,9 +45,12 @@ export function useAgentWork(input: Readonly<{
     const tick = async () => {
       const poll = await pollAgentWorkAction(phase.runId).catch((): { state: "unavailable" } => ({ state: "unavailable" }));
       if (cancelled) return;
-      if (poll.state === "done") { setPhase({ kind: "finished" }); router.refresh(); return; }
+      // Три неответа подряд — честно «не знаем, чем кончилось», а не «агент ещё работает».
+      misses.current = poll.state === "unavailable" ? misses.current + 1 : 0;
+      if (misses.current >= 3) { setPhase({ kind: "lost" }); return; }
+      if (poll.state === "done") { setPhase({ kind: "finished" }); startRefresh(() => router.refresh()); return; }
       if (poll.state === "failed") { setPhase({ kind: "failed", message: poll.message }); return; }
-      if (Date.now() - startedAt.current > POLL_LIMIT_MS) { setPhase({ kind: "slow" }); router.refresh(); return; }
+      if (Date.now() - startedAt.current > POLL_LIMIT_MS) { setPhase({ kind: "slow" }); startRefresh(() => router.refresh()); return; }
       timer = setTimeout(tick, POLL_EVERY_MS);
     };
     timer = setTimeout(tick, POLL_EVERY_MS);
@@ -54,12 +60,13 @@ export function useAgentWork(input: Readonly<{
   async function ask() {
     if (lock.current) return;
     lock.current = true;
+    misses.current = 0;
+    // Сразу «Запускаем агента…» и кнопка недоступна: второй запуск не начнётся, пока первый не ответил.
+    setPhase({ kind: "starting" });
     try {
       const form = new FormData();
       form.set("student_case_id", input.studentCaseId);
       form.set("kind", input.kind);
-      form.set("direction", input.direction ?? "");
-      form.set("country", input.country ?? "");
       form.set("request_id", requestId);
       const state = await requestAgentWorkAction({ status: "idle", requestId, message: null, runId: null }, form);
       setRequestId(state.requestId);
@@ -76,5 +83,6 @@ export function useAgentWork(input: Readonly<{
     }
   }
 
-  return { phase, ask, thinking: phase.kind === "thinking" } as const;
+  const reset = () => setPhase({ kind: "idle" });
+  return { phase, ask, reset, refreshing, busy: phase.kind === "starting" || phase.kind === "thinking" } as const;
 }

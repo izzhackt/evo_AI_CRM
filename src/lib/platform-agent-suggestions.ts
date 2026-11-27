@@ -7,9 +7,11 @@
 import type { ActivePlatformActor } from "./platform-auth";
 import {
   agentSuggestionStatusFromRpcError,
+  parseAgentCaseTarget,
   parseAgentSuggestion,
   parseAgentSuggestionDecided,
   parseHandoffNote,
+  type AgentCaseTarget,
   type AgentSuggestion,
   type AgentSuggestionDecided,
   type AgentSuggestionDecision,
@@ -57,6 +59,15 @@ async function readOne<T>(
   } catch {
     return { kind: "unavailable" };
   }
+}
+
+/** Дело для запуска агента, прочитанное сервером с правом записи шага — `agent_case_target_v1`. */
+export function readAgentCaseTarget(
+  actor: Pick<ActivePlatformActor, "organizationId">,
+  studentCaseId: string,
+  client?: RpcClient,
+): Promise<AgentSuggestionRead<AgentCaseTarget>> {
+  return readOne(actor, "agent_case_target_v1", studentCaseId, (data) => parseAgentCaseTarget(data, studentCaseId), client);
 }
 
 /** Текущее предложение шага по делу (pending и не просрочено) — `agent_suggestion_read_v1`. */

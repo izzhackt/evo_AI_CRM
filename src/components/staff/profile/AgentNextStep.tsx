@@ -5,7 +5,7 @@ import { useRef, useState, type FormEvent } from "react";
 
 import type { AgentSuggestion } from "@/lib/agent-suggestions-contract";
 import { decideAgentSuggestionAction, type AgentSuggestionActionState } from "@/lib/platform-agent-suggestions-actions";
-import { agentSuggestionWords as words } from "@/lib/v3/wording";
+import { agentSuggestionOutcome, agentSuggestionWords as words } from "@/lib/v3/wording";
 
 import { AgentSuggestionRow } from "./AgentSuggestionRow";
 import { useAgentWork } from "./use-agent-work";
@@ -21,12 +21,10 @@ export type AgentNextStepProps = Readonly<{
   editable: boolean;
   version: string | null;
   suggestion: AgentSuggestion | null;
-  direction: string | null;
-  country: string | null;
   today: string;
   requestId: string;
-  /** Шаг записан «Принять»: строка шага берёт квитанцию. */
-  onAccepted: (receipt: NonNullable<AgentSuggestionActionState["receipt"]>) => void;
+  /** Шаг записан «Принять»: строка шага берёт квитанцию и id РЕШЕНИЯ (не запуска агента). */
+  onAccepted: (receipt: NonNullable<AgentSuggestionActionState["receipt"]>, decisionRequestId: string) => void;
 }>;
 
 /**
@@ -36,9 +34,9 @@ export type AgentNextStepProps = Readonly<{
  * остаётся). Пока агент работает — «Агент думает…», страница опрашивает запуск и сама подхватывает предложение.
  */
 export function AgentNextStep(props: AgentNextStepProps) {
-  const { studentCaseId, noStep, editable, version, suggestion, direction, country, today, onAccepted } = props;
+  const { studentCaseId, noStep, editable, version, suggestion, today, onAccepted } = props;
   const router = useRouter();
-  const work = useAgentWork({ kind: "next_step", studentCaseId, direction, country, requestId: props.requestId });
+  const work = useAgentWork({ kind: "next_step", studentCaseId, requestId: props.requestId });
   const [decideRequestId, setDecideRequestId] = useState<string | null>(null);
   const [busy, setBusy] = useState<"accept" | "dismiss" | null>(null);
   const [asking, setAsking] = useState(false);
@@ -52,7 +50,7 @@ export function AgentNextStep(props: AgentNextStepProps) {
   const [seenId, setSeenId] = useState(suggestion?.id ?? null);
   if ((suggestion?.id ?? null) !== seenId) {
     setSeenId(suggestion?.id ?? null);
-    if (suggestion) setFeedback(null);
+    if (suggestion) { setFeedback(null); work.reset(); }
   }
 
   async function decide(decision: "accept" | "dismiss", event?: FormEvent) {
@@ -77,7 +75,7 @@ export function AgentNextStep(props: AgentNextStepProps) {
         setDecideRequestId(null);
         setAsking(false);
         setReason("");
-        if (state.status === "accepted" && state.receipt) onAccepted(state.receipt);
+        if (state.status === "accepted" && state.receipt) onAccepted(state.receipt, id);
         setFeedback({ tone: "ok", text: state.message ?? "" });
         router.refresh();
       } else {
@@ -87,7 +85,7 @@ export function AgentNextStep(props: AgentNextStepProps) {
         if (state.status === "stale" || state.status === "gone") router.refresh();
       }
     } catch {
-      setFeedback({ tone: "danger", text: "Не удалось подтвердить сохранение. Повторите: повтор не запишет шаг дважды." });
+      setFeedback({ tone: "danger", text: agentSuggestionOutcome("unavailable") ?? "" });
     } finally {
       lock.current = false;
       setBusy(null);
@@ -95,7 +93,7 @@ export function AgentNextStep(props: AgentNextStepProps) {
   }
 
   const shown = noStep && suggestion !== null && suggestion.id !== decidedId ? suggestion : null;
-  const { phase, thinking } = work;
+  const { phase, busy: running } = work;
   if (!editable && !shown && !feedback) return null;
   if (!noStep && !feedback) return null;
 
@@ -105,13 +103,16 @@ export function AgentNextStep(props: AgentNextStepProps) {
         <AgentSuggestionRow suggestion={shown} today={today} editable={editable} version={version} busy={busy} asking={asking} reason={reason}
           onReason={setReason} onAsk={setAsking} onAccept={() => void decide("accept")} onDismiss={(event) => void decide("dismiss", event)} />
       ) : editable && noStep ? (
-        thinking ? (
-          <p role="status" className="inline-flex min-h-11 items-center t-body-compact text-fg-2" data-testid="v3-agent-thinking">{words.thinking}</p>
+        running ? (
+          <p role="status" className="inline-flex min-h-11 items-center t-body-compact text-fg-2" data-testid="v3-agent-thinking">
+            {phase.kind === "starting" ? words.starting : words.thinking}
+          </p>
         ) : (
           <p className="flex flex-wrap items-baseline gap-x-3">
-            <button type="button" onClick={() => void work.ask()} className={FACT_ACTION} data-testid="v3-agent-suggest">{words.suggest}</button>
-            {phase.kind === "finished" ? <span className="t-body-compact text-fg-2" data-testid="v3-agent-none">{words.noProposal}</span> : null}
+            <button type="button" onClick={() => void work.ask()} disabled={running} className={FACT_ACTION} data-testid="v3-agent-suggest">{words.suggest}</button>
+            {phase.kind === "finished" && !work.refreshing && !shown ? <span className="t-body-compact text-fg-2" data-testid="v3-agent-none">{words.noProposal}</span> : null}
             {phase.kind === "slow" ? <span className="t-body-compact text-fg-2">{words.stillWorking}</span> : null}
+            {phase.kind === "lost" ? <span className="t-body-compact text-fg-2" data-testid="v3-agent-lost">{words.pollLost}</span> : null}
           </p>
         )
       ) : null}

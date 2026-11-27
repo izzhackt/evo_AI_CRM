@@ -17,6 +17,7 @@ import {
   curatorAgentKey,
   handoffCommandText,
   nextStepCommandText,
+  parseAgentCaseTarget,
   parseAgentSuggestion,
   parseAgentSuggestionDecided,
   parseHandoffNote,
@@ -25,7 +26,8 @@ import { AI_AGENT_DEFAULTS } from "../src/content/ai-agents/index.ts";
 import { AI_AGENT_TOOL_GRANTS } from "../src/content/ai-agents/tool-grants.generated.ts";
 import { decideAgentSuggestion, readAgentSuggestion, readCaseHandoffNote } from "../src/lib/platform-agent-suggestions.ts";
 import { runAgentWork } from "../src/lib/platform-agent-work.ts";
-import { agentRunStartOutcome, agentSuggestionOutcome, agentSuggestionWords } from "../src/lib/v3/wording.ts";
+import { agentSuggestionOutcome, agentSuggestionWords } from "../src/lib/v3/wording.ts";
+import { AI_AGENTS_ERROR_COPY, agentRunStartOutcome } from "../src/lib/v3/ai-agents-view.ts";
 import { ORG, REQ_ID, RUN_ID, STAFF_ID, actor, fakeClaude, fakeRpc, runtimeDeps } from "./ai-agents-fakes.mjs";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -77,12 +79,12 @@ test("правила кураторов Китая и Малайзии несу�
     const start = text.indexOf("### «Собрать передачу»");
     assert.ok(start > 0, `${key}: раздел есть`);
     const section = text.slice(start, text.indexOf("## Общение со студентом"));
-    const order = ["Студент:", "Что обещали:", "Деньги", "Документы:", "Следующий шаг:", "Открытые вопросы:", "Кто решает:"].map((label) => section.indexOf(label));
+    const order = ["Студент:", "Что обещали:", "Деньги", "Документы:", "Следующий шаг:", "Открытые вопросы:", "Несовершеннолетний / решает родитель:"].map((label) => section.indexOf(label));
     assert.ok(order.every((index) => index > 0), `${key}: все поля`);
     assert.deepEqual([...order].sort((a, b) => a - b), order, `${key}: порядок полей`);
     for (const money of ["Условия продажи (до договора, не долг)", "По договору", "Каталог вузов"]) assert.ok(section.includes(money), `${key}: ${money}`);
     assert.match(section, /«Не сказано» вместо догадок/u);
-    assert.match(section, /«решает родитель» ставь только если это прямо сказано/u);
+    assert.match(section, /«да — по словам …»[\s\S]*«не сказано»/u);
     assert.match(section, /`add_note`/u);
     assert.match(text, /### «Предложить шаг»[\s\S]*`propose_next_step`/u);
     assert.match(text, /Шаг не пишется в дело сам: его принимает куратор/u);
@@ -221,9 +223,11 @@ const AUTH = {
   membershipId: STAFF_ID, claude: { agentId: "agent_1", agentVersion: 2, environmentId: "env_1", vaultId: "vlt_1" },
 };
 
+const TARGET = { student_case_id: CASE, state: "active", admissions_direction: "MY", target_country: "MY" };
+
 function workSetup({ staff = {}, noKey = false } = {}) {
   const staffRpc = fakeRpc({
-    agent_suggestion_read_v1: () => ({ data: null }),
+    agent_case_target_v1: () => ({ data: TARGET }),
     ai_agents_run_authorize_v1: () => ({ data: AUTH }),
     ...staff,
   });
@@ -235,7 +239,7 @@ function workSetup({ staff = {}, noKey = false } = {}) {
   const { deps } = runtimeDeps({ claude, service: serviceRpc, noKey });
   return { staffRpc, serviceRpc, claude, deps, ctx: { staffClient: staffRpc.client, actor: actor({ membershipId: STAFF_ID, systemRole: "staff" }) } };
 }
-const WORK = { kind: "next_step", studentCaseId: CASE, direction: "MY", country: "MY", requestId: REQ_ID };
+const WORK = { kind: "next_step", studentCaseId: CASE, requestId: REQ_ID };
 
 test("«Предложить шаг»: запуск агента-куратора по стране дела с поручением из контракта, права на дело проверены чтением", async () => {
   const { staffRpc, serviceRpc, claude, deps, ctx } = workSetup();
@@ -243,14 +247,14 @@ test("«Предложить шаг»: запуск агента-куратор�
   assert.equal(state.status, "started");
   assert.equal(state.runId, RUN_ID);
   assert.notEqual(state.requestId, REQ_ID, "следующее нажатие — новый id");
-  assert.equal(staffRpc.called("agent_suggestion_read_v1").length, 1, "дело прочитано сотрудником до запуска");
+  assert.equal(staffRpc.called("agent_case_target_v1").length, 1, "дело перечитано сервером до запуска");
   assert.deepEqual(staffRpc.called("ai_agents_run_authorize_v1")[0].args, { p_organization_id: ORG, p_key: "curator-my", p_send_authority: false });
   assert.equal(serviceRpc.called("ai_agent_runtime_run_reserve_v1")[0].args.p_dedupe_key, `cmd:${REQ_ID}`);
   const message = claude.callsFor("POST", "/v1/sessions")[0].body.initial_events[0].content[0].text;
   assert.equal(message, nextStepCommandText(CASE));
   // Китай: другой агент; «Собрать передачу»: другое поручение.
-  const china = workSetup({ staff: { ai_agents_run_authorize_v1: () => ({ data: { ...AUTH, agentKey: "curator-cn" } }) } });
-  await runAgentWork(china.ctx, { ...WORK, kind: "handoff", direction: "CN", country: "CN" }, china.deps);
+  const china = workSetup({ staff: { agent_case_target_v1: () => ({ data: { ...TARGET, admissions_direction: "CN", target_country: "CN" } }), ai_agents_run_authorize_v1: () => ({ data: { ...AUTH, agentKey: "curator-cn" } }) } });
+  await runAgentWork(china.ctx, { ...WORK, kind: "handoff" }, china.deps);
   assert.equal(china.staffRpc.called("ai_agents_run_authorize_v1")[0].args.p_key, "curator-cn");
   assert.equal(china.claude.callsFor("POST", "/v1/sessions")[0].body.initial_events[0].content[0].text, handoffCommandText(CASE));
 });
@@ -280,14 +284,14 @@ test("«Предложить шаг»: агент выключен, не син�
 });
 
 test("«Предложить шаг»: нет права на дело, дело не прочитано, у дела нет агента — отказ до запуска", async () => {
-  const denied = workSetup({ staff: { agent_suggestion_read_v1: () => ({ error: { code: "42501", message: "Student case is unavailable" } }) } });
+  const denied = workSetup({ staff: { agent_case_target_v1: () => ({ error: { code: "42501", message: "Student case is unavailable" } }) } });
   const forbidden = await runAgentWork(denied.ctx, WORK, denied.deps);
   assert.equal(forbidden.message, agentRunStartOutcome("forbidden"));
   assert.equal(denied.staffRpc.called("ai_agents_run_authorize_v1").length, 0);
-  const down = workSetup({ staff: { agent_suggestion_read_v1: () => ({ error: { code: "XX000", message: "oops" } }) } });
+  const down = workSetup({ staff: { agent_case_target_v1: () => ({ error: { code: "XX000", message: "oops" } }) } });
   assert.equal((await runAgentWork(down.ctx, WORK, down.deps)).requestId, REQ_ID);
-  const nobody = workSetup();
-  const none = await runAgentWork(nobody.ctx, { ...WORK, direction: null, country: null }, nobody.deps);
+  const nobody = workSetup({ staff: { agent_case_target_v1: () => ({ data: { ...TARGET, admissions_direction: null, target_country: null } }) } });
+  const none = await runAgentWork(nobody.ctx, WORK, nobody.deps);
   assert.equal(none.message, agentRunStartOutcome("no_agent"));
   assert.equal(nobody.staffRpc.called("ai_agents_run_authorize_v1").length, 0);
 });
@@ -314,7 +318,7 @@ test("383: журнал и права в самой миграции, табли
   assert.match(sql, /ALTER TABLE platform_private\.agent_suggestions FORCE ROW LEVEL SECURITY/u);
   assert.match(sql, /REVOKE ALL ON TABLE platform_private\.agent_suggestions\s+FROM PUBLIC, anon, authenticated, service_role/u);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.ai_agent_tool_propose_next_step_v1\(UUID, TEXT, JSONB\) TO service_role/u);
-  assert.match(sql, /GRANT EXECUTE ON FUNCTION\s+platform\.agent_suggestion_read_v1\(UUID, UUID\),\s+platform\.agent_suggestion_decide_v1\(UUID, UUID, TEXT, BIGINT, TEXT, UUID\),\s+platform\.case_handoff_note_v1\(UUID, UUID\) TO authenticated/u);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION\s+platform\.agent_case_target_v1\(UUID, UUID\),\s+platform\.agent_suggestion_read_v1\(UUID, UUID\),\s+platform\.agent_suggestion_decide_v1\(UUID, UUID, TEXT, BIGINT, TEXT, UUID\),\s+platform\.case_handoff_note_v1\(UUID, UUID\) TO authenticated/u);
   assert.match(sql, /platform\.set_case_next_action_v1\(p_organization_id, s\.case_id, p_expected_version, s\.text, s\.due_on, p_request_id\)/u);
   assert.match(sql, /platform_private\.admissions_lock_case\(s\.case_id, 'case\.route\.manage'\)/u);
   assert.match(sql, /ai_agent_tool_begin\(p_organization_id, p_agent_key, 'propose_next_step', p_args\)/u);
@@ -351,4 +355,44 @@ test("экран: строка предложения под «Шаг не за�
   const source = read("src/lib/v3/case-work-source.ts");
   assert.match(source, /readAgentSuggestion\(actor, target\.studentCaseId\)/u);
   assert.match(source, /overview \? readCaseHandoffNote/u);
+});
+
+test("«Предложить шаг»: страну и направление сервер читает сам, форма их не несёт; дело не в работе и нет права записи шага — отказ", async () => {
+  // Агент выбирается по делу из базы: в аргументах запуска нет ни страны, ни направления.
+  const { staffRpc, deps, ctx } = workSetup({ staff: { agent_case_target_v1: () => ({ data: { ...TARGET, admissions_direction: "CN", target_country: "Китай" } }) } });
+  await runAgentWork({ ...ctx }, { ...WORK, country: "MY", direction: "MY" }, deps);
+  assert.equal(staffRpc.called("ai_agents_run_authorize_v1")[0].args.p_key, "curator-cn", "чужой country из формы выбор агента не меняет");
+  const actions = read("src/lib/platform-agent-suggestions-actions.ts");
+  assert.match(actions, /exactActionStringFields\(form, \["student_case_id", "kind", "request_id"\]\)/u);
+  assert.doesNotMatch(actions, /get\("country"\)|get\("direction"\)/u);
+  // Закрытое дело: агент не запускается.
+  const closed = workSetup({ staff: { agent_case_target_v1: () => ({ data: { ...TARGET, state: "closed" } }) } });
+  const refused = await runAgentWork(closed.ctx, WORK, closed.deps);
+  assert.equal(refused.message, agentRunStartOutcome("not_active"));
+  assert.equal(closed.staffRpc.called("ai_agents_run_authorize_v1").length, 0);
+  // Нет права записи шага (42501 от базы): отказ до запуска, для обоих видов кнопок.
+  for (const kind of ["next_step", "handoff"]) {
+    const no = workSetup({ staff: { agent_case_target_v1: () => ({ error: { code: "42501", message: "Student case is unavailable" } }) } });
+    assert.equal((await runAgentWork(no.ctx, { ...WORK, kind }, no.deps)).message, agentRunStartOutcome("forbidden"));
+    assert.equal(no.claude.calls.length, 0);
+  }
+  assert.deepEqual(parseAgentCaseTarget({ student_case_id: CASE, state: "active", admissions_direction: null, target_country: "MY" }, CASE),
+    { studentCaseId: CASE, state: "active", direction: null, country: "MY" });
+  assert.equal(parseAgentCaseTarget({ student_case_id: CASE, state: "weird" }, CASE), null);
+  const sql = read("supabase/migrations/383_platform_agent_suggestions.sql");
+  assert.match(sql, /require_case_operator\(c\.organization_id, c\.id, 'case\.route\.manage'\)/u);
+});
+
+test("слова отказов запуска берутся из словаря раздела «ИИ-агенты», второго словаря нет", () => {
+  for (const code of ["agent_disabled", "api_key_missing", "run_in_progress", "no_agent", "not_active"]) assert.equal(agentRunStartOutcome(code), AI_AGENTS_ERROR_COPY[code], code);
+  assert.doesNotMatch(read("src/lib/v3/wording.ts"), /agentRunStartOutcome/u);
+  const ui = read("src/components/staff/profile/AgentNextStep.tsx");
+  assert.doesNotMatch(ui, /Не удалось подтвердить/u, "строк слов в компоненте нет");
+  assert.match(read("src/components/staff/profile/use-agent-work.ts"), /kind: "starting"/u);
+  assert.match(ui, /disabled=\{running\}/u);
+  assert.match(ui, /onAccepted\(state\.receipt, id\)/u, "в квитанции шага id решения, не запуска");
+  assert.match(read("src/components/staff/profile/next/CaseHandoffCard.tsx"), /handoffNoNote/u);
+  const smoke = read("scripts/checks/ai-agents-mcp-smoke.mjs");
+  assert.match(smoke, /EXPECTED_TOOLS = readToolNames\(\)\.length/u);
+  assert.doesNotMatch(read("docs/runbooks/ai-agents-managed.md"), /\(26 инструментов\)/u);
 });

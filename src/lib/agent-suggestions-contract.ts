@@ -55,6 +55,20 @@ export function parseAgentSuggestion(value: unknown, studentCaseId: string): Age
   });
 }
 
+/** Ответ `agent_case_target_v1`: дело, как его видит сервер (состояние, направление, страна). */
+export type AgentCaseTarget = Readonly<{ studentCaseId: string; state: "pending" | "active" | "closed"; direction: string | null; country: string | null }>;
+
+export function parseAgentCaseTarget(value: unknown, studentCaseId: string): AgentCaseTarget | null {
+  if (!isRecord(value) || value.student_case_id !== studentCaseId) return null;
+  const state = value.state;
+  if (state !== "pending" && state !== "active" && state !== "closed") return null;
+  const text = (v: unknown): string | null | undefined => v === null || v === undefined ? null : typeof v === "string" && v.length <= 80 ? v : undefined;
+  const direction = text(value.admissions_direction);
+  const country = text(value.target_country);
+  if (direction === undefined || country === undefined) return null;
+  return Object.freeze({ studentCaseId, state, direction, country });
+}
+
 export type AgentSuggestionDecision = "accept" | "dismiss";
 export type AgentSuggestionStatus =
   | "accepted" | "dismissed" | "invalid" | "forbidden" | "preview" | "stale" | "not_active" | "gone" | "request_conflict" | "unavailable";

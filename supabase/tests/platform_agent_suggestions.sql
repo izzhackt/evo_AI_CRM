@@ -156,6 +156,17 @@ SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden(
 SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Подать 2 заявки до 5 декабря, сомнений нет', TRUE), 'numbers and Russian words do not trip the filter');
 SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Студент оплатил 500 USD', FALSE), 'a reason may mention money, only the text may not');
 SELECT pg_temp.a383_assert(platform_private.agent_suggestion_text_forbidden('Гарантия визы', FALSE), 'a reason may not guarantee');
+-- Promises in every form of the root, amounts in words, and no false alarms on short currency roots.
+SELECT pg_temp.a383_assert(platform_private.agent_suggestion_text_forbidden('Пообещать студенту место', TRUE), 'a promise (пообещать) is forbidden');
+SELECT pg_temp.a383_assert(platform_private.agent_suggestion_text_forbidden('Мы обещаем помощь', FALSE), 'a promise (обещаем) is forbidden in a reason too');
+SELECT pg_temp.a383_assert(platform_private.agent_suggestion_text_forbidden('Доплатить пять тысяч долларов', TRUE), 'thousands of dollars in words are forbidden');
+SELECT pg_temp.a383_assert(platform_private.agent_suggestion_text_forbidden('Внести 2 миллиона сомов', TRUE), 'millions of som are forbidden');
+SELECT pg_temp.a383_assert(platform_private.agent_suggestion_text_forbidden('Оплатить 50 рублей', TRUE), 'rubles are forbidden');
+SELECT pg_temp.a383_assert(platform_private.agent_suggestion_text_forbidden('Заплатить 100 сом', TRUE), 'som are forbidden');
+SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Выбрать 3 европейских вуза', TRUE), '3 европейских вуза passes');
+SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Снять 2 сомнения студента', TRUE), '2 сомнения passes');
+SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Пройти 3 рубежа подготовки', TRUE), '3 рубежа passes');
+SELECT pg_temp.a383_assert(NOT platform_private.agent_suggestion_text_forbidden('Подготовить 4 лирических текста', TRUE), '4 лирических passes');
 
 -- ---------------------------------------------------------------------------
 -- 1. propose, repeat, replace.
@@ -234,6 +245,26 @@ SELECT pg_temp.a383_assert(pg_temp.a383_error($q$SELECT platform.agent_suggestio
 RESET ROLE;
 
 -- ---------------------------------------------------------------------------
+-- 4b. the case as the server reads it for the agent buttons: the step-write right is required.
+-- ---------------------------------------------------------------------------
+SET LOCAL request.jwt.claims TO :'a383_curator_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.a383_assert((SELECT platform.agent_case_target_v1(pg_temp.a383_id(1), pg_temp.a383_id(701)) ->> 'target_country') = 'MY'
+  AND (SELECT platform.agent_case_target_v1(pg_temp.a383_id(1), pg_temp.a383_id(701)) ->> 'state') = 'active'
+  AND (SELECT platform.agent_case_target_v1(pg_temp.a383_id(1), pg_temp.a383_id(702)) ->> 'state') = 'closed', 'the target answers country, direction and state');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'a383_curator_b';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.a383_assert(pg_temp.a383_error(format('SELECT platform.agent_case_target_v1(%L, %L)', pg_temp.a383_id(1), pg_temp.a383_id(701))) LIKE '42501:%',
+  'a reader without the step-write right cannot start the agent');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'a383_other_admin';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.a383_assert(pg_temp.a383_error(format('SELECT platform.agent_case_target_v1(%L, %L)', pg_temp.a383_id(2), pg_temp.a383_id(701))) LIKE '42501:%',
+  'another organization cannot read our case target');
+RESET ROLE;
+
+-- ---------------------------------------------------------------------------
 -- 5. the staff read.
 -- ---------------------------------------------------------------------------
 SET LOCAL request.jwt.claims TO :'a383_curator_a';
@@ -299,6 +330,18 @@ INSERT INTO a383_decisions VALUES ('replay', platform.agent_suggestion_decide_v1
 RESET ROLE;
 SELECT pg_temp.a383_assert((SELECT answer ->> 'replayed' = 'true' AND answer -> 'receipt' ->> 'admissions_version' = '1' FROM a383_decisions WHERE label = 'replay'), 'a repeat replays the receipt');
 SELECT pg_temp.a383_assert((SELECT admissions_version = 1 FROM platform.student_cases WHERE id = pg_temp.a383_id(701)), 'a repeat does not write the step again');
+-- Another request id on an accepted suggestion is refused and writes nothing; the stored request and receipt are kept.
+SET LOCAL request.jwt.claims TO :'a383_curator_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.a383_assert(pg_temp.a383_error(format('SELECT platform.agent_suggestion_decide_v1(%L, %L, ''accept'', 0, NULL, %L)',
+  pg_temp.a383_id(1), :'a383_s1', pg_temp.a383_id(920))) LIKE '55000:agent_suggestion_not_pending', 'another request id on an accepted suggestion is not_pending');
+SELECT pg_temp.a383_assert(pg_temp.a383_error(format('SELECT platform.agent_suggestion_decide_v1(%L, %L, ''accept'', 1, NULL, %L)',
+  pg_temp.a383_id(1), :'a383_s1', pg_temp.a383_id(921))) LIKE '55000:agent_suggestion_not_pending', 'nor with the current version');
+RESET ROLE;
+SELECT pg_temp.a383_assert((SELECT admissions_version = 1 AND (SELECT count(*) FROM platform.audit_events WHERE action = 'case.next.action.change' AND resource_id = pg_temp.a383_id(701)) = 1
+  FROM platform.student_cases WHERE id = pg_temp.a383_id(701)), 'no second step write');
+SELECT pg_temp.a383_assert((SELECT accept_request_id = pg_temp.a383_id(902) AND accept_receipt ->> 'admissions_version' = '1' FROM platform_private.agent_suggestions WHERE id = :'a383_s1'),
+  'the accept request id and the receipt are stored');
 -- An accepted suggestion cannot be decided again (another request id, dismiss).
 SET LOCAL request.jwt.claims TO :'a383_curator_a';
 SET LOCAL ROLE authenticated;

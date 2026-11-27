@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import type { HandoffNote } from "@/lib/agent-suggestions-contract";
 import { agentSuggestionWords as words } from "@/lib/v3/wording";
 
@@ -24,24 +26,22 @@ export function CaseHandoffCard({
   note,
   unavailable,
   editable,
-  direction,
-  country,
   requestId,
 }: Readonly<{
   studentCaseId: string;
   note: HandoffNote | null;
   unavailable: boolean;
   editable: boolean;
-  direction: string | null;
-  country: string | null;
   requestId: string;
 }>) {
-  const work = useAgentWork({ kind: "handoff", studentCaseId, direction, country, requestId });
+  const work = useAgentWork({ kind: "handoff", studentCaseId, requestId })
+  // Какая страница была до нажатия: если запуск кончился, а новой заметки нет, говорим об этом.
+  const [before, setBefore] = useState<string | null>(null);;
   const action = editable ? (
-    work.thinking ? (
-      <p role="status" className="inline-flex min-h-11 items-center t-body-compact text-fg-2" data-testid="v3-case-handoff-thinking">{words.handoffThinking}</p>
+    work.busy ? (
+      <p role="status" className="inline-flex min-h-11 items-center t-body-compact text-fg-2" data-testid="v3-case-handoff-thinking">{work.phase.kind === "starting" ? words.starting : words.handoffThinking}</p>
     ) : (
-      <button type="button" onClick={() => void work.ask()} className={QUEUE_SECONDARY} data-testid="v3-case-handoff-build">
+      <button type="button" onClick={() => { setBefore(note?.noteId ?? ""); void work.ask(); }} className={QUEUE_SECONDARY} data-testid="v3-case-handoff-build">
         {note ? words.handoffRebuild : words.handoffBuild}
       </button>
     )
@@ -68,6 +68,9 @@ export function CaseHandoffCard({
         <p className="t-body-compact text-fg-3" data-testid="v3-case-handoff-empty">{words.handoffEmpty}</p>
       )}
       {work.phase.kind === "failed" ? <p role="alert" className="mt-2 t-body-compact text-danger" data-testid="v3-case-handoff-failed">{work.phase.message}</p> : null}
+      {work.phase.kind === "lost" ? <p className="mt-2 t-body-compact text-fg-2">{words.pollLost}</p> : null}
+      {work.phase.kind === "finished" && !work.refreshing && before !== null && before === (note?.noteId ?? "")
+        ? <p role="status" className="mt-2 t-body-compact text-fg-2" data-testid="v3-case-handoff-nonote">{words.handoffNoNote}</p> : null}
       {work.phase.kind === "slow" ? <p className="mt-2 t-body-compact text-fg-2">{words.stillWorking}</p> : null}
     </NamedCard>
   );

@@ -54,7 +54,7 @@ export function CaseNextStep({
    * «Предложить шаг» (миграция 383): предложение агента, его направление и страна дела для выбора агента-куратора, id запроса
    * для кнопки. Нет поля — кнопки и строки нет (чтение не сделано или дело без строки очереди).
    */
-  agent?: Readonly<{ suggestion: AgentSuggestion | null; studentCaseId: string; direction: string | null; country: string | null; requestId: string }> | null;
+  agent?: Readonly<{ suggestion: AgentSuggestion | null; studentCaseId: string; requestId: string }> | null;
 }>) {
   const router = useRouter();
   const titleId = useId();
@@ -123,10 +123,10 @@ export function CaseNextStep({
       </p>
       {agent && row ? (
         <AgentNextStep studentCaseId={agent.studentCaseId} noStep={!step} editable={editable} version={row.admissionsVersion}
-          suggestion={agent.suggestion} direction={agent.direction} country={agent.country} today={today} requestId={agent.requestId}
-          onAccepted={(receipt) => onSaved({
+          suggestion={agent.suggestion} today={today} requestId={agent.requestId}
+          onAccepted={(receipt, decisionRequestId) => onSaved({
             studentCaseId: agent.studentCaseId, nextAction: receipt.nextAction, nextActionDueOn: receipt.nextActionDueOn,
-            admissionsVersion: receipt.admissionsVersion, cleared: false, requestId: agent.requestId, changedAt: new Date().toISOString(),
+            admissionsVersion: receipt.admissionsVersion, cleared: false, requestId: decisionRequestId, changedAt: new Date().toISOString(),
           })} />
       ) : null}
       {/* У дела в работе причина бывает одна — просмотр роли. Закрытое дело говорит то же, что «Быстрый просмотр»

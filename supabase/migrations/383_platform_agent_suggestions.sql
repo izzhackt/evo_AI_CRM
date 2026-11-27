@@ -11,7 +11,8 @@
 --      действующий сотрудник; запрещённые формулировки (гарантия визы или поступления, суммы денег) — `text_invalid`;
 --      агент выключен — `agent_disabled` (общее начало `ai_agent_tool_begin`); журнал `ai.agent.tool.write`; повтор тех же
 --      данных в окне 10 минут отдаёт прежний ответ (общий ключ `ai_agent_auto_key`).
---   3) RPC сотрудника (authenticated): `agent_suggestion_read_v1` (текущее предложение дела), `agent_suggestion_decide_v1`
+--   3) RPC сотрудника (authenticated): `agent_case_target_v1` (дело для запуска агента: состояние, страна, направление, право записи шага),
+--      `agent_suggestion_read_v1` (текущее предложение дела), `agent_suggestion_decide_v1`
 --      («Принять» или «Не то») и `case_handoff_note_v1` (последняя заметка «Передача дела»).
 --      «Принять» вызывает существующий `platform.set_case_next_action_v1` от имени сотрудника, с его версией дела и его
 --      правом (`case.route.manage`) в той же транзакции: устаревшая версия — конфликт `PT409`, предложение остаётся `pending`.
@@ -62,6 +63,8 @@ CREATE TABLE platform_private.agent_suggestions (
   decided_by_membership_id UUID,
   decided_at TIMESTAMPTZ,
   dismiss_reason TEXT,
+  accept_request_id UUID,
+  accept_receipt JSONB,
   expires_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp() + INTERVAL '7 days',
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT agent_suggestions_agent_fkey FOREIGN KEY (organization_id, agent_key)
@@ -75,7 +78,9 @@ CREATE TABLE platform_private.agent_suggestions (
   CONSTRAINT agent_suggestions_decision_check CHECK (
     (status IN ('accepted', 'dismissed') AND decided_by_membership_id IS NOT NULL AND decided_at IS NOT NULL)
     OR (status IN ('pending', 'expired') AND decided_by_membership_id IS NULL AND decided_at IS NULL AND dismiss_reason IS NULL)),
-  CONSTRAINT agent_suggestions_dismiss_only_check CHECK (dismiss_reason IS NULL OR status = 'dismissed')
+  CONSTRAINT agent_suggestions_dismiss_only_check CHECK (dismiss_reason IS NULL OR status = 'dismissed'),
+  -- Принятое предложение помнит запрос и квитанцию записи шага: повтор тем же запросом отдаёт её, не трогая дело.
+  CONSTRAINT agent_suggestions_accept_check CHECK ((status = 'accepted') = (accept_request_id IS NOT NULL AND accept_receipt IS NOT NULL))
 );
 -- Одно живое предложение на (дело, вид): новое заменяет старое.
 CREATE UNIQUE INDEX agent_suggestions_one_pending_idx ON platform_private.agent_suggestions (organization_id, case_id, kind)
@@ -103,8 +108,13 @@ INSERT INTO platform_private.ai_agent_tool_schemas (tool, kind, audit, input_sch
 -- Регистр снят lower(): в базе en_US.UTF-8, кириллица приводится.
 CREATE FUNCTION platform_private.agent_suggestion_text_forbidden(p_text TEXT, p_money BOOLEAN)
 RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
-  SELECT lower(p_text) ~ '(гаранти|обещ(аю|аем|ани|аю)|стопроцент|100 ?%|наверняка|без риска|точно (поступ|получ|одобр|дадут|выдадут|примут)|visa is guaranteed|guarantee)'
-    OR (p_money AND lower(p_text) ~ '([$€£¥₽₸]|\d ?(usd|eur|cny|rmb|myr|kgs|aed|rub|kzt|долл|евро|юан|ринг|сом|руб|тенге|дирхам|лир|тыс|млн)|(usd|eur|cny|rmb|myr|kgs|aed) ?\d)')
+  -- Обещание: корень «обещ» в любой форме (обещаю, пообещать, обещание). Короткие корни валют только с границей слова (\y),
+  -- чтобы «3 европейских вуза», «2 сомнения», «3 рубежа» проходили. Суммы словами: «тысяч / миллион ... долларов / сом».
+  SELECT lower(p_text) ~ '(гаранти|обещ|стопроцент|100 ?%|наверняка|без риска|точно (поступ|получ|одобр|дадут|выдадут|примут)|guarantee)'
+    OR (p_money AND lower(p_text) ~ ('([$€£¥₽₸]'
+      || '|\d ?(usd|eur|cny|rmb|myr|kgs|aed|rub|kzt|долл[а-яё]*|евро|юан[а-яё]*|ринг[а-яё]*|сом|сомов|сома|руб|рубл[а-яё]*|тенге|дирхам[а-яё]*|лир|лира|лиры)\y'
+      || '|(usd|eur|cny|rmb|myr|kgs|aed) ?\d'
+      || '|(тысяч|тыс|миллион|млн)[а-яё.]* ?(долл|евро|юан|ринг|сом|руб|тенге|дирхам|лир|usd|eur|cny|rmb|myr|kgs|aed))'))
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -172,6 +182,30 @@ $$;
 -- 5. RPC сотрудника.
 -- ---------------------------------------------------------------------------
 
+-- Дело для запуска агента, прочитанное сервером: состояние, направление и страна. Право то же, что у записи шага дела
+-- (цепочка 137: case.route.manage и область дела) без блокировки; нет права — 42501. Для «Предложить шаг» и «Собрать передачу».
+CREATE FUNCTION platform.agent_case_target_v1(p_organization_id UUID, p_student_case_id UUID)
+RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE actor RECORD; c platform.student_cases;
+BEGIN
+  IF p_organization_id IS NULL OR p_student_case_id IS NULL THEN
+    RAISE EXCEPTION 'agent_suggestion_invalid' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO actor FROM platform_private.u7_require_case_workspace_actor(p_student_case_id);
+  IF actor.organization_id IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'Student case is unavailable' USING ERRCODE = '42501';
+  END IF;
+  PERFORM platform_private.require_domain_actor(actor.organization_id, 'case.route.manage');
+  SELECT * INTO c FROM platform.student_cases s WHERE s.organization_id = p_organization_id AND s.id = p_student_case_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Student case is unavailable' USING ERRCODE = '42501';
+  END IF;
+  PERFORM platform_private.require_case_operator(c.organization_id, c.id, 'case.route.manage');
+  RETURN jsonb_build_object('student_case_id', c.id, 'state', c.state, 'admissions_direction', c.admissions_direction,
+    'target_country', c.target_country);
+END
+$$;
+
 -- Текущее предложение дела: pending и не просрочено; иначе NULL. Право — чтение дела (то же, что у «Шапки» дела).
 CREATE FUNCTION platform.agent_suggestion_read_v1(p_organization_id UUID, p_student_case_id UUID)
 RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
@@ -233,10 +267,11 @@ BEGIN
     RAISE EXCEPTION 'Student case is unavailable' USING ERRCODE = '42501';
   END IF;
   SELECT * INTO s FROM platform_private.agent_suggestions x WHERE x.id = p_suggestion_id FOR UPDATE;
-  -- Повтор «Принять» тем же сотрудником и тем же запросом: прежняя квитанция записи шага.
-  IF s.status = 'accepted' AND p_decision = 'accept' AND s.decided_by_membership_id = actor.membership_id THEN
-    v_receipt := platform.set_case_next_action_v1(p_organization_id, s.case_id, p_expected_version, s.text, s.due_on, p_request_id);
-    RETURN jsonb_build_object('suggestion_id', s.id, 'status', 'accepted', 'receipt', v_receipt, 'replayed', TRUE);
+  -- Повтор «Принять» тем же сотрудником и ТЕМ ЖЕ запросом: прежняя квитанция, set_case_next_action_v1 не вызывается.
+  -- Другой запрос на принятом предложении — agent_suggestion_not_pending (ниже).
+  IF s.status = 'accepted' AND p_decision = 'accept' AND s.decided_by_membership_id = actor.membership_id
+    AND s.accept_request_id = p_request_id THEN
+    RETURN jsonb_build_object('suggestion_id', s.id, 'status', 'accepted', 'receipt', s.accept_receipt, 'replayed', TRUE);
   END IF;
   IF s.status <> 'pending' OR s.expires_at <= clock_timestamp() THEN
     RAISE EXCEPTION 'agent_suggestion_not_pending' USING ERRCODE = '55000';
@@ -244,7 +279,7 @@ BEGIN
   IF p_decision = 'accept' THEN
     v_receipt := platform.set_case_next_action_v1(p_organization_id, s.case_id, p_expected_version, s.text, s.due_on, p_request_id);
     UPDATE platform_private.agent_suggestions x SET status = 'accepted', decided_by_membership_id = actor.membership_id,
-      decided_at = clock_timestamp() WHERE x.id = s.id RETURNING * INTO s;
+      decided_at = clock_timestamp(), accept_request_id = p_request_id, accept_receipt = v_receipt WHERE x.id = s.id RETURNING * INTO s;
   ELSE
     UPDATE platform_private.agent_suggestions x SET status = 'dismissed', decided_by_membership_id = actor.membership_id,
       decided_at = clock_timestamp(), dismiss_reason = v_reason WHERE x.id = s.id RETURNING * INTO s;
@@ -287,6 +322,7 @@ $$;
 -- ---------------------------------------------------------------------------
 REVOKE ALL ON FUNCTION
   platform.ai_agent_tool_propose_next_step_v1(UUID, TEXT, JSONB),
+  platform.agent_case_target_v1(UUID, UUID),
   platform.agent_suggestion_read_v1(UUID, UUID),
   platform.agent_suggestion_decide_v1(UUID, UUID, TEXT, BIGINT, TEXT, UUID),
   platform.case_handoff_note_v1(UUID, UUID),
@@ -294,6 +330,7 @@ REVOKE ALL ON FUNCTION
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
 GRANT EXECUTE ON FUNCTION platform.ai_agent_tool_propose_next_step_v1(UUID, TEXT, JSONB) TO service_role;
 GRANT EXECUTE ON FUNCTION
+  platform.agent_case_target_v1(UUID, UUID),
   platform.agent_suggestion_read_v1(UUID, UUID),
   platform.agent_suggestion_decide_v1(UUID, UUID, TEXT, BIGINT, TEXT, UUID),
   platform.case_handoff_note_v1(UUID, UUID) TO authenticated;
@@ -314,6 +351,7 @@ BEGIN
   END IF;
   FOREACH f IN ARRAY ARRAY[
     'platform.ai_agent_tool_propose_next_step_v1(uuid,text,jsonb)'::REGPROCEDURE,
+    'platform.agent_case_target_v1(uuid,uuid)'::REGPROCEDURE,
     'platform.agent_suggestion_read_v1(uuid,uuid)'::REGPROCEDURE,
     'platform.agent_suggestion_decide_v1(uuid,uuid,text,bigint,text,uuid)'::REGPROCEDURE,
     'platform.case_handoff_note_v1(uuid,uuid)'::REGPROCEDURE,
@@ -329,6 +367,7 @@ BEGIN
     RAISE EXCEPTION 'a383_verify_tool_grant' USING ERRCODE = '55000';
   END IF;
   FOREACH f IN ARRAY ARRAY[
+    'platform.agent_case_target_v1(uuid,uuid)'::REGPROCEDURE,
     'platform.agent_suggestion_read_v1(uuid,uuid)'::REGPROCEDURE,
     'platform.agent_suggestion_decide_v1(uuid,uuid,text,bigint,text,uuid)'::REGPROCEDURE,
     'platform.case_handoff_note_v1(uuid,uuid)'::REGPROCEDURE] LOOP

@@ -7,10 +7,10 @@
 import { randomUUID } from "node:crypto";
 
 import { curatorAgentKey, handoffCommandText, nextStepCommandText } from "./agent-suggestions-contract.ts";
-import { readAgentSuggestion } from "./platform-agent-suggestions.ts";
+import { readAgentCaseTarget } from "./platform-agent-suggestions.ts";
 import { startAiAgentRun, type AiAgentsStaffContext } from "./server/ai-agents/runtime.ts";
 import type { AiAgentsRuntimeDeps } from "./server/ai-agents/deps.ts";
-import { agentRunStartOutcome } from "./v3/wording.ts";
+import { agentRunStartOutcome } from "./v3/ai-agents-view.ts";
 
 export type AgentWorkKind = "next_step" | "handoff";
 
@@ -28,16 +28,20 @@ export function agentWorkFailed(code: string, requestId: string | null): AgentWo
   return { status: "failed", requestId: keep ? requestId : randomUUID(), message: agentRunStartOutcome(code), runId: null };
 }
 
+/**
+ * Страну и направление форма не присылает: сервер перечитывает дело сам (`agent_case_target_v1`) и тем же вызовом проверяет
+ * право записи шага (`case.route.manage` и область дела, как у `set_case_next_action_v1`). Дело не в работе — отказ.
+ */
 export async function runAgentWork(
   ctx: AiAgentsStaffContext,
-  input: Readonly<{ kind: AgentWorkKind; studentCaseId: string; direction: string | null; country: string | null; requestId: string }>,
+  input: Readonly<{ kind: AgentWorkKind; studentCaseId: string; requestId: string }>,
   deps?: Partial<AiAgentsRuntimeDeps>,
 ): Promise<AgentWorkActionState> {
-  // Дело читается сотрудником: без права на дело агента по нему не запускаем (отказ базы 42501).
-  const visible = await readAgentSuggestion(ctx.actor, input.studentCaseId, ctx.staffClient as never);
-  if (visible.kind === "forbidden") return agentWorkFailed("forbidden", input.requestId);
-  if (visible.kind === "unavailable") return agentWorkFailed("unavailable", input.requestId);
-  const key = curatorAgentKey({ direction: input.direction, country: input.country });
+  const target = await readAgentCaseTarget(ctx.actor, input.studentCaseId, ctx.staffClient as never);
+  if (target.kind === "forbidden") return agentWorkFailed("forbidden", input.requestId);
+  if (target.kind === "unavailable" || target.value === null) return agentWorkFailed("unavailable", input.requestId);
+  if (target.value.state !== "active") return agentWorkFailed("not_active", input.requestId);
+  const key = curatorAgentKey({ direction: target.value.direction, country: target.value.country });
   if (!key) return agentWorkFailed("no_agent", input.requestId);
   const result = await startAiAgentRun(ctx, {
     key,

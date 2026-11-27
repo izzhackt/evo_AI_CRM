@@ -1,13 +1,14 @@
 import { notFound } from "next/navigation";
 import { UniversityShell } from "@/components/staff/universities-next/UniversityShell";
 import { UniversityDetailNextLazy } from "@/components/staff/universities-next/UniversitiesNextLazy";
-import { universityPlaceText, universityPrograms, universityVerified } from "@/components/staff/universities-next/university-detail-model";
+import { universityOverviewText, universityPlaceText, universityPrograms, universityVerified } from "@/components/staff/universities-next/university-detail-model";
 import { UniversityPhoto } from "@/components/staff/universities/UniversityPhoto";
 import { UniversityBackLink, UniversityUnavailable, universityCountry } from "@/components/staff/universities/UniversityCatalogue";
 import { UniversityGeographyPanel } from "@/components/staff/universities/geography/UniversityGeographyPanel";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { universityUuid } from "@/lib/platform-university-catalog";
-import { canConfirmAgencyCosts, canManageCatalogGeography, readStaffInstitutionGeography } from "@/lib/v3/catalog-geography-source";
+import { universityCityName } from "@/lib/university-geo-groups";
+import { canConfirmAgencyCosts, canManageCatalogGeography, readStaffCatalogGeographyBrowse, readStaffInstitutionGeography } from "@/lib/v3/catalog-geography-source";
 import { readStaffUniversities } from "@/lib/v3/university-source";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Университеты" };
@@ -16,9 +17,11 @@ export default async function UniversityPage({ params }: { params: Promise<{ id:
   const id = universityUuid(route.id) ?? notFound();
   const canManage = canManageCatalogGeography(actor);
   // Город и стоимость (план 7.5) читаются рядом с карточкой и только у того, кто может их править; с 364 — только этого вуза.
-  const [page, geography] = await Promise.all([
+  // Справочник городов — для названия города под заголовком (как в списке); сбой — подпись карточки.
+  const [page, geography, directory] = await Promise.all([
     readStaffUniversities(actor, undefined, id).catch(() => null),
     canManage ? readStaffInstitutionGeography(actor, id).catch(() => null) : Promise.resolve(undefined),
+    readStaffCatalogGeographyBrowse(actor).catch(() => null),
   ]);
   if (!page) return <UniversityShell title="Университет" back={<UniversityBackLink />}><UniversityUnavailable /></UniversityShell>;
   const university = page.items[0] ?? notFound();
@@ -28,13 +31,13 @@ export default async function UniversityPage({ params }: { params: Promise<{ id:
   return (
     <UniversityDetailNextLazy
       name={content.name}
-      place={universityPlaceText(content, universityCountry(content.country))}
+      place={universityPlaceText({ ...content, city: universityCityName(university, directory) }, universityCountry(content.country))}
       programs={universityPrograms(content, now)}
-      overview={content.overview}
+      overview={universityOverviewText(content.overview)}
       websiteUrl={content.websiteUrl}
       sourceUrl={content.sourceUrl}
       verified={universityVerified(content, now)}
-      photo={<UniversityPhoto content={content} variant="side" />}
+      photo={<UniversityPhoto content={content} variant="cover" />}
       canManage={canManage}
       manage={canManage ? { formsHref: `/universities/${id}/forms`, editHref: `/universities/manage?edit=${id}` } : null}
     >

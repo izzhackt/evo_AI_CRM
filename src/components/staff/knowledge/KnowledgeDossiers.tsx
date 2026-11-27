@@ -122,7 +122,7 @@ export function KnowledgeDossiers({ caseId, search, tab: tabParam = null }: { ca
       {tab === "history" && history && <>
         {!history.events.length && <p className="t-body-compact text-fg-2">История пока пуста.</p>}
         <ul className="divide-y divide-border border-y border-border">{history.events.map((event) => <li key={event.id} className="flex flex-wrap items-center gap-x-3 py-1 t-body-compact">
-          <Link href={event.href ?? `/profile?case=${caseId}`} className="inline-flex min-h-11 items-center text-fg underline-offset-4 hover:underline">{journalEventText(event.transition, event.directionChange) ?? event.transition}</Link>
+          <Link href={event.href ?? `/profile?case=${caseId}`} className="inline-flex min-h-11 items-center text-fg underline-offset-4 hover:underline">{journalEventText(event.transition, event.directionChange, event.paymentDetail) ?? event.transition}</Link>
           {event.at ? <span className="font-mono text-fg-3">{event.at}</span> : null}
         </li>)}</ul>
         {history.nextCursor && <button type="button" className={KB_QUIET} disabled={busy} onClick={() => void more()}>Показать ещё события</button>}

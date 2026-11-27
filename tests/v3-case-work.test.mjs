@@ -172,7 +172,7 @@ test("the case view (Student 360, Э4): stage and «Что дальше» under 
   assert.doesNotMatch(text, /Открыть вузы и программы|Открыть договор и оплату/u, "заявки есть, оплата не видна — ссылок нет");
   assert.match(text, /Переписка Нужен ответ Открыть переписку/u);
   assert.match(html, /href="\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
-  assert.match(text, /Шанхайский университет · Международная торговля — готовится · основной вариант · срок подачи 30\.11/u);
+  assert.match(text, /Шанхайский университет · Международная торговля — вариант · основной · срок подачи 30\.11/u);
   // Последнее сообщение переписки — в ленте.
   assert.match(text, /Лента .*Переписка · Айдана Сыдыкова 22\.09 14:14 Здравствуйте!/u);
   // Прежние дубли ушли: ссылка дела на само себя, «Коротко», вторая «Создать задачу по студенту».
@@ -206,18 +206,19 @@ test("AI consent (320): the header chip is only the «не разрешено» 
   const header = surfaces.get("ai-consent-declined").match(/<section id="case-header"[\s\S]*?<\/section>/u)?.[0] ?? "";
   assert.ok(header.includes('data-testid="v3-case-ai-consent"'), "the warning is inside the case header");
   assert.doesNotMatch(header, /data-tone="danger"/u, "a declined consent is never a red pill");
-  // «Сведения»: то же состояние словами и следствие для помощников.
+  // «Сведения»: то же состояние одним словом; следствие для помощников — за «?» (чек-лист 23.11: без повтора строкой ниже).
   const fact = (name) => {
     const html = surfaces.get(name);
-    const match = html.match(/ИИ-помощники<\/dt><dd[^>]*><span data-testid="v3-case-ai-consent-fact">([^<]*)<span class="block t-meta text-fg-2">([^<]*)<\/span>/u);
-    return match ? { words: match[1], hint: match[2] } : null;
+    const match = html.match(/ИИ-помощники<\/dt><dd[^>]*><span data-testid="v3-case-ai-consent-fact" class="inline-flex items-center gap-1\.5">([^<]*)<button type="button" aria-label="Пояснение: ИИ-помощники"/u);
+    return match ? { words: match[1] } : null;
   };
   assert.equal(fact("ai-consent-granted").words, "Студент разрешил");
   assert.equal(fact("ai-consent-declined").words, "Студент не разрешил");
   assert.equal(fact("ai-consent-none").words, "Студент ещё не решил");
   assert.equal(fact("ai-consent-none-no-portal").words, "У студента нет кабинета");
-  assert.match(fact("ai-consent-none").hint, /пока он не разрешит/u);
-  assert.match(fact("ai-consent-none-no-portal").hint, /нет кабинета/u);
+  // Пояснение то же, что было строкой: теперь текст «?» (`aiConsentLine().hint`).
+  assert.match(read("src/components/staff/profile/CaseOverview.tsx"), /<HelpTip label="Пояснение: ИИ-помощники">\{line\.hint\}<\/HelpTip>/u);
+  assert.doesNotMatch(texts(surfaces.get("ai-consent-granted")), /Студент разрешил ИИ-помощников: помощники могут читать/u);
   for (const name of ["ai-consent-granted", "ai-consent-declined", "ai-consent-none", "ai-consent-none-no-portal"]) {
     assert.doesNotMatch(texts(surfaces.get(name)), /не спрашивали/u, `${name}: the empty chip wording is gone`);
   }
@@ -280,12 +281,15 @@ test("Admin: sales forms and portal access are collapsed groups under «Свед
   assert.equal((salesData.match(/bg-accent (?:px|text)/gu) ?? []).length, 0, "no solid red inside «Данные продажи»");
   assert.equal((salesData.match(/>(?:Сохранить|Сохранить условия)<\/button>/gu) ?? []).length, 4);
   assert.match(read("src/components/staff/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet groups \/>/u);
-  assert.match(text, /Оплата 40% оплачено · остаток 900 \$/u);
+  // Один вид денег на карточку (как в таблице «Оплата»): «900 USD», не «900 $».
+  assert.match(text, /Оплата 40% оплачено · остаток 900 USD/u);
   assert.match(html, /<details name="case-edit" id="portal-access" data-lead-group="" data-testid="v3-case-portal"[^>]*>/u);
   assert.match(text, /Доступ к порталу анкета одобрена/u);
   assert.match(text, /Сведения Направление Китай Сменить направление Куратор АО Айгүл Осмонова Сменить куратора Передал Эрмек Токтосунов · 30\.08 12:00 Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
   assert.match(html, /href="tel:\+996000000001"/u);
-  assert.match(html, /href="\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000001&amp;coverage_case=cccccccc-2222-4222-8222-000000000001#curator-coverage"/u);
+  // «Сменить куратора» открывает замещение панелью в этой же карточке (`panel=curator`), а не уводит в «Нагрузку кураторов»; возврат в список сохраняется.
+  assert.match(html, /aria-haspopup="dialog" href="\/profile\?case=cccccccc-2222-4222-8222-000000000001&amp;tab=overview&amp;returnTo=%2Fprofile%3Fview%3Dmine&amp;panel=curator">Сменить куратора</u);
+  assert.doesNotMatch(html, /href="\/profile\?view=curators[^"]*coverage_case=cccccccc-2222-4222-8222-000000000001/u);
 });
 
 test("unread parts say so: no stage, no step editor, no invented task, chat, document numbers or events", () => {
@@ -996,4 +1000,37 @@ test("the contract download reads the file through the staff session, the servic
   assert.match(suite, /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") > 0 && script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
   assert.match(script, /a327_already_applied/u);
+});
+
+test("статус заявки одним словом во всей карточке: «вариант», как первый шаг пути, без второго словаря", async () => {
+  const wording = await import("../src/lib/v3/wording.ts");
+  assert.equal(wording.applicationStatus("preparation"), "вариант");
+  assert.equal(wording.applicationPathWord("preparation"), wording.applicationStatus("preparation"), "«Обзор» и «Вузы» говорят одно и то же");
+  assert.equal(wording.APPLICATION_PATH_STEPS[0], wording.applicationStatus("preparation"));
+  assert.doesNotMatch(read("src/lib/v3/wording.ts"), /preparation: "готовится"/u);
+  // Пометка основной заявки — «основной», как в живой карточке («Обзор» нового вида) и на «Вузах» («★ основной»).
+  for (const file of ["src/components/staff/profile/CaseOverview.tsx", "src/components/staff/profile/next/CaseApplications.tsx"]) {
+    assert.doesNotMatch(read(file), /основной вариант/u, `${file}: «вариант · основной вариант» не повторяется`);
+    assert.match(read(file), /application\.primary \? " · основной"/u, file);
+  }
+});
+
+test("«Сменить куратора» в карточке: замещение в боковой панели, адрес открывает её, закрытие и сохранение возвращают в карточку", () => {
+  const sheet = read("src/components/staff/profile/CuratorChangeSheet.tsx");
+  assert.match(sheet, /<DetailSheet title="Сменить куратора" open=\{open\} onOpenChange=\{close\}/u);
+  // Пока идёт сохранение, панель не закрывается; Esc в поле не закрывает её (sheetEscape).
+  assert.match(sheet, /if \(!next && pending\) return;/u);
+  assert.match(sheet, /onEscapeKeyDown=\{\(event\) => \{ if \(pending\) \{ event\.preventDefault\(\); return; \} sheetEscape\(event\); \}\}/u);
+  // Неудачное перечитывание не убирает форму с черновиком: остаются последние прочитанные кураторы.
+  assert.match(sheet, /if \(ready && ready\.workspace\.curators !== lastCurators\) setLastCurators\(ready\.workspace\.curators\);/u);
+  assert.match(sheet, /<CuratorCoverageForm preview=\{preview\} curators=\{lastCurators\} requestId=\{requestId\} today=\{today\}\n\s+returnHref=\{closeHref\} onPendingChange=\{setPending\} \/>/u);
+  const form = read("src/components/staff/profile/CuratorCoverageForm.tsx");
+  assert.match(form, /if \(returnHref\) \{ router\.replace\(returnHref, \{ scroll: false \}\); return; \}/u);
+  assert.match(form, /href=\{returnHref\} replace scroll=\{false\}>Отмена<\/Link>/u);
+  assert.match(form, /useEffect\(\(\) => \{ onPendingChange\?\.\(pending\); \}, \[onPendingChange, pending\]\);/u);
+  const page = read("src/app/(staff)/profile/page.tsx");
+  // Куратор — из прочитанного дела, только у активного дела и только у того, кто назначает кураторов.
+  assert.match(page, /singleSearchParam\(params\.panel\) === "curator" && view\?\.details\.admissions\?\.caseState === "active"\n\s+\? caseWork\?\.row\?\.currentCuratorMembershipId \?\? undefined : undefined;/u);
+  assert.match(page, /caseTarget && curatorPanelFor && studentsQueueActor\(actor\)\.coverage \? \{/u);
+  assert.match(read("src/components/staff/profile/CaseWorkParts.tsx"), /change: admissions\.caseState === "active" \? curatorChangeLink\(/u);
 });

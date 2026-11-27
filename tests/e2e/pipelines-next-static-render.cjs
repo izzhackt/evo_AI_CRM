@@ -300,7 +300,14 @@ async function main() {
     {
       const { context, page } = await open("/pipeline", "d1440", { rows: "volume" });
       await shot(page, "pipeline-volume-d1440", { fullPage: true });
-      report("sales volume: 34 cards in a column, no horizontal scroll", await page.evaluate(() => document.querySelectorAll('[data-testid="v3-pipeline-column"][data-stage="new"] [data-testid="v3-pipeline-card"]').length === 34 && document.documentElement.scrollWidth <= window.innerWidth + 1), null);
+      // 26.11.2026: в рабочей колонке «Всех этапов» первые 20 карточек, «Показать ещё 20» и «Весь этап · 34».
+      const cards = () => page.evaluate(() => document.querySelectorAll('[data-testid="v3-pipeline-column"][data-stage="new"] [data-testid="v3-pipeline-card"]').length);
+      report("sales volume: 20 of 34 cards in a column with «Показать ещё» and «Весь этап · 34», no horizontal scroll", (await cards()) === 20
+        && (await page.locator('[data-stage="new"] [data-testid="v3-pipeline-column-more"]').innerText()).includes("Весь этап · 34")
+        && await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), await cards());
+      await page.getByRole("button", { name: /Показать ещё 14/u }).click();
+      report("sales volume: «Показать ещё» shows the rest and moves focus to the first new card", (await cards()) === 34
+        && await page.evaluate(() => document.activeElement?.matches('[data-stage="new"] li:nth-child(21) a[data-lead-link]') ?? false), await cards());
       await context.close();
     }
     for (const key of ["d1440", "m390"]) {

@@ -79,12 +79,15 @@ flow("settings-staff", async (env) => {
   await page.getByLabel("Отдел", { exact: true }).selectOption({ label: "Продажи" });
   report("settings-staff: the department filter leaves two people", (await page.locator("tbody tr").count()) === 2, await page.locator("tbody tr").count());
   await page.getByLabel("Отдел", { exact: true }).selectOption({ value: "" });
-  // «Пригласить сотрудника» — форма на странице, не панель.
+  // «Пригласить сотрудника» — выезжающая панель (25.11.2026): форма в строке кнопок ломала раскладку.
   const invite = page.getByRole("button", { name: "Пригласить сотрудника" });
+  const row = await page.locator("[data-testid=v3-settings-staff] > div").first().boundingBox();
   await invite.click();
-  report("settings-staff: «Пригласить» expands a form on the page, not a sheet", (await invite.getAttribute("aria-expanded")) === "true" && (await sheet(page).count()) === 0 && (await page.locator("main form").count()) >= 1, null);
-  await invite.click();
-  report("settings-staff: the second press collapses it", (await invite.getAttribute("aria-expanded")) === "false", null);
+  await sheet(page).waitFor({ state: "visible" });
+  report("settings-staff: «Пригласить» opens a sheet with the form; the button row keeps its height", (await sheet(page).locator("form input[name=operation][value=invite]").count()) === 1 && (await page.locator("[data-testid=v3-settings-staff] > div").first().boundingBox())?.height === row?.height, null);
+  await page.keyboard.press("Escape");
+  await sheet(page).waitFor({ state: "hidden" });
+  report("settings-staff: Esc closes the untouched invite sheet", (await sheet(page).count()) === 0, null);
   await page.getByRole("button", { name: /Журнал доступа · 3/u }).click();
   await sheet(page).waitFor({ state: "visible" });
   report("settings-staff: «Журнал доступа» lists the three requests with the old «Проверить результат»", (await sheet(page).locator("li").count()) >= 3 && (await sheet(page).getByRole("button", { name: "Проверить результат" }).count()) >= 1, null);

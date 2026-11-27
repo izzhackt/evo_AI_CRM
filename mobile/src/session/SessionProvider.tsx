@@ -13,7 +13,7 @@ import { clearInviteToken } from "@/features/registration/draft-store";
 import { clearPendingSignup } from "@/features/registration/pending-store";
 import { createAccessDeps } from "@/session/deps";
 import { clearAllLocalData } from "@/session/local-data";
-import { announceSignOut } from "@/session/sign-out-signal";
+import { announceSignOut, flushBeforeSignOut } from "@/session/sign-out-signal";
 
 export type SignInOutcome = { ok: true } | { ok: false; reason: SignInFailure };
 
@@ -73,6 +73,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Сколько входов начато. Выход ждёт ответа сервера об отзыве токена (до 20 с), а хвост выхода стирает состояние: вход, начатый за это
   // время, он не должен трогать (сессию уже сняло событие SIGNED_OUT).
   const signInEpochRef = useRef(0);
+  // Идущий выход по кнопке (досылка до 3 с, затем ответ сервера): второе нажатие получает ту же цепочку. Цепочка помнит эпоху входа:
+  // вход, начатый за это время, свой выход получает отдельно.
+  const signOutRunRef = useRef<{ epoch: number; run: Promise<void> } | null>(null);
 
   const resolve = useCallback(
     async (quiet: boolean) => {
@@ -191,9 +194,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [portalAuth, routeSession, supabase],
   );
 
-  const signOut = useCallback(async () => {
-    const epoch = signInEpochRef.current;
-    // Первым делом, до запроса на отзыв токена: сессии записи (тест, урок) бросают неотправленное, иначе закрытие экрана слало бы его с отозванным токеном.
+  const runSignOut = useCallback(async (epoch: number) => {
+    // Кнопка «Выйти»: пока токен ещё действует, тест и тест на время досылают неотправленное (все разом, не дольше 3 с в сумме,
+    // сбои молчат). Остальные пути выхода (SIGNED_OUT, пропавшая сессия, удалённый аккаунт) токена уже не имеют и не досылают.
+    await flushBeforeSignOut();
+    if (epoch !== signInEpochRef.current) return; // за досылкой (до 3 с) начат другой вход: этот выход чужой и не должен бросить и отозвать новую сессию
+    // Затем, до запроса на отзыв токена: сессии записи (тест, урок) бросают неотправленное, иначе закрытие экрана слало бы его с отозванным токеном.
     announceSignOut();
     try {
       await supabase.auth.signOut({ scope: "local" });
@@ -216,6 +222,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setMustSetPassword(false);
     setState({ kind: "signedOut", accountDeleted: false });
   }, [resolve, supabase]);
+
+  const signOut = useCallback((): Promise<void> => {
+    const epoch = signInEpochRef.current;
+    const running = signOutRunRef.current;
+    if (running && running.epoch === epoch) return running.run; // второе нажатие: та же цепочка, не вторая досылка и не второй выход
+    const run = runSignOut(epoch);
+    signOutRunRef.current = { epoch, run };
+    const done = () => {
+      if (signOutRunRef.current?.run === run) signOutRunRef.current = null;
+    };
+    void run.then(done, done);
+    return run;
+  }, [runSignOut]);
 
   const retry = useCallback(() => resolve(false), [resolve]);
 

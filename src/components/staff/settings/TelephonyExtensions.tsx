@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { HelpTip } from "@/components/kit/HelpTip";
 import { StatusChip } from "@/components/staff/blocks/StatusChip";
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/staff/queue/queue-buttons";
 import {
@@ -137,18 +138,23 @@ function ExtensionRow({
   }
 
   return (
-    <li ref={rowRef} className="px-4 py-3" data-testid="v3-telephony-extension" data-extension={extension.login} data-mapped={extension.membershipId ? "yes" : "no"}>
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-        <div className="min-w-0">
-          <p className="t-item text-fg">{label}</p>
-          <p className="t-meta text-fg-2">
-            {extension.extension ? `внутр. ${extension.extension} · ` : ""}логин {extension.login}
+    // 26.11.2026: одна строка на пользователя ВАТС — кто он, состояние и сотрудник (выбор — в той же строке справа, а не ниже).
+    <li ref={rowRef} className="grid gap-x-4 gap-y-1 py-3 @3xl:grid-cols-[minmax(0,1fr)_8.5rem_minmax(14rem,20rem)] @3xl:items-center" data-testid="v3-telephony-extension" data-extension={extension.login} data-mapped={extension.membershipId ? "yes" : "no"}>
+      <div className="min-w-0">
+        <p className="t-item text-fg">{label}</p>
+        <p className="t-meta text-fg-2">
+          {extension.extension ? `внутр. ${extension.extension} · ` : ""}логин {extension.login}
+        </p>
+        {extension.legsWithoutStaff > 0 ? (
+          <p className="t-meta text-fg-3" data-testid="v3-telephony-extension-legs">
+            Звонков без сотрудника: {extension.legsWithoutStaff}
           </p>
-        </div>
-        {chip}
+        ) : null}
       </div>
+      <div className="@3xl:justify-self-start">{chip}</div>
+      <div className="min-w-0">
       {extension.membershipId && !confirming && (showStaffName || canEdit) ? (
-        <p className="mt-1 flex min-h-11 flex-wrap items-center gap-x-2 t-body-compact text-fg-2">
+        <p className="flex min-h-11 flex-wrap items-center gap-x-2 t-body-compact text-fg-2">
           {/* Имя сотрудника, только если оно не то же, что у пользователя ВАТС выше: иначе одно и то же стояло бы дважды. */}
           {showStaffName ? <span>Сотрудник: <span className="text-fg">{extension.membershipName ?? "не найден"}</span></span> : null}
           {canEdit ? (
@@ -161,21 +167,16 @@ function ExtensionRow({
           ) : null}
         </p>
       ) : null}
-      {extension.legsWithoutStaff > 0 ? (
-        <p className="mt-1 t-meta text-fg-3" data-testid="v3-telephony-extension-legs">
-          Звонков без сотрудника: {extension.legsWithoutStaff}
-        </p>
-      ) : null}
       {!extension.active && !extension.membershipId ? (
-        <p className="mt-1 t-meta text-fg-3">Пользователь выключен в ВАТС: сопоставлять нечего.</p>
+        <p className="t-meta text-fg-3">Пользователь выключен в ВАТС: сопоставлять нечего.</p>
       ) : null}
       {readOnly || (!extension.active && !extension.membershipId) || (extension.membershipId && !editing && !confirming) ? null : (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor={`tel-ext-${extension.id}`}>Сотрудник EVO для пользователя ВАТС {label}</label>
           <select
             ref={selectRef}
             id={`tel-ext-${extension.id}`}
-            className={`${fieldCls} w-64 max-w-full`}
+            className={`${fieldCls} w-full`}
             value={choice}
             disabled={pending || confirming}
             onChange={(event) => { setChoice(event.target.value); setMessage(null); }}
@@ -202,8 +203,9 @@ function ExtensionRow({
           ) : null}
         </div>
       )}
+      </div>
       {confirming ? (
-        <div ref={confirmRef} tabIndex={-1} className="mt-2 rounded-ctl border border-border bg-surface-2 px-3 py-2.5" role="group" aria-label="Подтверждение сопоставления" data-testid="v3-telephony-extension-confirm">
+        <div ref={confirmRef} tabIndex={-1} className="mt-1 rounded-ctl @3xl:col-span-full border border-border bg-surface-2 px-3 py-2.5" role="group" aria-label="Подтверждение сопоставления" data-testid="v3-telephony-extension-confirm">
           <p className="t-body-compact text-fg">
             {target
               ? <>Новые звонки пользователя ВАТС «{label}» будут записываться на сотрудника «{target.name}».</>
@@ -222,7 +224,7 @@ function ExtensionRow({
         </div>
       ) : null}
       {message ? (
-        <p role={message.tone === "ok" ? "status" : "alert"} className={`mt-1 t-body-compact ${message.tone === "ok" ? "text-fg-2" : "text-danger"}`}>{message.text}</p>
+        <p role={message.tone === "ok" ? "status" : "alert"} className={`@3xl:col-span-full t-body-compact ${message.tone === "ok" ? "text-fg-2" : "text-danger"}`}>{message.text}</p>
       ) : null}
     </li>
   );
@@ -239,17 +241,18 @@ export function TelephonyExtensions({
 }>) {
   const takenBy = new Set(extensions.filter((item) => item.active && item.membershipId).map((item) => item.membershipId as string));
   return (
-    <section aria-labelledby="tel-extensions-title" data-testid="v3-telephony-extensions">
-      <h3 id="tel-extensions-title" className="t-section mb-1 text-fg">Пользователи ВАТС и сотрудники</h3>
-      <p className="mb-2 max-w-prose t-body-compact text-fg-2">
-        Звонки пользователя без сопоставления сохраняются без сотрудника. Сопоставление действует на новые звонки.
-      </p>
+    <section aria-labelledby="tel-extensions-title" data-testid="v3-telephony-extensions" className="@container min-w-0">
+      {/* 26.11.2026: правило сопоставления — за «?», список — строками этой же карточки, без второй рамки внутри. */}
+      <div className="mb-1 flex items-center gap-1.5">
+        <h3 id="tel-extensions-title" className="t-section text-fg">Пользователи ВАТС и сотрудники</h3>
+        <HelpTip label="Пояснение: пользователи ВАТС и сотрудники">Звонки пользователя без сопоставления сохраняются без сотрудника. Сопоставление действует на новые звонки.</HelpTip>
+      </div>
       {extensions.length === 0 ? (
-        <p className="rounded-card border border-border bg-surface px-4 py-3 t-body-compact text-fg-2" data-testid="v3-telephony-extensions-empty">
+        <p className="py-3 t-body-compact text-fg-2" data-testid="v3-telephony-extensions-empty">
           Пользователей ВАТС пока нет. Список появится после того, как на сервере задан ключ ВАТС и фоновая работа его получила.
         </p>
       ) : (
-        <ul className="divide-y divide-border rounded-card border border-border bg-surface">
+        <ul className="divide-y divide-border">
           {extensions.map((extension) => (
             <ExtensionRow key={extension.id} extension={extension} staff={staff} takenBy={takenBy} readOnly={readOnly} />
           ))}

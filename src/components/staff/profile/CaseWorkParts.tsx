@@ -35,6 +35,8 @@ import {
   caseSaleSummary,
   type CaseWorkRead,
 } from "./case-work-view";
+import { CuratorChangeSheet } from "./CuratorChangeSheet";
+import type { StudentsCoverage } from "./students-coverage-view";
 import { SalesOverview } from "./tabs";
 import { tabsFor, type PersonProfile, type ProfileDraft, type ProfileNotesSnapshot, type ProfileSalesRequestIds, type ProfileSalesSnapshot } from "./types";
 
@@ -67,6 +69,8 @@ export type CaseWorkPartsInput = Readonly<{
   hrefFor: (tab: string) => string;
   /** `?panel=sales`: раскрыть «Данные продажи» (переход из «Договор и оплата»). */
   salesDataOpen: boolean;
+  /** `?panel=curator`: открыта панель «Сменить куратора» — прочитанное замещение по делу; null — панель закрыта. */
+  curatorChange?: Readonly<{ coverage: StudentsCoverage; requestId: string }> | null;
   /** «Обращения студента» (`CaseHelpWorkspace` — своё чтение); null — не показываются. */
   help: ReactNode;
 }>;
@@ -289,6 +293,8 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       name: draft.responsible,
       membershipId: work.row?.currentCuratorMembershipId ?? null,
       coverage: !preview && staffHasPermission(actor, "case.curator.assign"),
+      // Панель замещения — только у активного дела; у остальных ссылка ведёт в «Нагрузку кураторов», как раньше.
+      change: admissions.caseState === "active" ? curatorChangeLink(input, work.row?.currentCuratorMembershipId ?? null, work.today) : null,
     },
     handedOffBy: draft.handedOffBy ?? null,
     portal,
@@ -317,4 +323,20 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
   };
   const overview = <CaseOverview {...overviewInput} />;
   return { header, overview, actions, next: { name: profile.person, mark, header: headerInput, overview: overviewInput } };
+}
+
+/**
+ * «Сменить куратора» в карточке: адрес этой же карточки на «Обзоре» с панелью (`panel=curator`) и сама панель, когда
+ * адрес её открыл. Нет куратора — нечего менять (ссылка ведёт в «Нагрузку»).
+ */
+function curatorChangeLink(input: CaseWorkPartsInput, curatorId: string | null, today: string) {
+  if (!curatorId) return null;
+  const [base] = input.hrefFor("overview").split("#");
+  const closeHref = base ?? input.hrefFor("overview");
+  // Куратора страница берёт из самого дела: в адресе только то, что панель открыта.
+  const href = `${closeHref}${closeHref.includes("?") ? "&" : "?"}panel=curator`;
+  const sheet = input.curatorChange
+    ? <CuratorChangeSheet coverage={input.curatorChange.coverage} requestId={input.curatorChange.requestId} today={today} closeHref={closeHref} />
+    : null;
+  return { href, sheet };
 }

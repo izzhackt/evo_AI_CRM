@@ -9,12 +9,18 @@ import { Card, CardContent } from "@/components/ui/card";
 export function SummaryCard({
   facts = [],
   summary,
+  summaryFromSm = false,
   testId,
   children,
 }: Readonly<{
   facts?: readonly KeyFact[];
   /** Одна строка вместо ряда ключевых данных (дело студента, 06.11.2026: «Документы 0/21 · Оплата 50%»); `facts` тогда не нужны. */
   summary?: React.ReactNode;
+  /**
+   * Строка `summary` только от ширины `sm`: на телефоне она повторяет числа «Сведений» и отодвигает вкладки вниз
+   * (чек-лист 23.11: до вкладок дела было около 530 px). Где её прятать, решает вызывающий (`CASE_SUMMARY_REPEATED_ON`).
+   */
+  summaryFromSm?: boolean;
   testId?: string;
   children: React.ReactNode;
 }>) {
@@ -23,7 +29,7 @@ export function SummaryCard({
     <Card data-testid={testId} className="gap-0 py-0">
       <CardContent className="py-4">{children}</CardContent>
       {summary ? (
-        <CardContent className="border-t border-border py-3">{summary}</CardContent>
+        <CardContent className={summaryFromSm ? "border-t border-border py-3 max-sm:hidden" : "border-t border-border py-3"}>{summary}</CardContent>
       ) : hasFacts ? (
         <CardContent className="border-t border-border py-4">
           <KeyFacts facts={facts} columns={4} />

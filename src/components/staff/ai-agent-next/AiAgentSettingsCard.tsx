@@ -14,7 +14,7 @@ import { AI_MEMORY_SETTINGS_COPY } from "@/lib/v3/ai-agent-memory";
 import { AI_OUTLINE_BUTTON } from "./ai-buttons";
 
 function statusLine(status: AiAgentStatus, showModel: boolean): Readonly<{ tone: "ok" | "warn" | "muted"; text: string }> {
-  if (status.state === "off") return { tone: "muted", text: "ИИ-агент не подключён к CRM на сервере." };
+  if (status.state === "off") return { tone: "muted", text: "Помощник в чате не подключён к CRM на сервере." };
   if (status.state === "unavailable") return { tone: "warn", text: aiErrorCopy("agent_unavailable") };
   if (status.block) return { tone: "warn", text: aiErrorCopy(status.block) };
   return status.keyAccepted

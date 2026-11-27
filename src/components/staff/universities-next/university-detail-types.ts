@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import type { UniversityLevel } from "@/lib/platform-university-catalog";
+
 /** Набор программы для таблицы карточки: срок и начало уже посчитаны сервером в поясе набора. */
 export type IntakeRow = Readonly<{
   key: string;
@@ -14,7 +16,10 @@ export type IntakeRow = Readonly<{
 export type ProgramView = Readonly<{
   id: string;
   title: string;
+  /** Уровень словом («Бакалавриат»). */
   level: string;
+  /** Ключ уровня: порядок и группы программ у вуза с длинным списком; на экран не выходит. */
+  levelKey: UniversityLevel;
   duration: string | null;
   language: string | null;
   summary: string;

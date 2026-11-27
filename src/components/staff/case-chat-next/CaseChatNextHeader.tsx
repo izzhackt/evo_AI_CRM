@@ -7,7 +7,7 @@ import { ChatHeaderLink } from "@/components/staff/chats-next/ChatHeaderLink";
 import { StageChip } from "@/components/staff/blocks/StatusChip";
 import { AWAIT_CONTROL_ORDER, awaitTone, type CaseChatHeaderProps } from "@/components/staff/case-chat/CaseChatThread";
 import { stagePhase } from "@/lib/v3/stages";
-import { admissionsPipelineStage, caseChatAwaitChoice } from "@/lib/v3/wording";
+import { admissionsPipelineStage, caseChatAwaitChoice, caseChatAwaitChoiceShort } from "@/lib/v3/wording";
 import { cn } from "@/lib/utils";
 
 /** Нажатая часть переключателя — в тоне состояния: «Нужен ответ» — предупреждение, остальное нейтрально (не красное). */
@@ -19,6 +19,8 @@ const PRESSED = {
 /**
  * Шапка переписки: с кем (имя, направление и этап доски), «Открыть дело» и видимый переключатель состояния из трёх
  * (прежняя команда `set_await`; null — состояние не прочитано, переключателя нет). Узко «К списку» — стрелка в строке имени.
+ * На самом узком телефоне (окно уже 22rem, то есть 320–340 px) «Не требуется» шире трети ряда: ряд делится по ширине слов
+ * (`minmax(max-content, 1fr)`), шрифт 12 px, поля 4 px, высота кнопки прежние 44 px; от 22rem и шире разметка не меняется.
  */
 export function CaseChatNextHeader({ name, facts, caseId, listHref, awaitState, onSetAwait, awaitPending }: CaseChatHeaderProps) {
   const stage = facts?.stage ? admissionsPipelineStage(facts.stage) : null;
@@ -42,18 +44,19 @@ export function CaseChatNextHeader({ name, facts, caseId, listHref, awaitState, 
             ) : null}
           </div>
         </div>
-        <ChatHeaderLink href={`/profile?case=${caseId}`} label="Открыть дело" icon={FolderOpenIcon} />
+        <ChatHeaderLink href={`/profile?case=${caseId}`} label="Открыть дело" shortLabel="Дело" icon={FolderOpenIcon} />
       </div>
       {awaitState !== null ? (
         <div className="flex items-center gap-3">
           <span className="hidden t-label text-fg-3 @2xl:inline" aria-hidden="true">Состояние</span>
           <div role="group" aria-label="Состояние переписки" data-testid="case-chat-await-control"
-            className="grid w-full grid-cols-3 gap-0.5 rounded-ctl border border-border bg-surface-2 p-0.5 @2xl:flex @2xl:w-fit">
+            className="grid w-full grid-cols-3 gap-0.5 rounded-ctl border border-border bg-surface-2 p-0.5 max-[22rem]:grid-cols-[repeat(3,minmax(max-content,1fr))] @2xl:flex @2xl:w-fit">
             {AWAIT_CONTROL_ORDER.map((value) => (
               <Button key={value} variant="ghost" aria-pressed={awaitState === value} disabled={awaitPending} data-tone={awaitTone(value)}
-                onClick={() => { if (value !== awaitState) onSetAwait(value); }}
-                className={cn("h-11 min-w-0 whitespace-normal px-1.5 text-center aria-pressed:font-semibold @2xl:whitespace-nowrap @2xl:px-3", PRESSED[awaitTone(value) === "warn" ? "warn" : "neutral"])}>
-                {caseChatAwaitChoice(value)}
+                onClick={() => { if (value !== awaitState) onSetAwait(value); }} aria-label={caseChatAwaitChoice(value) ?? undefined}
+                className={cn("h-11 min-w-0 whitespace-nowrap px-1.5 text-center aria-pressed:font-semibold max-[22rem]:px-1 max-[22rem]:text-xs @2xl:px-3", PRESSED[awaitTone(value) === "warn" ? "warn" : "neutral"])}>
+                <span aria-hidden="true" className="@2xl:hidden">{caseChatAwaitChoiceShort(value)}</span>
+                <span aria-hidden="true" className="hidden @2xl:inline">{caseChatAwaitChoice(value)}</span>
               </Button>
             ))}
           </div>

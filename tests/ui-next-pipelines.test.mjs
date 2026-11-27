@@ -467,3 +467,157 @@ test("role preview of «Воронка продаж» answers with a quiet state
   assert.match(read("src/components/staff/pipeline-next/PipelineNextPage.tsx"),
     /data-testid="v3-pipeline-preview">При просмотре роли воронка не показывается\.</u);
 });
+
+test("«Воронка продаж» (26.11.2026): рабочая колонка «Всех этапов» — первые 20 и «Показать ещё»; вкладка этапа — список строк по 50", async () => {
+  const model = read("src/components/staff/pipeline-next/pipeline-next-model.ts");
+  assert.match(model, /export const COLUMN_STEP = 20;/u);
+  assert.match(model, /return inStage\.length - limit <= COLUMN_SLACK \? inStage\.length : limit;/u, "хвост в пару карточек показывается сразу");
+  assert.match(model, /Math\.max\(base, selected \+ 1\)/u, "открытый лид виден");
+  assert.match(model, /: focus === "all" \? inStage\.slice\(0, columnLimit\(inStage, shown\[stage\.key\], selectedId\)\) : inStage;/u, "вкладка этапа делит строки сама (список)");
+  const list = read("src/components/staff/pipeline-next/PipelineStageList.tsx");
+  assert.match(list, /STAGE_LIST_STEP = 50/u);
+  assert.match(list, /Math\.max\(shown, selectedAt \+ 1\)/u, "открытый лид виден среди первых строк");
+  assert.match(list, /setShown\(limit \+ STAGE_LIST_STEP\);/u, "«Показать ещё» прибавляет строки");
+  assert.match(list, /a\[data-lead-link\]"\)\[limit\]\?\.focus\(\)/u, "фокус — на первую новую строку");
+  assert.match(list, /data-lead-link=\{lead\.id\}/u, "возврат фокуса после панели — на строку");
+  assert.match(list, /\{leadLabel\(lead\)\}/u);
+  assert.doesNotMatch(list, /\{lead\.name\}/u);
+  assert.match(list, /t-item line-clamp-2 min-w-0 break-words/u, "имя — до двух строк, как на карточке: фамилии и последние цифры звонков не режутся");
+  assert.match(read("src/components/staff/pipeline-next/PipelineColumn.tsx"), /spread && !stage\.terminal \? \(\s*<PipelineStageList/u);
+  // Строка — то же, что карточка доски, и не больше (решение владельца 15.11 и 27.11.2026): без источника и «на этапе N дн»; ответственный —
+  // полным именем, без него «Не назначен»; у фильтра «Мои» столбца ответственного нет (и пустого столбца тоже); на телефоне ничего не прячется.
+  const code = list.replace(/\/\*[\s\S]*?\*\//gu, "");
+  assert.doesNotMatch(code, /sourceLabel|stageAgeDays|lead\.source|[Нн]а этапе|Источник/u, "источника и дней на этапе в строке нет");
+  assert.match(list, /\{owner \?\? "Не назначен"\}/u, "без ответственного — «Не назначен»");
+  assert.match(list, /showOwner \? COLUMNS\.withOwner : COLUMNS\.withoutOwner/u, "без ответственного — без его столбца");
+  assert.doesNotMatch(list, /@max-\[43\.75rem\]:hidden|@\[43\.75rem\]:hidden/u, "ответственный и действие видны и на телефоне");
+});
+
+test("«Воронка продаж»: вкладка этапа — строки с лидом, действием со сроком и ответственным; источника и дней нет, на телефоне ничего не скрыто (27.11.2026)", () => {
+  const stageList = nextBoards.get("next-sales-focus").match(/data-testid="v3-pipeline-stage-list">([\s\S]*?<\/ul>)/u)?.[1];
+  assert.ok(stageList, "вкладка этапа — список строк");
+  const rows = [...stageList.matchAll(/<li data-testid="v3-pipeline-row"[\s\S]*?<\/li>/gu)].map((match) => match[0]);
+  // Лиды 6 и 7 стенда («Квалифицирован»; ещё два лида этапа — переданные): читалка и глаз видят в строке ровно эти слова.
+  assert.deepEqual(rows.map(text), [
+    "Бекзат Тестов Следующее действие: Подготовить договор завтра Ответственный: Менеджер Первый",
+    "Айгерим Условная Следующее действие: Дождаться первой оплаты сегодня Ответственный: Менеджер Первый",
+  ]);
+  assert.equal(text(stageList.slice(0, stageList.indexOf("<ul"))), "Лид Следующее действие Ответственный", "заголовки столбцов — без «Источник» и «На этапе»");
+  for (const row of rows) {
+    // Ни одна часть строки не спрятана: ни от читалки (`aria-hidden`), ни классом `hidden` — ни на телефоне, ни на компьютере.
+    assert.doesNotMatch(row, /aria-hidden/u);
+    assert.doesNotMatch(row, /class="(?:[^"]*[\s:])?hidden[\s"]/u);
+    assert.match(row.match(/<a [^>]*>/u)?.[0] ?? "", /after:absolute after:inset-0/u, "нажимается вся строка");
+  }
+  // «Всех этапов» (#1604): у «Нового» 34 лида — открыты первые 20, под ними «Показать ещё 14» и «Весь этап · 34»; у остальных колонок кнопки нет.
+  const volume = nextBoards.get("next-sales-volume");
+  const newColumn = volume.slice(volume.indexOf('data-stage="new"'), volume.indexOf('data-stage="contacting"'));
+  assert.equal(count(newColumn, /data-testid="v3-pipeline-card"/gu), 20);
+  assert.match(text(newColumn), /Показать ещё 14 — Новый Весь этап · 34/u);
+  assert.equal(count(volume, /data-testid="v3-pipeline-column-more"/gu), 1);
+});
+
+test("«Воронка поступления» (25.11.2026): «Страна» и «Куратор» — в панели «Фильтры», как на «Студентах» и в «Воронке продаж», без выпадающих списков в строке", () => {
+  const page = readFileSync(new URL("../src/app/(staff)/admissions-pipeline/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /<FilterPanel menus=\{filterMenus\}/u);
+  // Решение владельца 27.11.2026: в списке шесть стран, поэтому «Страна / Все страны», а не «Направление» списка студентов.
+  assert.match(page, /key: "country", label: "Страна"/u, "поле — «Страна»");
+  assert.match(page, /label: "Все страны"/u);
+  assert.doesNotMatch(page, /Все направления|label: "Направление"/u, "слов «Направление» в этом фильтре нет");
+  assert.doesNotMatch(page, /NavigateSelect|BoardFilters|label="Страна"/u);
+  // Настоящая страница с выдуманными делами (панель закрыта и в разметку не входит): выбранные фильтры — чипами рядом с «Фильтры».
+  const chips = (name) => all(nextBoards.get(name), /data-testid="list-filter-applied" href="[^"]*">([\s\S]*?)<\/a>/gu).map(text);
+  assert.deepEqual(chips("next-admissions-first-empty"), ["Страна: ОАЭ"], "выбрана страна — чип «Страна: …»");
+  assert.deepEqual(chips("next-admissions-curator"), ["Куратор: Куратор Один"]);
+  assert.deepEqual(chips("next-admissions"), [], "ничего не выбрано — чипов нет");
+  const uae = nextBoards.get("next-admissions-first-empty");
+  assert.equal(all(uae, /data-student-case-id="([^"]+)"/gu).length, 1, "страна доходит до чтения доски: из дел раздела по ОАЭ — одно");
+  assert.match(text(uae), /Элина Демо/u);
+  assert.doesNotMatch(text(uae), /Айжан Примерова|Бекзат Тестов/u, "дел других стран на доске нет");
+  assert.ok(all(nextBoards.get("next-admissions"), /data-student-case-id="([^"]+)"/gu).length > 1, "без выбора — все дела раздела");
+  // То, что панель прячет: выбор доходит до чтения и до адреса, куратора предлагают, «Сбросить» снимает оба, поиск без фильтров сбрасывается строкой.
+  assert.match(page, /readAdmissionsPipelineBoard\(actor, \{\s*country: query\.country,\s*curatorMembershipId: query\.curator,\s*query: query\.q,?\s*\}\)/u);
+  assert.match(page, /href: boardHref\(\{ \.\.\.query, country: code \}\),\s*selected: query\.country === code/u);
+  assert.match(page, /href: boardHref\(\{ \.\.\.query, curator: option\.membershipId \}\),\s*selected: query\.curator === option\.membershipId/u);
+  assert.match(page, /\.\.\.\(curatorOptions\.length > 0 \|\| query\.curator !== null \? \[\{ key: "curator", label: "Куратор", valueLabel: null, options: curatorChoices \}\] : \[\]\)/u);
+  assert.match(page, /\.\.\.\(query\.curator !== null && !curatorOptions\.some\(\(option\) => option\.membershipId === query\.curator\)\s*\? \[\{ key: query\.curator, label: "Выбранный куратор", href: boardHref\(query\), selected: true \}\]/u,
+    "куратор из адреса, которого нет в списке, не пропадает из панели");
+  assert.match(page, /const resetHref = boardHref\(\{ tab: query\.tab, q: null, country: null, curator: null \}\);/u, "«Сбросить» снимает оба");
+  assert.match(page, /<FilterPanel menus=\{filterMenus\} resetHref=\{filtersActive \? resetHref : null\} \/>/u, "«Сбросить» в панели, когда что-то выбрано");
+  assert.match(page, /const reset = query\.q !== null && query\.country === null && query\.curator === null \? <BoardReset href=\{resetHref\} \/> : null;/u);
+});
+
+test("«Воронка поступления» (26.11.2026): длинная колонка — первые 20 дел и «Показать ещё»; куратор на карточке — видимым коротким именем, круг только украшает", () => {
+  const column = read("src/components/staff/admissions-pipeline-next/AdmissionsColumnNext.tsx");
+  assert.match(column, /const COLUMN_STEP = 20;/u);
+  assert.match(column, /\{rows\.slice\(0, limit\)\.map\(/u);
+  assert.match(column, /data-testid="v3-admissions-column-more"/u);
+  assert.match(column, /useDroppable\(\{ id: stage/u, "бросить можно и на свёрнутую колонку");
+  // Решение владельца 06.11.2026 (подтверждено 27.11): «Умут М.» — видимый текст карточки, круг с буквами только украшает; «страна · вуз» — своя строка.
+  const card = read("src/components/staff/admissions-pipeline-next/AdmissionsCardNext.tsx");
+  assert.match(card, /<span className="min-w-0 truncate">\{shortPersonName\(curator\)\}<\/span>/u, "имя куратора — видимый текст");
+  assert.doesNotMatch(card, /sr-only/u, "имя куратора не спрятано для глаз");
+  assert.match(card, /<p className="t-meta min-w-0 truncate pe-8 text-fg-2" title=\{secondLine\}>\{secondLine\}<\/p>/u, "«страна · вуз» — одна строка");
+});
+
+test("«Воронка продаж»: пустой поиск по видимой доске с учётом фильтров, лид не на доске — сказано почему, замка у этапа нет", async () => {
+  const wording = await import("../src/lib/v3/wording.ts");
+  assert.equal(wording.pipelineWords.noResults("QA", false), "По запросу «QA» лидов нет");
+  assert.equal(wording.pipelineWords.noResults("QA", true), "По запросу «QA» с выбранными фильтрами лидов нет");
+  assert.equal(wording.pipelineWords.resetSearch(true), "Сбросить поиск и фильтры");
+  const board = read("src/components/staff/pipeline-next/PipelineBoardNext.tsx");
+  assert.match(board, /const noResults = query !== "" && columns\.every\(\(column\) => column\.inStage\.length === 0\);/u);
+  assert.match(board, /const handedFound = noResults && filteredStage !== "handed_off" && leads\.some/u);
+  assert.match(board, /const resetHref = href\(\{ q: null, due: null, assignment: null, owner: null, lead: null \}\);/u);
+  assert.match(board, /\{readFiltered \? pipelineWords\.leadFiltered : pipelineWords\.leadMissing\}/u);
+  // Нынешняя передача — запись в «Отчёте продаж» (миграции 174 и 181), этап она не проверяет: значка «условий» у «Квалифицирован» нет.
+  const column = read("src/components/staff/pipeline-next/PipelineColumn.tsx");
+  assert.doesNotMatch(column, /marker=\{stage\.gate/u);
+  assert.doesNotMatch(column, /title="Есть условия"/u);
+});
+
+test("«Воронка продаж»: поиск на вкладке этапа не говорит «лидов нет», когда лид на другом этапе; «передан» не названо причиной пропавшего лида (настоящая страница)", async () => {
+  const wording = await import("../src/lib/v3/wording.ts");
+  assert.equal(wording.pipelineWords.noResultsInStage("QA", false), "На этом этапе по запросу «QA» лидов нет");
+  assert.equal(wording.pipelineWords.noResultsInStage("QA", true), "На этом этапе по запросу «QA» с выбранными фильтрами лидов нет");
+  assert.equal(wording.pipelineWords.showAllStages, "Показать все этапы");
+  // Блок пустого поиска настоящей страницы: его слова и ссылки (`&amp;` в адресах разобран).
+  const block = (name) => {
+    const html = nextBoards.get(name);
+    assert.ok(html, name);
+    const at = html.indexOf('data-testid="v3-pipeline-no-results"');
+    assert.ok(at > 0, `${name}: показано пустое состояние поиска`);
+    assert.doesNotMatch(html, /data-testid="v3-pipeline-board"/u, `${name}: вместо колонок`);
+    const part = html.slice(html.lastIndexOf("<div", at), html.indexOf("</div>", at) + 6);
+    return { text: text(part), links: [...part.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gu)].map((match) => [text(match[2]), match[1].replace(/&amp;/gu, "&")]) };
+  };
+  const q = (word) => `q=${encodeURIComponent(word)}`;
+  // Ревью 26.11.2026: `?stage=meeting_scheduled&q=Айжан` — «Айжан» есть на «Новых», а доска говорила «лидов нет». Ссылка сохраняет запрос и снимает этап.
+  const other = block("next-sales-stage-search-other");
+  assert.ok(other.text.startsWith("На этом этапе по запросу «Айжан» лидов нет "), other.text);
+  assert.deepEqual(other.links, [["Показать все этапы", `/pipeline?${q("Айжан")}`], ["Сбросить поиск", "/pipeline?stage=meeting_scheduled"]]);
+  // Срок, назначение и ответственный сохраняются в ссылке и названы в сообщении.
+  const filtered = block("next-sales-stage-search-filtered");
+  assert.ok(filtered.text.startsWith("На этом этапе по запросу «Айжан» с выбранными фильтрами лидов нет "), filtered.text);
+  assert.deepEqual(filtered.links, [["Показать все этапы", `/pipeline?${q("Айжан")}&due=overdue`], ["Сбросить поиск и фильтры", "/pipeline?stage=meeting_scheduled"]]);
+  // Нигде никого нет: прежние слова и никакого «Показать все этапы».
+  const nobody = block("next-sales-stage-search-nobody");
+  assert.equal(nobody.text, "По запросу «Яблоко» лидов нет Сбросить поиск");
+  assert.deepEqual(nobody.links, [["Сбросить поиск", "/pipeline?stage=meeting_scheduled"]]);
+  // Совпал только переданный лид: «Все этапы» его не показывает, поэтому предлагается вкладка «Переданы», а не «Показать все этапы».
+  const handedTab = block("next-sales-stage-search-handed");
+  assert.ok(handedTab.text.startsWith("На этом этапе по запросу «Алина» лидов нет "), handedTab.text);
+  assert.deepEqual(handedTab.links, [["Найдены среди переданных", `/pipeline?stage=handed_off&${q("Алина")}`], ["Сбросить поиск", "/pipeline?stage=meeting_scheduled"]]);
+  // «Все этапы»: прежние слова (вкладки этапа нет) и вход в «Переданы».
+  const handedAll = block("next-sales-search-handed");
+  assert.ok(handedAll.text.startsWith("По запросу «Алина» лидов нет "), handedAll.text);
+  assert.deepEqual(handedAll.links.map(([label]) => label), ["Найдены среди переданных", "Сбросить поиск"]);
+  // `?lead=` на лида, которого в чтении нет: причины — закрыт или ссылка устарела; переданный лид на доске есть, его «передан» не называет.
+  assert.doesNotMatch(wording.pipelineWords.leadMissing, /передан/u);
+  const missing = nextBoards.get("next-sales-lead-missing");
+  const missingAt = missing.indexOf('data-testid="v3-pipeline-lead-missing"');
+  assert.ok(missingAt > 0, "строка о пропавшем лиде");
+  const missingBlock = missing.slice(missing.lastIndexOf("<p", missingAt), missing.indexOf("</p>", missingAt) + 4);
+  assert.equal(text(missingBlock), "Лид не найден на доске — возможно, закрыт или ссылка устарела. Закрытые");
+  assert.match(missingBlock, /href="\/pipeline\?view=closed"/u);
+});

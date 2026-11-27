@@ -462,6 +462,10 @@ test("migration 378: the staff command takes an open sales lead instead of refus
   assert.match(takes, /SELECT l\.id, l\.client_id INTO open_lead_id, open_lead_client_id/u);
   // Условия продажи дополняются (revision + 1), направление интереса не стирается.
   assert.match(takes, /ON CONFLICT \(lead_id\) DO UPDATE SET[\s\S]*?revision = platform_private\.lead_sale_conditions\.revision \+ 1/u);
+  // Поверх записанного продажами ложатся только заполненные значения формы: результат нормализатора несёт пустые
+  // умолчания и стёр бы название услуги, оплату, заметки и (при форме с одной датой) цену продаж.
+  assert.match(takes, /platform_private\.lead_sale_conditions\.fields \|\| jsonb_strip_nulls\(jsonb_build_object\(\s+'service_cost_minor', cost_minor::TEXT, 'service_cost_currency', cost_currency,\s+'signing_date', to_char\(signed_on, 'YYYY-MM-DD'\)\)\)\),\s+revision = /u);
+  assert.doesNotMatch(takes, /\|\| EXCLUDED\.fields/u, "the normalizer's blank defaults must not overwrite what sales recorded");
   assert.match(takes, /COALESCE\(CASE direction WHEN 'EUROPE' THEN 'EU' ELSE direction END, l\.interest_direction\)/u);
   assert.match(takes, /'lead_taken', lead_taken,/u);
   assert.doesNotMatch(takes, /GRANT|REVOKE|SECURITY INVOKER/u, "rights and owner stay as 281 left them");

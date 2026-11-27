@@ -16,7 +16,10 @@
 --     анкета, заметка, деньги — как у нового человека;
 --   * условия продажи лида (lead_sale_conditions), если продажи их уже
 --     записали, дополняются стоимостью и датой из формы (revision + 1), а не
---     падают на первичном ключе;
+--     падают на первичном ключе. Поверх записанного ложатся только значения,
+--     заполненные в форме (не весь результат нормализатора с пустыми
+--     умолчаниями): название услуги, оплата, заметки и пожелания продаж, а
+--     также цена, когда в форме одна дата, остаются как были;
 --   * в квитанции и в журнале `case.create` — `lead_taken: true`.
 -- Дело в работе у человека по-прежнему отказ (admissions_direct_case_exists).
 -- Служебный импорт (import_admissions_student_case_v1) не меняется: для
@@ -82,7 +85,9 @@ BEGIN
           $n7$      'signing_date', to_char(signed_on, 'YYYY-MM-DD')))), 1, actor.membership_id)
     ON CONFLICT (lead_id) DO UPDATE SET
       fields = platform_private.lead_sale_condition_fields(
-        platform_private.lead_sale_conditions.fields || EXCLUDED.fields),
+        platform_private.lead_sale_conditions.fields || jsonb_strip_nulls(jsonb_build_object(
+          'service_cost_minor', cost_minor::TEXT, 'service_cost_currency', cost_currency,
+          'signing_date', to_char(signed_on, 'YYYY-MM-DD')))),
       revision = platform_private.lead_sale_conditions.revision + 1,
       updated_by_membership_id = EXCLUDED.updated_by_membership_id,
       updated_at = statement_timestamp();$n7$],

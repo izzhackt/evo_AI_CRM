@@ -1,0 +1,13 @@
+[Unit]
+Description=EVO case deadline watch (tasks for curators from computable deadlines, no AI)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# Files only: nothing here is installed by the repository. The owner installs and enables the timer
+# (docs/runbooks/ai-agents-managed.md, «Сторож сроков»). `--apply` writes tasks; the same command without it is a dry
+# run that writes nothing. One JSON line of counters goes to the journal: `journalctl -u evo-case-deadline-watch -n 5`.
+# A oneshot unit never overlaps itself; the database also takes one lock per organization.
+ExecStart=/usr/bin/docker exec evo-crm-app-1 node /app/case-deadline-watch.mjs --apply
+TimeoutStartSec=120

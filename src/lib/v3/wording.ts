@@ -2062,6 +2062,16 @@ export function whatsappConnectError(code: string | null | undefined): string | 
 }
 
 /**
+ * Названия задач «Сторожа сроков» (migration 380, `platform_private.case_deadline_watch_title`). Задачу пишет SQL, поэтому
+ * слова лежат и там; равенство двух копий проверяет tests/case-deadline-watch.test.mjs. `{detail}` — документ или платёж в
+ * кавычках, `{date}` — дата дд.мм.гггг.
+ */
+export const CASE_DEADLINE_WATCH_TITLES = {
+  slot_due: "Срок документа — {detail}: {date}",
+  next_step_overdue: "Следующий шаг просрочен: срок был {date}",
+  tranche_overdue: "Платёж просрочен — {detail}: срок был {date}",
+} as const;
+
  * «Предложить шаг» и «Передача» на карточке дела (миграция 383, решение владельца 28.11.2026): агент предлагает, человек
  * принимает. Слова строки предложения под «Шаг не задан», кнопок и блока передачи; ключи и коды людям не показываются.
  */

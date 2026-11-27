@@ -6358,6 +6358,9 @@ SQL
     printf '%s\n' "$case_deadline_watch_log"
     if ! grep -q 'A380_CASE_DEADLINE_WATCH_SUITE_PASSED' <<<"$case_deadline_watch_log"; then
       echo "platform_case_deadline_watch.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «ИИ-агенты»: два предохранителя базы (migration 379, ночь 28.11.2026). Matched by name, not number. The migration
   # replaces two function bodies by checked fragments and the reservation function by a new signature: right after it a second
   # apply refuses (a379_already_applied), then the suite, insisting on its marker. The suite proves: the posture (two target

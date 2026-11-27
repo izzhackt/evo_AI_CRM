@@ -17,6 +17,9 @@ const ICONS: Readonly<Record<AiAgentTab, LucideIcon>> = {
 /** Короткие подписи на телефоне: с полными именами ряд на 393 px вдвое длиннее экрана. */
 const SHORT: Readonly<Partial<Record<AiAgentTab, string>>> = { runs: "История", drafts: "Одобрение", instructions: "Правила" };
 
+/** На странице агента на телефоне ряд лежит в карточке шапки (`NextAgentPage`): своей рамки и подложки у него там нет. */
+const CARD = " mb-0.5 max-sm:mb-0 max-sm:border-0 max-sm:bg-transparent max-sm:px-0";
+
 /**
  * Шесть вкладок страницы агента (13.11.2026, «прокачай вкладки»): ссылки `?tab=` в одной рамке-переключателе, у каждой
  * значок раздела. Выбранная — общий `.v3-choice` (нейтральная подложка, вес 600), без красного. Черновики, которые ждут
@@ -32,7 +35,7 @@ export function NextAgentTabs({ agentKey, title, tab, draftsPending, bare = fals
 }>) {
   return (
     <QueueTabStrip label={`Разделы агента «${title}»`} testId="v3-aia-tabs">
-      <ul className={`inline-flex min-w-max items-center gap-0.5 rounded-card border border-border bg-surface p-1${bare ? "" : " mb-0.5"}`} data-tab-ring="inset">
+      <ul className={`inline-flex min-w-max items-center gap-0.5 rounded-card border border-border bg-surface p-1${bare ? "" : CARD}`} data-tab-ring="inset">
         {AI_AGENT_TABS.map((one) => {
           const Icon = ICONS[one.key];
           const current = one.key === tab;

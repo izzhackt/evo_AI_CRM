@@ -4,6 +4,7 @@ import type { MouseEvent } from "react";
 import { DueWord } from "@/components/staff/blocks/DueWord";
 import { Initials } from "@/components/staff/blocks/Initials";
 import { BOARD_CARD_CLASS } from "@/components/staff/board/Board";
+import { LeadTestBadge } from "@/components/staff/LeadTestBadge";
 import type { DueWordView } from "@/components/staff/queue/due-bucket";
 import { leadLabel } from "@/components/staff/pipeline-next/pipeline-next-model";
 import type { PipelineLead } from "@/components/staff/pipeline-next/types";
@@ -49,6 +50,7 @@ export function LeadCardNext({ lead, terminal, selected, showOwner, href, onOpen
           className={`t-item line-clamp-2 min-w-0 flex-1 break-words text-fg after:absolute after:inset-0 after:rounded-ctl ${word ? "basis-full @[12rem]:basis-auto" : ""}`}
         >
           {leadLabel(lead)}
+          {lead.isTest ? <LeadTestBadge className="ml-1.5 align-middle" /> : null}
         </Link>
         {word ? (
           <span className="order-first flex shrink-0 basis-full justify-end @[12rem]:order-none @[12rem]:basis-auto">

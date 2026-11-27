@@ -11,7 +11,7 @@ import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { LeadClosureReceipt } from "@/lib/platform-closure-contract";
 import type { PlatformSalesOwnerOption, PlatformSalesStage } from "@/lib/platform-sales-contract";
-import { closureWords } from "@/lib/v3/wording";
+import { closureWords, leadTestWords } from "@/lib/v3/wording";
 import { withPipelineReturn } from "@/lib/v3/pipeline-return";
 
 type Props = Readonly<{
@@ -48,7 +48,7 @@ export function LeadSheetNext({ lead, open, today, stage, onClose, onLeadClosed,
       onCloseAutoFocus={onCloseAutoFocus}
       onEscapeKeyDown={sheetEscape}
       title={leadLabel(lead)}
-      description={`${stage?.title ?? ""} · ${owner ? `Ответственный: ${owner}` : "Ответственный не назначен"}`}
+      description={`${stage?.title ?? ""} · ${owner ? `Ответственный: ${owner}` : "Ответственный не назначен"}${lead.isTest ? ` · ${leadTestWords.badge}` : ""}`}
       footer={
         // Одна строка и на телефоне: подвал панели там идёт столбцом наизнанку, и «⋯» без подписи оставалась одна над кнопкой.
         <div className="flex items-center gap-2 sm:justify-end">

@@ -27,6 +27,10 @@ import {
  * работе (`daily_budget_reserved`), приём сначала закрывает по сессиям открытые запуски агента — тот, что уже кончился
  * в Claude, отдаёт настоящий расход и снимает резерв, — и проверяет лимит ещё раз (как с `run_in_progress` ниже).
  * Заявки сайта этим лимитом не останавливаются.
+ *
+ * Тестовый лид (миграция 385, пометка «Тестовый лид» на карточке) агентов не будит: перед выбором целей спрашиваем базу
+ * (`ai_agent_runtime_event_lead_is_test_v1`: лид заявки по id запроса, лид чата по id беседы); тестовый — событие не
+ * запускается и пишет одну строку журнала с `test_lead`. Сбой вопроса события не останавливает (журнал `dispatch_test_check`).
  */
 
 export type AiAgentEvent = Readonly<{ kind: AiAgentEventKind; ref: string | null }>;
@@ -92,6 +96,18 @@ export async function dispatchAiAgentEvent(
     if (!anthropic || !organizationId) return { started: 0 };
 
     const client = await deps.serviceClient();
+    // Тестовый лид (миграция 385) агентов не будит: ни заявка сайта, ни чат WhatsApp с таким лидом не запускают событие.
+    // Не удалось спросить — событие идёт как раньше: пропавшая настоящая заявка хуже лишнего пробного запуска.
+    const testCheck = await callRpc(client, AI_AGENT_RUNTIME_RPC.eventLeadIsTest, {
+      p_organization_id: organizationId,
+      p_trigger_kind: event.kind,
+      p_ref: event.ref,
+    });
+    if (testCheck.ok && testCheck.data === true) {
+      deps.log({ op: "dispatch", status: "ok", event: event.kind, targets: 0, started: 0, skipped: 0, failed: 0, capped: 0, test_lead: true });
+      return { started: 0 };
+    }
+    if (!testCheck.ok) deps.log({ op: "dispatch_test_check", status: "error", event: event.kind, code: testCheck.code });
     const listed = await callRpc(client, AI_AGENT_RUNTIME_RPC.dispatchTargets, {
       p_organization_id: organizationId,
       p_trigger_kind: event.kind,

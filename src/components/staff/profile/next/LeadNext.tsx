@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
 import { HelpTip } from "@/components/kit/HelpTip";
+import { LeadTestBadge } from "@/components/staff/LeadTestBadge";
+import { leadTestWords } from "@/lib/v3/wording";
 
 import { Initials } from "../../blocks/Initials";
 import type { LeadNextSource } from "../LeadWorkParts";
@@ -25,6 +27,7 @@ export function leadNextParts(source: LeadNextSource): Readonly<{ header: ReactN
     <SummaryCard
       testId="v3-lead-summary"
       facts={[
+        ...(facts.isTest ? [{ label: leadTestWords.label, value: <LeadTestBadge /> }] : []),
         {
           label: "Ответственный",
           value: facts.owner

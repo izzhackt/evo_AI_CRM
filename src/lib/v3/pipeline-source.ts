@@ -14,6 +14,7 @@ import {
   type PlatformSalesStage,
 } from "@/lib/platform-sales";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
+import { readTestLeadIds } from "@/lib/platform-lead-test";
 import { readCompletedSalesHandoffs } from "@/lib/v3/sales-handoff-source";
 import { resolveSalesStage, SALES_BOARD_STAGES } from "@/lib/v3/sales-stage";
 import { salesStage } from "@/lib/v3/wording";
@@ -228,7 +229,12 @@ export async function readPipelineLeads(
   filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
 ): Promise<PipelineBoardRead> {
   const read = await readAllCanonicalSalesLeads(actor, filters);
-  const completed = await readCompletedSalesHandoffs(actor, read.rows.map((row) => row.leadId));
+  const leadIds = read.rows.map((row) => row.leadId);
+  // «Тестовый лид» (385): метка «Тест» — подсказка; не прочиталась — доска без меток, а не с ошибкой.
+  const [completed, testIds] = await Promise.all([
+    readCompletedSalesHandoffs(actor, leadIds),
+    readTestLeadIds(actor, leadIds),
+  ]);
   const today = organizationDate(new Date());
 
   const mapped = read.rows.map((row) => {
@@ -259,6 +265,7 @@ export async function readPipelineLeads(
         : stageAgeDays(row.stageEnteredAt, today),
       latestNote: row.latestNote,
       href: `/profile?id=${row.leadId}`,
+      ...(testIds?.has(row.leadId) ? { isTest: true } : {}),
       workflow: Object.freeze({
         leadId: row.leadId,
         currentOwnerMembershipId: row.currentOwnerMembershipId,

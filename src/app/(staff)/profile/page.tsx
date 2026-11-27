@@ -76,6 +76,7 @@ import { readCaseAgreement } from "@/lib/v3/case-agreement-source";
 import { readCaseWork } from "@/lib/v3/case-work-source";
 import { readPipelineOwnerOptions, readPipelineStages } from "@/lib/v3/pipeline-source";
 import { readCaseClosure, readClosedLeads, type CaseClosure, type ClosedLeadRow } from "@/lib/platform-closure";
+import { readTestLeadIds } from "@/lib/platform-lead-test";
 import { closureWords, leadDisplayName } from "@/lib/v3/wording";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
 import { studentPortalOrigin } from "@/lib/server/student-registration-link";
@@ -489,6 +490,9 @@ export default async function ProfilePart({
   })() : null;
   // Lead 360 (Э4, Э8.4): шапка «Этап · Что дальше», действия у заголовка
   // («⋯» — «Закрыть лид», 246) и «Обзор» в две колонки, как у дела.
+  // «Тестовый лид» (385): пометка читается отдельно и только вне просмотра роли; не прочиталась — переключателя и метки нет.
+  const profileLeadId = view && leadSales ? view.details.routeTarget.leadId : null;
+  const leadIsTest = profileLeadId && !isStaffPreview(actor) ? ((await readTestLeadIds(actor, [profileLeadId]))?.has(profileLeadId) ?? null) : null;
   const leadParts = view && leadSales && view.details.routeTarget.leadId ? leadWorkParts({
     actor,
     profile: view.profile,
@@ -503,7 +507,9 @@ export default async function ProfilePart({
       note: randomUUID(),
       portal: view.details.admissions ? studentPortalProvisioningRequestId(actor.organizationId, view.details.admissions.studentCaseId) : "",
       cabinetPortal: view.details.leadCabinetCase ? studentPortalProvisioningRequestId(actor.organizationId, view.details.leadCabinetCase.studentCaseId) : "",
+      testFlag: randomUUID(),
     },
+    isTest: leadIsTest,
     stages: readPipelineStages().flatMap((stage) => stage.key === "handed_off" ? [] : [{ key: stage.key, title: stage.title }]),
     ownerOptions: leadOwners?.rows ?? [],
     ownerOptionsHaveMore: leadOwners?.hasNext ?? false,

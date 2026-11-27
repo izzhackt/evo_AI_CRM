@@ -59,6 +59,7 @@ const SOURCE_322 = readFileSync(new URL("../supabase/migrations/322_platform_ai_
 const SOURCE_336 = readFileSync(new URL("../supabase/migrations/336_platform_ai_agent_case_questionnaire.sql", import.meta.url), "utf8");
 const SCHEMA_UPDATES = new Map([...SOURCE_336.matchAll(/UPDATE platform_private\.ai_agent_tool_schemas SET input_schema = \$j\$(.*?)\$j\$::jsonb\s*WHERE tool = '([a-z_]+)';/gsu)]
   .map(([, schema, name]) => [name, JSON.parse(schema)]));
+const SOURCE_385 = readFileSync(new URL("../supabase/migrations/385_platform_leads_is_test.sql", import.meta.url), "utf8");
 const SUITE_322 = readFileSync(new URL("../supabase/tests/platform_ai_agents_daily_spend.sql", import.meta.url), "utf8");
 const TEST_SCRIPT = readFileSync(new URL("../scripts/test-runners/test-postgres-authorization.sh", import.meta.url), "utf8");
 
@@ -82,13 +83,15 @@ test("every RPC the contract names exists in the migration, in the right schema"
   const created = new Set([...SOURCE.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
   const created318 = new Set([...SOURCE_318.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
   for (const name of created318) assert.ok(!created.has(name), `${name} is new in 318`);
+  // 385 adds the one runtime function that tells whether the lead of an event is a test lead.
+  const created385 = new Set([...SOURCE_385.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
   for (const name of [
     ...Object.values(AI_AGENT_STAFF_RPC),
     ...Object.values(AI_AGENT_RUNTIME_RPC),
     ...Object.values(AI_AGENT_MCP_RPC),
     ...AI_AGENT_TOOLS.map((tool) => tool.rpc),
   ]) {
-    assert.ok(created.has(name) || created318.has(name), `platform.${name} is created by 317 or 318`);
+    assert.ok(created.has(name) || created318.has(name) || created385.has(name), `platform.${name} is created by 317, 318 or 385`);
   }
   // Nothing extra in the public schema: 9 + 14 + 3 + 24 functions in 317, the two environment-lease functions in 318.
   assert.equal(created.size, 9 + 14 + 3 + 24);

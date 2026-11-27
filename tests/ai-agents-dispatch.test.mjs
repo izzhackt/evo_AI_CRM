@@ -29,8 +29,9 @@ const TARGET = {
 // проверяет tests/ai-agents-daily-cap.test.mjs.
 const NO_SPEND = () => ({ data: { day: "2026-10-22", dayStart: "2026-10-21T18:00:00+00:00", spentCents: 0, open: [] } });
 
-function setup({ targets = [TARGET], reserve, sessions, env, update, events } = {}) {
+function setup({ targets = [TARGET], reserve, sessions, env, update, events, isTest } = {}) {
   const service = fakeRpc({
+    ...(isTest === undefined ? {} : { ai_agent_runtime_event_lead_is_test_v1: typeof isTest === "function" ? isTest : () => ({ data: isTest }) }),
     ai_agent_runtime_dispatch_targets_v1: () => ({ data: targets }),
     ai_agent_runtime_daily_spend_v1: NO_SPEND,
     ai_agent_runtime_run_reserve_v1: reserve ?? (() => ({ data: { reserved: true, runId: RUN } })),
@@ -291,4 +292,40 @@ test("dispatch: обрыв при создании сессии — запуск
   assert.match(patch.errorMessage, /могла быть создана без записи в CRM/u);
   const line = logs.find((entry) => entry.op === "dispatch_run");
   assert.deepEqual([line.run_id, line.ambiguous], [RUN, true]);
+});
+
+// Миграция 385: пометка «Тестовый лид» не будит агентов.
+test("dispatch: заявка сайта по тестовому лиду — ни целей, ни резерва, ни сессии", async () => {
+  const { service, claude, deps, logs } = setup({ isTest: true });
+  const result = await dispatchAiAgentEvent({ kind: "website_lead", ref: REQUEST_ID }, deps);
+  assert.deepEqual(result, { started: 0 });
+  const asked = service.called("ai_agent_runtime_event_lead_is_test_v1");
+  assert.equal(asked.length, 1);
+  assert.deepEqual(asked[0].args, { p_organization_id: ORG, p_trigger_kind: "website_lead", p_ref: REQUEST_ID });
+  assert.equal(service.called("ai_agent_runtime_dispatch_targets_v1").length, 0);
+  assert.equal(service.called("ai_agent_runtime_run_reserve_v1").length, 0);
+  assert.equal(claude.callsFor("POST", "/v1/sessions").length, 0);
+  assert.ok(logs.some((line) => line.op === "dispatch" && line.test_lead === true), "одна строка журнала с test_lead");
+  assert.doesNotMatch(JSON.stringify(logs), new RegExp(REQUEST_ID, "u"), "id заявки в журнал не попадает");
+});
+
+test("dispatch: входящий WhatsApp тестового лида — не запускается и дневной лимит не читается", async () => {
+  const conversation = "5d1f2a3b-4c5d-4e6f-8a7b-9c0d1e2f3a4b";
+  const { service, claude, deps } = setup({ isTest: true });
+  const result = await dispatchAiAgentEvent({ kind: "whatsapp_inbound", ref: conversation }, deps);
+  assert.deepEqual(result, { started: 0 });
+  assert.deepEqual(service.called("ai_agent_runtime_event_lead_is_test_v1")[0].args,
+    { p_organization_id: ORG, p_trigger_kind: "whatsapp_inbound", p_ref: conversation });
+  assert.equal(service.called("ai_agent_runtime_daily_spend_v1").length, 0);
+  assert.equal(service.called("ai_agent_runtime_run_reserve_v1").length, 0);
+  assert.equal(claude.callsFor("POST", "/v1/sessions").length, 0);
+});
+
+test("dispatch: не тестовый лид — запуск как раньше; сбой вопроса про тест события не останавливает", async () => {
+  for (const isTest of [false, () => ({ error: { code: "XX000", message: "boom" } }), undefined]) {
+    const { service, deps } = setup({ isTest });
+    const result = await dispatchAiAgentEvent({ kind: "website_lead", ref: REQUEST_ID }, deps);
+    assert.deepEqual(result, { started: 1 });
+    assert.equal(service.called("ai_agent_runtime_run_reserve_v1").length, 1);
+  }
 });

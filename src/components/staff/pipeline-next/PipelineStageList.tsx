@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState, type MouseEvent } from "react";
 
 import { DueWord } from "@/components/staff/blocks/DueWord";
+import { LeadTestBadge } from "@/components/staff/LeadTestBadge";
 import { leadDueWord, leadLabel } from "@/components/staff/pipeline-next/pipeline-next-model";
 import type { PipelineLead } from "@/components/staff/pipeline-next/types";
 
@@ -58,6 +59,7 @@ export function PipelineStageList({ leads, selectedId, showOwner, today, hrefFor
               <Link href={hrefFor(lead)} prefetch={false} scroll={false} onClick={openLead(lead)} data-lead-link={lead.id}
                 className="t-item line-clamp-2 min-w-0 break-words text-fg after:absolute after:inset-0" title={leadLabel(lead)}>
                 {leadLabel(lead)}
+                {lead.isTest ? <LeadTestBadge className="ml-1.5 align-middle" /> : null}
               </Link>
               <span className="flex min-w-0 items-baseline gap-2 t-body-compact">
                 <span className={`min-w-0 truncate ${lead.nextAction ? "text-fg-2" : "text-fg-3"}`} title={lead.nextAction ?? undefined}>

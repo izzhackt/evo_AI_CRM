@@ -18,12 +18,14 @@ export async function loadScopedRequestsQueue(actor: ActivePlatformActor, select
   // POST: no nullable timestamp/cursor strings in PostgREST's GET query.
   // Миграция 250 (Э3): ответственный, «можно взять», «Ждут разбора / Все» и числа всех вкладок;
   // телефония T9 (staff): лиды `phone_call` и вкладка «Звонки» при включённой телефонии.
-  const { data, error } = await client.schema("platform").rpc("staff_requests_queue_v3", {
+  // 377: v4 — то же чтение и смещение для номеров страниц.
+  const { data, error } = await client.schema("platform").rpc("staff_requests_queue_v4", {
     p_organization_id: actor.organizationId,
     p_source: selection.source,
     p_status: selection.status,
     p_limit: selection.limit,
     ...(selection.cursor ? { p_cursor: selection.cursor } : {}),
+    ...(!selection.cursor && selection.page && selection.page > 1 ? { p_offset: (selection.page - 1) * selection.limit } : {}),
   });
   if (error) throw new RequestsQueueSourceError(error.code === "42501" ? "forbidden" : error.code === "22023" ? "invalid" : "unavailable");
   return parseRequestsQueue(data, actor.organizationId, selection, decodeStudentApplication, parsePortalConsultationRow);

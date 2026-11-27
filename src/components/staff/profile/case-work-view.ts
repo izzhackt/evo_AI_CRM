@@ -177,7 +177,7 @@ export function caseMomentLabel(iso: string, today: string): string {
   return `${formatQueueDay(dayInOrganizationTimezone(moment), today)} ${BISHKEK_TIME.format(moment)}`;
 }
 
-/** Заявка «Обзора» одной строкой: вуз · программа, статус, основной вариант и дедлайн. */
+/** Заявка «Обзора» одной строкой: вуз · программа, статус, «основной» и дедлайн. */
 export type CaseApplicationLine = Readonly<{
   id: string;
   title: string;
@@ -446,7 +446,7 @@ export function caseFeed(input: Readonly<{
   if (input.firstPage) {
     if (input.activity.kind === "ready") {
       for (const event of input.activity.events) {
-        const text = journalEventText(event.transition, event.directionChange);
+        const text = journalEventText(event.transition, event.directionChange, event.paymentDetail);
         if (!text || !FEED_TARGETS.has(event.targetKind ?? "") || FEED_SKIPPED.has(event.transition) || !validMoment(event.occurredAt)) continue;
         const title = event.transition.startsWith("application.") && event.targetId ? applicationTitle.get(event.targetId) : undefined;
         items.push({ kind: "event", at: event.occurredAt, key: `activity:${event.id}`, text: title ? `${text} · ${title}` : text,

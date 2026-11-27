@@ -43,7 +43,9 @@ export function AgentAlert({
 export function NextApiKeyMissing() {
   return (
     <AgentAlert tone="warn" testId="v3-aia-key-missing" role="status">
-      Ключ Claude API не задан в CRM: агенты не запустятся. Его добавляет администратор.
+      {/* Телефон — одна строка (25.11.2026): кто добавляет ключ, сказано на компьютере и в пустом чате. */}
+      <span className="max-sm:hidden">Ключ Claude API не задан в CRM: агенты не запустятся. Его добавляет администратор.</span>
+      <span className="sm:hidden">Нет ключа Claude: агенты не запустятся.</span>
     </AgentAlert>
   );
 }

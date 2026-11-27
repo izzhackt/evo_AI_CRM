@@ -45,6 +45,17 @@ export const STEPS = Object.freeze({
       ? null
       : "mobile/node_modules is missing: run `npm ci --prefix mobile`"),
   },
+  // The same Jest suite, compiled the way Metro builds the app (mobile/jest.compiler.config.js). The command lives here, not in the
+  // `scripts` of mobile/package.json: they are part of the native fingerprint (AGENTS.md, «Замок отпечатка нативной сборки»), and the
+  // existing `test` script passes the arguments through to Jest.
+  "mobile-compiled": {
+    title: "Mobile app through the React Compiler (mobile/: jest -c jest.compiler.config.js)",
+    command: () => [NPM, ["--prefix", "mobile", "run", "--silent", "test", "--", "-c", "jest.compiler.config.js", "--ci", "--maxWorkers=2"]],
+    requires: (ctx) => {
+      if (!existsSync(join(ctx.root, "mobile/node_modules"))) return "mobile/node_modules is missing: run `npm ci --prefix mobile`";
+      return existsSync(join(ctx.root, "mobile/jest.compiler.config.js")) ? null : "mobile/jest.compiler.config.js is missing";
+    },
+  },
   build: { title: "Production build (next build)", command: () => [NPM, ["run", "--silent", "build"]] },
   migrations: {
     title: "Migration boundaries (Docker)",
@@ -54,10 +65,10 @@ export const STEPS = Object.freeze({
 });
 
 /** Rough seconds on a laptop (22.11.2026), only to start the longest steps first. */
-export const EXPECTED_SECONDS = Object.freeze({ "diff-check": 1, typecheck: 50, lint: 80, tests: 240, contracts: 200, mobile: 55, build: 70, migrations: 1500, preview: 120 });
+export const EXPECTED_SECONDS = Object.freeze({ "diff-check": 1, typecheck: 50, lint: 80, tests: 240, contracts: 200, mobile: 55, "mobile-compiled": 100, build: 70, migrations: 1500, preview: 120 });
 
 /** Run by a plain `npm run verify`. `migrations` joins when supabase/ changed; `preview` only on request. */
-export const DEFAULT_STEPS = Object.freeze(["diff-check", "typecheck", "lint", "tests", "contracts", "mobile", "build"]);
+export const DEFAULT_STEPS = Object.freeze(["diff-check", "typecheck", "lint", "tests", "contracts", "mobile", "mobile-compiled", "build"]);
 
 export function parseArgs(argv) {
   const options = { only: null, skip: [], with: [], shard: null, base: null, jobs: null, list: false };
@@ -232,7 +243,7 @@ async function main() {
   if (options.list) {
     for (const [name, step] of Object.entries(STEPS)) {
       const [executable, args] = step.command({ root: ROOT, base: "origin/main", shard: null });
-      process.stdout.write(`${DEFAULT_STEPS.includes(name) ? "*" : " "} ${name.padEnd(11)} ${step.title}: ${[executable, ...args].join(" ")}\n`);
+      process.stdout.write(`${DEFAULT_STEPS.includes(name) ? "*" : " "} ${name.padEnd(15)} ${step.title}: ${[executable, ...args].join(" ")}\n`);
     }
     process.stdout.write("* = part of a plain `npm run verify`; migrations join when supabase/ changed.\n");
     return 0;

@@ -8,7 +8,8 @@ import { AccessibilityInfo, Alert, Platform, ScrollView } from "react-native";
 import { ASSESSMENT_RETRY_MS, ASSESSMENT_SAVE_MS } from "@/features/learning/tests/assessment-session";
 import { AssessmentScreen } from "@/features/learning/tests/AssessmentScreen";
 import { answersFor, attemptFixture, ATTEMPT_ID, catalogFixture, completedFixture, type FixtureKey } from "@/test-fixtures/assessment";
-import { announceSignOut } from "@/session/sign-out-signal";
+import type { RpcTransport, RpcTransportResult } from "@/lib/rpc";
+import { announceSignOut, flushBeforeSignOut, SIGN_OUT_FLUSH_MS } from "@/session/sign-out-signal";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
@@ -985,5 +986,96 @@ describe("прокрутка страницы теста при смене ст�
     await fireEvent.press(screen.getByTestId("assessment-complete"));
     await screen.findByTestId("assessment-result");
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(toTop));
+  });
+});
+
+describe("кнопка «Выйти»: неотправленные ответы уходят до отзыва токена (решение владельца 27.11)", () => {
+  const saves = (calls: { name: string }[]) => calls.filter((c) => c.name === SAVE);
+  // Те же три шага делает `SessionProvider.signOut` (сам провайдер, порядок и одну цепочку на два нажатия проверяет `sign-out-signal.test.tsx`).
+  const signOutLikeProvider = async (logout: () => void) => {
+    await flushBeforeSignOut();
+    announceSignOut();
+    logout();
+  };
+  /** Экран теста со своим ответом сервера на сохранение (запрос не отвечает, отказ связи); `sent`: сколько раз сохранение отправлено. */
+  async function openWithSave(save: () => PromiseLike<RpcTransportResult>) {
+    const fake = fakeTransport({ student_assessments_v1: catalogFixture("orvis92"), start_student_assessment_v1: attemptFixture("orvis92") });
+    const sent: string[] = [];
+    const transport: RpcTransport = (name, args, options) => {
+      if (name !== SAVE) return fake.transport(name, args, options);
+      sent.push(name);
+      return save();
+    };
+    const view = await renderPortal(<AssessmentScreen instrumentKey="orvis92" attemptId={null} />, testApi(transport));
+    await begin();
+    return { sent, ...view };
+  }
+  const offline = async (): Promise<RpcTransportResult> => ({ data: null, error: { code: null }, status: 0 });
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it("ответ, не успевший уйти по таймеру, уходит ДО отзыва токена; потом ни выбор, ни таймер, ни закрытие экрана ничего не шлют", async () => {
+    const { calls, unmount } = await open("orvis92", { start_student_assessment_v1: attemptFixture("orvis92"), [SAVE]: attemptFixture("orvis92", { revision: 2 }) });
+    await begin();
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    expect(saves(calls)).toHaveLength(0);
+    const sentAtLogout: number[] = [];
+    await act(async () => {
+      await signOutLikeProvider(() => void sentAtLogout.push(saves(calls).length));
+    });
+    expect(sentAtLogout).toEqual([1]); // к отзыву токена запись уже ушла
+    await fireEvent.press(screen.getByTestId("assessment-option-o2-3")); // студент ещё успел нажать: сессия брошена, запись не уйдёт
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(30_000);
+    });
+    await unmount();
+    expect(saves(calls)).toHaveLength(1);
+  });
+
+  it("без связи (сервер не отвечает): выход идёт дальше ровно через 3 с, и запрос не повторяется", async () => {
+    const { sent, unmount } = await openWithSave(() => new Promise(() => undefined));
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    const logout = jest.fn();
+    await act(async () => {
+      void signOutLikeProvider(logout);
+      await jest.advanceTimersByTimeAsync(SIGN_OUT_FLUSH_MS - 1);
+    });
+    expect(sent).toHaveLength(1); // досылка попробовала и ждёт ответа
+    expect(logout).not.toHaveBeenCalled();
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1);
+    });
+    expect(logout).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(60_000);
+    });
+    await unmount();
+    expect(sent).toHaveLength(1); // сессия брошена: ни повтора, ни досылки при закрытии экрана
+  });
+
+  it("контроль: без выхода сбой связи повторяется по таймеру", async () => {
+    const { sent } = await openWithSave(offline);
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(10_000);
+    });
+    expect(sent.length).toBeGreaterThan(3); // первая отправка (до трёх попыток слоя RPC) и повторы сессии каждые 3 с
+  });
+
+  it("сбой связи (запрос отклонён сразу): выход не ждёт, и повтора по таймеру нет", async () => {
+    const { sent, unmount } = await openWithSave(offline);
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    const logout = jest.fn();
+    await act(async () => {
+      await signOutLikeProvider(logout); // часы стоят: с ожиданием в 3 с этот вызов завис бы
+    });
+    expect(logout).toHaveBeenCalledTimes(1);
+    const atLogout = sent.length; // слой RPC сам пробует отправить обрывом поражённую запись до трёх раз подряд, без пауз
+    expect(atLogout).toBeGreaterThan(0);
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(60_000);
+    });
+    await unmount();
+    expect(sent).toHaveLength(atLogout); // таймер повтора снят сигналом, закрытие экрана ничего не досылает
   });
 });

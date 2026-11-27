@@ -10,6 +10,19 @@ import type { PipelineLead, PipelineStage, PipelineStageKey } from "@/components
 /** Терминальная колонка копится вечно: свёрнутой она показывает только последние карточки (строки приходят новыми вперёд). */
 export const HANDED_VISIBLE_LIMIT = 20;
 
+/**
+ * Рабочая колонка «Всех этапов» (26.11.2026: в «Новом» 559 карточек одной лентой): сначала первые 20, «Показать ещё» прибавляет по 20.
+ * Остаток в пару карточек показывается сразу — кнопка «ещё 1» хуже самой карточки. Открытый лид виден всегда.
+ */
+export const COLUMN_STEP = 20;
+const COLUMN_SLACK = 2;
+export function columnLimit(inStage: readonly PipelineLead[], shown: number | undefined, selectedId: string | null): number {
+  const base = Math.max(COLUMN_STEP, shown ?? 0);
+  const selected = selectedId === null ? -1 : inStage.findIndex((lead) => lead.id === selectedId);
+  const limit = Math.max(base, selected + 1);
+  return inStage.length - limit <= COLUMN_SLACK ? inStage.length : limit;
+}
+
 export const leadLabel = (lead: Pick<PipelineLead, "source" | "name">): string => leadDisplayName(lead.source, lead.name);
 
 /** Срок лида словом от полудня сегодняшнего дня Бишкека, который прочитала страница; без срока — null. */
@@ -30,12 +43,16 @@ export function boardColumns(
   leads: readonly PipelineLead[],
   focus: PipelineStageKey | "all",
   handedExpanded: boolean,
+  shown: Readonly<Partial<Record<string, number>>> = {},
+  selectedId: string | null = null,
 ): readonly StageColumn[] {
   return stages
     .filter((stage) => (focus === "all" ? !stage.terminal : stage.key === focus))
     .map((stage) => {
       const inStage = leads.filter((lead) => lead.stageKey === stage.key);
-      const visible = stage.terminal && !handedExpanded ? inStage.slice(0, HANDED_VISIBLE_LIMIT) : inStage;
+      const visible = stage.terminal
+        ? (handedExpanded ? inStage : inStage.slice(0, HANDED_VISIBLE_LIMIT))
+        : focus === "all" ? inStage.slice(0, columnLimit(inStage, shown[stage.key], selectedId)) : inStage;
       return { stage, inStage, visible };
     });
 }

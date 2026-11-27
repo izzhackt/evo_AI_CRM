@@ -72,3 +72,8 @@ secrets/knowledge/
 .verify/
 
 /.cache/migration-baseline/
+
+# Локальные отчёты браузерных проверок (requests-static-render.cjs пишет в .impeccable/, playwright-cli — в .playwright-cli/): скриншоты,
+# выгрузки страниц и сборки с путём к временной папке автора; в Git им не место.
+/.impeccable/
+/.playwright-cli/

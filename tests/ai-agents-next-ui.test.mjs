@@ -262,7 +262,11 @@ test("хаб по образцу Molar AI: «Сейчас» с итогами, �
 
 test("хаб, предупреждения остаются: ключ Claude не задан, просмотр роли, «Раздел готовится», отказ", async () => {
   const { nextHub } = await views();
-  assert.match(nextHub(F.available(F.LIST), false, false), /data-testid="v3-aia-key-missing"[^>]*>[\s\S]*Ключ Claude API не задан в CRM: агенты не запустятся\. Его добавляет администратор\./u);
+  // 25.11.2026: о ключе на хабе говорит одна тёмная полоса «Сейчас», жёлтой плашки над ней нет.
+  const noKeyHub = nextHub(F.available(F.LIST), false, false);
+  assert.match(noKeyHub, /Запуски недоступны: не задан ключ Claude[\s\S]*data-testid="v3-aia-now-key"[^>]*>Его добавляет администратор\./u);
+  assert.doesNotMatch(noKeyHub, /data-testid="v3-aia-key-missing"/u, "плашка не повторяет полосу");
+  assert.equal((noKeyHub.match(/ключ Claude/giu) ?? []).length, 1, "о ключе — один раз");
   assert.doesNotMatch(nextHub(F.available(F.LIST), false, false), /data-testid="v3-aia-ask-/u, "без ключа «Поручить» не предлагается");
   assert.match(nextHub(F.available(F.LIST), true, true), /Вы смотрите раздел глазами роли: кнопки действий отключены\./u);
   assert.doesNotMatch(nextHub(F.available(F.LIST), true, true), /data-testid="v3-aia-ask-/u, "в просмотре роли «Поручить» нет");
@@ -504,7 +508,7 @@ test("полоса «Сейчас» говорит правду: «на связ
   assert.match(strip_(noKey), /^ИИ-агенты · не подключены Запуски недоступны: не задан ключ Claude /u);
   assert.doesNotMatch(strip_(noKey), /на связи|в работе|прямо сейчас/u);
   assert.doesNotMatch(noKey, /aria-label="Кто работает"/u);
-  assert.match(noKey, /data-testid="v3-aia-key-missing"/u, "плашка про ключ остаётся");
+  assert.doesNotMatch(noKey, /data-testid="v3-aia-key-missing"/u, "о ключе говорит только полоса (25.11.2026)");
   // Ни один агент не включён.
   const off = hub(F.LIST_OFF);
   assert.match(off, /data-mode="off"/u);
@@ -610,7 +614,7 @@ test("маскоты — декоративные картинки: пустое
   }
   // Шапка с маскотом не уходит «?» на отдельную строку: ряд не переносится, название сужается само; на телефоне маскот 32 px.
   const header = strip(nextPage(F.bodyProps("overview")));
-  assert.match(header, /<div class="flex min-w-0 items-center gap-x-2 gap-y-1 flex-nowrap"><img [^>]*class="v3-aia-mascot shrink-0 object-contain size-8 sm:size-10"[^>]*\/><h1 class="t-page-title text-fg min-w-0">/u);
+  assert.match(header, /<div class="flex min-w-0 items-center gap-x-2 gap-y-1 flex-nowrap"><a aria-label="Все ИИ-агенты"[^>]*sm:hidden"[^>]*>[\s\S]*?<\/a><img [^>]*class="v3-aia-mascot shrink-0 object-contain size-8 sm:size-10"[^>]*\/><h1 class="t-page-title text-fg min-w-0">/u);
 });
 
 /* ------------------------------------------------------------------ условия запуска: те же, что у прежнего AgentBody */
@@ -660,7 +664,11 @@ test("шапка страницы агента: «?» с ролью, «Вклю�
     assert.match(page, new RegExp(`<a[^>]*href="${href.replace(/[?]/gu, "\\?")}"[^>]*>(?:<svg[\\s\\S]*?</svg>)?(?:<span[^>]*>)?${label}`, "u"), label);
   }
   assert.match(page, /aria-current="page"[^>]*>(?:<svg[\s\S]*?<\/svg>)?(?:<span[^>]*>)?Обзор/u, "вкладка со значком раздела (13.11.2026)");
-  assert.match(page, /На одобрение<\/span><span[^>]*>3<span class="sr-only"> ждут решения<\/span><\/span>/u);
+  assert.match(page, /На одобрение<\/span><span class="sm:hidden">Одобрение<\/span><span[^>]*>3<span class="sr-only"> ждут решения<\/span><\/span>/u);
+  // 25.11.2026: на телефоне у каждой вкладки подпись (короткая), значков без слов нет.
+  assert.doesNotMatch(page, /max-sm:sr-only/u);
+  // Состояние и переключатели — одной строкой под именем, а не в ряду заголовка.
+  assert.match(page, /data-testid="v3-aia-head-row"[\s\S]*data-testid="v3-aia-status"[\s\S]*data-testid="v3-aia-switches-header"/u);
   assert.match(page, /href="\/ai-agents"[^>]*>[\s\S]*Все ИИ-агенты/u, "возврат к списку");
   // Не администратор видит состояние словом, а не переключатели.
   const staff = strip(nextPage(F.bodyProps("overview", { canEdit: false })));
@@ -936,7 +944,7 @@ test("рамка страницы агента — `PageShell` набора со
   const { nextPage } = await views();
   const page = strip(nextPage(F.bodyProps("overview")));
   assert.match(page, /<main data-testid="v3-ai-agent-page" class="mx-auto w-full px-4 py-8 sm:px-6 max-w-\[1240px\]"><a[^>]*href="\/ai-agents"[^>]*>[\s\S]*Все ИИ-агенты<\/a><div data-slot="page-header"/u, "возврат стоит над шапкой в той же рамке, что хаб");
-  assert.match(read("src/components/staff/ai-agents-next/NextAgentPage.tsx"), /<PageShell[^>]*back=\{<NextBackLink \/>\}/u);
+  assert.match(read("src/components/staff/ai-agents-next/NextAgentPage.tsx"), /<PageShell[\s\S]*?back=\{<NextBackLink phone="arrow" \/>\}/u, "на телефоне возврат стрелкой перед маскотом");
   assert.match(read("src/components/staff/ai-agents-next/NextAgentUnavailable.tsx"), /<PageShell[^>]*back=\{<NextBackLink \/>\}/u);
   assert.doesNotMatch(read("src/components/staff/ai-agents-next/NextAgentPage.tsx") + read("src/components/staff/ai-agents-next/NextAgentUnavailable.tsx"), /<main\b/u, "своей рамки <main> у страниц нет");
   const sw = read("src/components/ui/switch.tsx");

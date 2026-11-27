@@ -5,6 +5,7 @@ import {
   requestOpenKey,
   requestKindOfSource,
   requestsHref,
+  requestsPastFirstPage,
   type RequestRow,
   type RequestSelection,
   type RequestsQueue,
@@ -288,11 +289,12 @@ function RequestsEmpty({ queue, props, now }: Readonly<{
   queue: RequestsQueue; props: ViewProps; now: Date;
 }>) {
   const { selection } = props;
-  if (selection.cursor) {
+  // Не первая страница (курсор или номер, 377): очередь успела уменьшиться — «Новых заявок нет» было бы неправдой.
+  if (requestsPastFirstPage(selection)) {
     return (
       <div role="status" className="flex flex-col items-center gap-3 border-t border-border py-12 text-center" data-testid="queue-empty">
         <p className="t-item text-fg">На этой странице заявок больше нет: список изменился.</p>
-        <Link href={requestsHref({ ...selection, cursor: null })} className={QUEUE_QUIET_LINK}>К началу очереди</Link>
+        <Link href={requestsHref({ ...selection, cursor: null, page: undefined })} className={QUEUE_QUIET_LINK}>К началу очереди</Link>
       </div>
     );
   }
@@ -322,7 +324,7 @@ function RequestsEmpty({ queue, props, now }: Readonly<{
       <div className="flex flex-wrap items-center justify-center gap-x-5">
         {props.canCreateLead ? <ManualLeadTrigger quiet /> : null}
         {selection.status === "waiting" && queue.latestAt
-          ? <Link href={requestsHref({ ...selection, status: "all", cursor: null })} className={QUEUE_QUIET_LINK}>Показать все</Link> : null}
+          ? <Link href={requestsHref({ ...selection, status: "all", cursor: null, page: undefined })} className={QUEUE_QUIET_LINK}>Показать все</Link> : null}
       </div>
     </div>
   );
@@ -345,7 +347,7 @@ export function RequestsQueueView(props: ViewProps) {
     key: status,
     title: REQUEST_STATUS_LABELS[status],
     count: null,
-    href: requestsHref({ ...selection, status, cursor: null }),
+    href: requestsHref({ ...selection, status, cursor: null, page: undefined }),
     active: selection.status === status,
   }));
   const openRow = queue && props.open ? queue.rows.find((row) => requestOpenKey(row) === requestOpenKey(props.open!)) ?? null : null;
@@ -383,7 +385,7 @@ export function RequestsQueueView(props: ViewProps) {
             read.status === "forbidden"
               ? <p role="status" className="border-y border-border py-8 t-body-compact text-fg-2">У вашей роли нет доступа к заявкам.</p>
               : <QueueError text={read.status === "invalid" ? "Эта страница очереди больше не открывается." : "Заявки не загрузились. Список и числа сейчас неизвестны."}
-                retryHref={read.status === "invalid" ? requestsHref({ ...selection, cursor: null }) : listHref} />
+                retryHref={read.status === "invalid" ? requestsHref({ ...selection, cursor: null, page: undefined }) : listHref} />
           ) : (
             <>
               {closedLine ? <p className="t-body-compact text-fg-2" data-testid="requests-closed-kinds">{closedLine}</p> : null}

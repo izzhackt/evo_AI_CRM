@@ -149,3 +149,23 @@ test("narrow card geography: one institution, its own costs and the cities of it
   assert.equal(parseInstitutionGeography(answer({ cities: [city("alpha-city", "CN"), city("kl", "MY")] }), id), null, "a city of another country");
   assert.equal(parseInstitutionGeography(answer({ institutions: [], cities: [city("alpha-city", "CN")] }), id), null, "cities without the institution");
 });
+
+test("«Порядок» в адресе сортирует весь прочитанный каталог: по названию А→Я и по числу программ уровня (25.11.2026)", async () => {
+  const { parseUniversityFilters } = await import("../src/lib/platform-university-catalog.ts");
+  const now = new Date("2026-11-25T08:00:00Z");
+  const items = TEMPLATES.map(universityListItem);
+  const collator = new Intl.Collator("ru", { sensitivity: "base", numeric: true });
+  const byName = sortCatalogueRows(items, "", now, "name").map((row) => row.university.content.name);
+  assert.deepEqual(byName, [...byName].sort((a, b) => collator.compare(a, b)), "по названию — весь каталог, не страница");
+  assert.equal(byName.length, items.length);
+  for (const level of ["", "bachelor"]) {
+    const counts = sortCatalogueRows(items, level, now, "programs").map((row) => catalogueProgramCount(row.university, level));
+    assert.deepEqual(counts, [...counts].sort((a, b) => b - a), `больше программ выше (${level || "все уровни"})`);
+  }
+  assert.deepEqual(sortCatalogueRows(items, "", now).map((row) => row.university.id), sortCatalogueRows(items, "", now, undefined).map((row) => row.university.id), "без sort — прежний порядок по сроку");
+  assert.equal(parseUniversityFilters({ sort: "name" })?.sort, "name");
+  assert.equal(parseUniversityFilters({ sort: "programs", level: "master" })?.sort, "programs");
+  assert.equal(parseUniversityFilters({ sort: "deadline" }), null, "порядок по умолчанию в адрес не пишется");
+  assert.equal(parseUniversityFilters({ sort: "zzz" }), null);
+  assert.equal("sort" in (parseUniversityFilters({}) ?? {}), false);
+});

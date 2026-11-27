@@ -593,10 +593,11 @@ export function Money({
           </p>
           <ul className="mt-2 border-t border-border">
             {draft.payments.map((payment) => (
-              <li key={payment.name} className="flex min-h-11 flex-wrap items-center gap-x-4 border-b border-border py-1.5">
+              <li key={payment.id} className="flex min-h-11 flex-wrap items-center gap-x-4 border-b border-border py-1.5">
                 <span className="min-w-0 flex-1 break-words t-body-compact text-fg">{payment.name}</span>
                 <span className="t-body-compact tabular-nums text-fg">{payment.amount}</span>
                 <span className="t-meta text-fg-2">
+                  {payment.paidPart ? <>оплачено <span className="tabular-nums">{payment.paidPart}</span>{payment.at ? " · " : null}</> : null}
                   {payment.at ? <>{payment.state === "paid" ? "оплачен" : "до"}{" "}
                     <time dateTime={payment.at} className="font-mono tabular-nums">{moneyMomentDay(payment.at, today)}</time></>
                     : payment.state === "paid" ? "оплачен" : null}
@@ -635,7 +636,7 @@ export function History({ profile, nextUi = false }: { profile: PersonProfile; /
       <Card eyebrow title="Что происходило">
         <ol>
           {profile.timeline.map((entry) => {
-            const label = journalEventText(entry.transition, entry.directionChange) ?? eventLabel(entry.transition);
+            const label = journalEventText(entry.transition, entry.directionChange, entry.paymentDetail) ?? eventLabel(entry.transition);
             // Неизвестное событие пропускается: сырой ключ на экране — это
             // ровно то, что мы убирали.
             if (!label) return null;

@@ -51,7 +51,8 @@ export async function createAdmissionsStudentCase(
     || (receipt.state !== "active" && receipt.state !== "pending")) {
     return { status: "unavailable" };
   }
-  return { status: "saved", studentCaseId: receipt.student_case_id.toLowerCase(), state: receipt.state };
+  // 378: открытый лид продаж взят в дело (`lead_taken`); старая база этого поля не отдаёт — тогда его нет и в ответе.
+  return { status: "saved", studentCaseId: receipt.student_case_id.toLowerCase(), state: receipt.state, ...(receipt.lead_taken === true ? { leadTaken: true } : {}) };
 }
 
 export type AdmissionsDirectCuratorOptions = Readonly<{

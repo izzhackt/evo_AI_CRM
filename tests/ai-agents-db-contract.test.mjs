@@ -854,11 +854,21 @@ test("381 seeds every organization once from the agent instructions, without per
   assert.match(bySat.statement_ru, /299/u);
   assert.match(bySat.statement_ru, /10 недель/u);
   assert.match(seed.find((row) => row.topic === "course.ielts.group").statement_ru, /249.*8 недель|8 недель.*249/su);
-  // Every file the seed cites is a real instruction file, and every section it cites is a real heading of it.
+  // Every file the seed cites is a real instruction file, and every section it cites is a real heading of it,
+  // except the four sections whose data moved into the facts when the instructions were thinned (source_ref is provenance
+  // and a migration is never rewritten).
+  const movedToFacts = new Set([
+    "src/content/ai-agents/curator-cn/rules.md#Выезд: чек-листы",
+    "src/content/ai-agents/curator-cn/rules.md#Документы: 16 пунктов и что проверять",
+    "src/content/ai-agents/curator-cn/rules.md#Календарь набора на сентябрь 2027",
+    "src/content/ai-agents/curator-my/rules.md#Базовый пакет документов (для всех университетов)",
+  ]);
   for (const row of seed) {
     const [file, heading] = row.source_ref.split("#");
     const text = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
-    assert.ok(text.split("\n").some((line) => /^#{1,4} /u.test(line) && line.replace(/^#+ /u, "").trim() === heading), `${row.topic}: «${heading}» is a heading of ${file}`);
+    const present = text.split("\n").some((line) => /^#{1,4} /u.test(line) && line.replace(/^#+ /u, "").trim() === heading);
+    assert.ok(present || movedToFacts.has(row.source_ref), `${row.topic}: «${heading}» is a heading of ${file}`);
+    if (movedToFacts.has(row.source_ref)) assert.equal(present, false, `${row.source_ref}: the data moved to facts, the old heading is gone`);
   }
   assert.doesNotMatch(SOURCE_381, /sk-ant-|Bearer [A-Za-z0-9]/u);
 });

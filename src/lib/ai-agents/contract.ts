@@ -2,8 +2,9 @@
  * «ИИ-агенты» на Claude Managed Agents — общий ЗАМОРОЖЕННЫЙ контракт
  * (docs/design/ai-agents/contract.md, ADR 0035). Чистый модуль: без React,
  * сервера и ввода-вывода. Его импортируют все пять строителей (БД, MCP, рантайм,
- * UI, контент), поэтому менять файл может только архитектор: нужна правка —
- * запишите её в handoff, а не в этот файл.
+ * UI, контент), поэтому правьте его осторожно и малыми шагами (владелец 28.11.2026
+ * разрешил правки): новый инструмент — в AI_AGENT_TOOL_NAMES и AI_AGENT_TOOLS здесь,
+ * затем в `src/content/ai-agents/<key>/tools.json` тех агентов, которым он нужен.
  *
  * Импорты внутри src/lib — относительные с `.ts`: тесты идут через
  * `node --experimental-strip-types` и не знают алиаса `@/`.
@@ -50,7 +51,7 @@ export type AiAgentCatalogEntry = Readonly<{
 
 /**
  * Сид миграции 317 повторяет эти значения дословно; тексты инструкций живут в
- * src/content/ai-agents/*.md, а не здесь. Gemini-помощник («ИИ-агент», P1–P4) —
+ * src/content/ai-agents/<key>/ (role.md, rules.md), а не здесь. Gemini-помощник («ИИ-агент», P1–P4) —
  * не агент каталога и строки в базе не имеет.
  */
 export const AI_AGENT_CATALOG: readonly AiAgentCatalogEntry[] = [

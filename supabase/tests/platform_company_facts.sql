@@ -237,7 +237,7 @@ SELECT pg_temp.a381_assert((SELECT count(*) = 0 FROM platform_private.company_fa
   'another organization is untouched until it is seeded');
 SELECT pg_temp.a381_assert(
   (SELECT bool_and(source = 'agent_instruction' AND status = 'active' AND source_ref LIKE 'src/content/ai-agents/%.md#%'
-      AND valid_until IS NOT NULL AND valid_until >= verified_at AND verified_by_membership_id IS NULL AND supersedes_id IS NULL
+      AND (valid_until IS NULL) = (topic LIKE 'promise.%') AND (valid_until IS NULL OR valid_until >= verified_at) AND verified_by_membership_id IS NULL AND supersedes_id IS NULL
       AND audience IN ('client', 'internal') AND topic ~ '^[a-z0-9]+(\.[a-z0-9_-]+)+$')
    FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1))
   AND (SELECT statement_ru LIKE '%299%' AND statement_ru LIKE '%349%' AND valid_until = DATE '2026-12-31' AND verified_at = DATE '2026-10-23'
@@ -522,6 +522,14 @@ SELECT pg_temp.a381_assert(
       AND f ->> 'source' = 'agent_instruction' AND f ->> 'audience' = 'client' AND (f -> 'statement' ->> 'ru') LIKE '%299%'
    FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"course.sat"}') -> 'facts') f),
   'tool: the shape is fact_id, topic, statement{ru}, audience, source, verified_at, valid_until');
+-- Default audience depends on the agent: sales sees client facts only, every other agent both; an explicit audience wins.
+SELECT pg_temp.a381_assert(
+  NOT EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"mark."}') -> 'facts') f WHERE f ->> 'topic' = 'mark.internal')
+  AND (SELECT count(*) = 1 FROM jsonb_array_elements(pg_temp.a381_tool('curator-cn', '{"topic_prefix":"mark."}') -> 'facts') f WHERE f ->> 'topic' = 'mark.internal')
+  AND (SELECT count(*) = 1 FROM jsonb_array_elements(pg_temp.a381_tool('curator-cn', '{"topic_prefix":"mark.","audience":"both"}') -> 'facts') f WHERE f ->> 'topic' = 'mark.internal')
+  AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.a381_tool('curator-cn', '{"topic_prefix":"mark.","audience":"client"}') -> 'facts') f WHERE f ->> 'topic' = 'mark.internal')
+  AND (SELECT count(*) = 1 FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","audience":"internal"}') -> 'facts') f WHERE f ->> 'topic' = 'mark.internal'),
+  'tool: sales defaults to client facts, a curator to both, and an explicit audience wins for either');
 -- A fact with the optional languages shows them; after it expires the tool stops returning it, with no other change.
 INSERT INTO platform_private.company_facts (organization_id, topic, statement_ru, statement_ky, statement_en, audience, source, verified_at, valid_until, status)
 VALUES (pg_temp.a381_id(1), 'lang.test', 'Русский', 'Кыргызча', 'English', 'client', 'owner', :'a381_today'::DATE - 5, :'a381_today'::DATE + 1, 'active');

@@ -792,7 +792,7 @@ test("381 seeds every organization once from the agent instructions, without per
     assert.ok(row.statement_ru.length >= 10 && row.statement_ru.length <= 1500, row.topic);
     assert.match(row.source_ref, /^src\/content\/ai-agents\/((sales|curator-cn|curator-my|director)\/(role|rules)|_shared\/preamble)\.md#.+/u, row.topic);
     assert.match(row.verified_at, /^\d{4}-\d{2}-\d{2}$/u);
-    assert.ok(row.valid_until >= row.verified_at, row.topic);
+    assert.ok(row.topic.startsWith("promise.") ? row.valid_until === null : row.valid_until >= row.verified_at, `${row.topic}: rules have no expiry, data has one`);
     assert.doesNotMatch(row.statement_ru, /sk-ant-|\+996\d|@[a-z0-9-]+\.[a-z]|https?:\/\//iu, `${row.topic} holds no contact or secret`);
   }
   const bySat = seed.find((row) => row.topic === "course.sat.group");

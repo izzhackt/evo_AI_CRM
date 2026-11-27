@@ -542,7 +542,7 @@ test("get_company_facts: the registry entry, the defaults, the database function
   assert.equal(tool.rpc, "ai_agent_tool_get_company_facts_v1");
   const schema = schemaOf("get_company_facts");
   // Everything is optional; the defaults are the ones the database function applies.
-  assert.deepEqual(validateToolArguments(schema, {}).value, { audience: "client", limit: 20 });
+  assert.deepEqual(validateToolArguments(schema, {}).value, { limit: 20 });
   assert.deepEqual(validateToolArguments(schema, { topic_prefix: "calendar.cn.", audience: "client", limit: 50 }).value, { topic_prefix: "calendar.cn.", audience: "client", limit: 50 });
   const issues = (value) => validateToolArguments(schema, value).issues;
   assert.deepEqual(issues({ limit: 51 }), [{ path: "limit", problem: "maximum" }]);
@@ -558,7 +558,7 @@ test("get_company_facts: the registry entry, the defaults, the database function
   assert.equal(result.isError, false);
   assert.deepEqual(body, data);
   assert.equal(toolCalls()[0].functionName, "ai_agent_tool_get_company_facts_v1");
-  assert.deepEqual(toolCalls()[0].args.p_args, { topic_prefix: "course.", audience: "client", limit: 20 });
+  assert.deepEqual(toolCalls()[0].args.p_args, { topic_prefix: "course.", limit: 20 });
   assert.equal(logCalls()[0].args.p_tool, "get_company_facts");
   assert.equal(logCalls()[0].args.p_status, "ok");
 });

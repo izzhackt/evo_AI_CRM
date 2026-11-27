@@ -669,6 +669,11 @@ test("шапка страницы агента: «?» с ролью, «Вклю�
   assert.doesNotMatch(page, /max-sm:sr-only/u);
   // Состояние и переключатели — одной строкой под именем, а не в ряду заголовка.
   assert.match(page, /data-testid="v3-aia-head-row"[\s\S]*data-testid="v3-aia-status"[\s\S]*data-testid="v3-aia-switches-header"/u);
+  // 27.11.2026: на телефоне состояние, переключатели и ряд вкладок — одна карточка шапки; ряд прокручивается внутри неё без
+  // своей рамки. На компьютере карточка — `sm:contents`, вкладки встают после плашек порядком сетки.
+  assert.match(page, /data-testid="v3-aia-head"[\s\S]*data-testid="v3-aia-head-row"[\s\S]*data-aia-card-tabs=""[\s\S]*data-testid="v3-aia-tabs"/u);
+  assert.match(page, /class="[^"]*min-w-0 overflow-hidden rounded-card border border-border bg-surface sm:contents"[^>]*data-testid="v3-aia-head"/u);
+  assert.match(read("src/components/staff/ai-agents-next/NextAgentTabs.tsx"), /max-sm:border-0 max-sm:bg-transparent/u);
   assert.match(page, /href="\/ai-agents"[^>]*>[\s\S]*Все ИИ-агенты/u, "возврат к списку");
   // Не администратор видит состояние словом, а не переключатели.
   const staff = strip(nextPage(F.bodyProps("overview", { canEdit: false })));

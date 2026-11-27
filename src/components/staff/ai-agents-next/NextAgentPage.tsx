@@ -46,13 +46,19 @@ export function NextAgentPage(props: NextAgentPageProps) {
   const mascot = <NextAgentMascot agentKey={detail.key} size="md" />;
   // Состояние агента и «Включён» / «Авто» — одной строкой под именем (25.11.2026, шапка на телефоне занимала почти весь экран):
   // слева что с агентом сейчас, справа переключатели. Не `meta`: со вторичной строкой ряд шапки переносится, и «?» уходил вниз.
-  const status = (
-    <div className="-mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2" data-testid="v3-aia-head-row">
-      <div className="min-w-0 t-meta text-fg-3"><NextAgentStatus detail={detail} now={now} /></div>
-      {switches}
+  const tabs = (bare: boolean) => <NextAgentTabs bare={bare} agentKey={detail.key} title={detail.title} tab={tab} draftsPending={detail.stats.draftsPending} />;
+  // Телефон (27.11.2026, «нужно тут прокачать»): состояние, переключатели и ряд вкладок — одна белая карточка шапки; ряд
+  // прокручивается вбок внутри неё от края до края карточки. На компьютере карточки нет (`sm:contents`): строка, плашки и
+  // вкладки стоят, как стояли, — вкладки встают после плашек порядком сетки (`sm:order-1`, тело — `sm:order-2`).
+  const head = (
+    <div className="-mt-2 min-w-0 overflow-hidden rounded-card border border-border bg-surface sm:contents" data-testid="v3-aia-head">
+      <div className="flex flex-col gap-1 px-3 pt-2.5 pb-1 sm:-mt-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4 sm:gap-y-2 sm:p-0" data-testid="v3-aia-head-row">
+        <div className="min-w-0 t-meta text-fg-3"><NextAgentStatus detail={detail} now={now} /></div>
+        {switches}
+      </div>
+      <div className="min-w-0 border-t border-border px-4 py-1 sm:order-1 sm:border-t-0 sm:p-0" data-aia-card-tabs="">{tabs(false)}</div>
     </div>
   );
-  const tabs = (bare: boolean) => <NextAgentTabs bare={bare} agentKey={detail.key} title={detail.title} tab={tab} draftsPending={detail.stats.draftsPending} />;
 
   if (chat) {
     return (
@@ -67,10 +73,9 @@ export function NextAgentPage(props: NextAgentPageProps) {
   return (
     <PageShell title={detail.title} leading={<><NextBackArrow />{mascot}</>} help={roleLine} testId="v3-ai-agent-page" back={<NextBackLink phone="arrow" />}>
       <div className="grid min-w-0 gap-4" data-testid="v3-aia-agent" data-tab={tab}>
-        {status}
+        {head}
         {alerts}
-        {tabs(false)}
-        {body}
+        <div className="min-w-0 sm:order-2">{body}</div>
       </div>
     </PageShell>
   );

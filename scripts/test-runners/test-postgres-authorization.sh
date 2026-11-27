@@ -5322,6 +5322,31 @@ SQL
       exit 1
     fi
   fi
+  # «Предложение агента, которое принимает человек» (migration 383, план «ИИ-агенты: мозг компании», 28.11.2026). Matched by name,
+  # not number. Only additions (a closed table, the tool propose_next_step, three staff RPCs): right after it a second apply refuses
+  # (a383_already_applied), then the suite, insisting on its marker. The suite proves: propose = pending, a repeat returns the first
+  # answer, a new proposal expires the old one; closed case, foreign organization, disabled agent and forbidden wording are refused;
+  # «Принять» writes the step through set_case_next_action_v1 with the staff version (stale = conflict, suggestion stays pending),
+  # «Не то» dismisses, rights and organizations are enforced; the handoff note is the latest «Передача дела»; the table is closed.
+  if [[ "$(basename "$migration")" == *_platform_agent_suggestions.sql ]]; then
+    t383_again_log="$(mktemp -t evo-t383-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t383_again_log" 2>&1; then
+      echo "migration 383 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a383_already_applied" "$t383_again_log"; then
+      echo "a second apply of migration 383 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t383_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t383_again_log"
+    agent_suggestions_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_agent_suggestions.sql </dev/null)"
+    printf '%s\n' "$agent_suggestions_log"
+    if ! grep -q 'A383_AGENT_SUGGESTIONS_SUITE_PASSED' <<<"$agent_suggestions_log"; then
+      echo "platform_agent_suggestions.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «При одобрении анкеты в дело копируется вся анкета» (migration 337, решение владельца 03.11.2026). Matched by name, not number.
   # Fragment-anchored replace in both approval branches: right after it a second apply refuses (a337_already_applied), then the
   # suite, insisting on its marker. The suite proves, by a real submit and approval: countries, study fields, levels, English and

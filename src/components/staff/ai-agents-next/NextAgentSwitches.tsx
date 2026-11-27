@@ -19,7 +19,8 @@ import { CONFIRM_CLASS } from "./buttons";
  * «Включён» и «Авто» в шапке страницы агента — единственное место, где они есть; та же логика, что у
  * `AgentSwitches` прежнего вида, на переключателе набора. Меняет только системный администратор, остальные видят
  * состояние словом. «Авто» включается через подтверждение под переключателем (агент начнёт сам писать клиентам),
- * выключается сразу. Без правил «Включён» заперт и ведёт к их написанию. Показ оптимистичный и возвращается на
+ * выключается сразу. У выключенного агента «Авто» не горит и не включается (он ничего не пишет; база при выключении сама
+ * снимает «Авто»). Без правил «Включён» заперт и ведёт к их написанию. Показ оптимистичный и возвращается на
  * значение сервера, если запись не прошла; «Сохранено» не пишется — отказ и предупреждение говорятся словами.
  */
 export function NextAgentSwitches({
@@ -56,11 +57,12 @@ export function NextAgentSwitches({
   function toggleEnabled(next: boolean) {
     if (!canEdit || pending || (next && !hasInstructions)) return;
     setEnabledLocal(next);
+    if (!next) { setAutoLocal(false); setConfirming(false); }
     write({ enabled: next });
   }
 
   function toggleAuto(next: boolean) {
-    if (!canEdit || pending) return;
+    if (!canEdit || pending || (next && !enabledLocal)) return;
     if (!next) { setAutoLocal(false); setConfirming(false); write({ autoSend: false }); return; }
     setConfirming(true);
     requestAnimationFrame(() => confirmRef.current?.focus());
@@ -70,7 +72,7 @@ export function NextAgentSwitches({
     return (
       <div className="flex flex-wrap items-center gap-2" data-testid="v3-aia-switches-header">
         <span data-testid="v3-aia-switch-enabled-readonly"><StatusBadge label={enabled ? "Включён" : "Выключен"} tone={enabled ? "ok" : "neutral"} /></span>
-        {autoSend ? <span data-testid="v3-aia-switch-auto-readonly"><StatusBadge label="Авто: вкл" tone="warn" title="Агент сам пишет клиентам и студентам без одобрения" /></span> : null}
+        {enabled && autoSend ? <span data-testid="v3-aia-switch-auto-readonly"><StatusBadge label="Авто: вкл" tone="warn" title="Агент сам пишет клиентам и студентам без одобрения" /></span> : null}
       </div>
     );
   }
@@ -91,7 +93,7 @@ export function NextAgentSwitches({
         </div>
         <div className="inline-flex items-center gap-2 max-sm:flex-[1_1_8rem] max-sm:items-start max-sm:border-l max-sm:border-border max-sm:pl-4">
           <Label htmlFor={`aia-sw-auto-${agentKey}`} title="Агент сам пишет клиентам и студентам без одобрения" className="max-sm:min-h-11 max-sm:flex-1">Авто</Label>
-          <Switch ref={autoRef} id={`aia-sw-auto-${agentKey}`} className="max-sm:mt-2.5" checked={autoLocal} aria-disabled={pending || undefined} onCheckedChange={toggleAuto} data-testid="v3-aia-switch-auto" />
+          <Switch ref={autoRef} id={`aia-sw-auto-${agentKey}`} className="max-sm:mt-2.5" checked={enabledLocal && autoLocal} aria-disabled={pending || !enabledLocal || undefined} onCheckedChange={toggleAuto} data-testid="v3-aia-switch-auto" />
         </div>
       </div>
       {confirming ? (

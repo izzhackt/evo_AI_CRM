@@ -1,5 +1,5 @@
 /*
- * «ИИ-агенты»: досье лида и дела (миграция 381, инструменты get_lead_dossier и get_case_dossier).
+ * «ИИ-агенты»: досье лида и дела (миграция 382, инструменты get_lead_dossier и get_case_dossier).
  * Быстрые тесты без сети и базы. Запуск:
  *   node --conditions=react-server --experimental-strip-types --test tests/ai-agents-dossier.test.mjs
  *
@@ -15,7 +15,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { AI_AGENT_TOOLS } from "../src/lib/ai-agents/contract.ts";
+import { AI_AGENT_KEYS, AI_AGENT_TOOLS } from "../src/lib/ai-agents/contract.ts";
+import { AI_AGENT_TOOL_GRANTS } from "../src/content/ai-agents/tool-grants.generated.ts";
 import { attachDossierTimelineStep, dossierTimelineStep } from "../src/lib/ai-agents/dossier-timeline.ts";
 import { AI_AGENT_PREAMBLE } from "../src/content/ai-agents/index.ts";
 import { LEAD_CHANNELS, LEAD_CHANNEL_BASES } from "../src/lib/lead-channel-contract.ts";
@@ -23,12 +24,18 @@ import { ADMISSIONS_PIPELINE_STAGES } from "../src/lib/platform-admissions-pipel
 import {
   BOARD_TIMELINE_STAGE,
   COUNTRY_TIMELINES,
+  selectCountryTimeline,
+  todayForTimeline,
   TIMELINE_STAGE_KEYS,
 } from "../src/lib/portal/country-timeline.ts";
 import { APPLICATION_LABELS } from "../src/lib/student-application-presentation.ts";
 import { studyCountryName } from "../src/lib/study-countries.ts";
 import {
   SALES_STAGE_TITLE,
+  caseMoneyWords,
+  closureWords,
+  paymentObligationCategory,
+  paymentObligationStatus,
   admissionsPipelineStage,
   applicationStatus,
   caseDegree,
@@ -39,7 +46,7 @@ import {
   taskStatus,
 } from "../src/lib/v3/wording.ts";
 
-const SQL = readFileSync(new URL("../supabase/migrations/381_platform_ai_agent_dossiers.sql", import.meta.url), "utf8");
+const SQL = readFileSync(new URL("../supabase/migrations/382_platform_ai_agent_dossiers.sql", import.meta.url), "utf8");
 const SUITE = readFileSync(new URL("../supabase/tests/platform_ai_agent_dossiers.sql", import.meta.url), "utf8");
 const RUNNER = readFileSync(new URL("../scripts/test-runners/test-postgres-authorization.sh", import.meta.url), "utf8");
 
@@ -56,7 +63,9 @@ const rowsOf = (kind) => wordRows().filter((row) => row.kind === kind);
 const asMap = (kind) => Object.fromEntries(rowsOf(kind).map((row) => [row.key, row.word]));
 
 test("слова досье: этап продаж, процесс, колонка доски совпадают со словарём экранов построчно", () => {
-  assert.deepEqual(asMap("sales_stage"), { ...SALES_STAGE_TITLE }, "семь названий этапов продаж, те же, что у доски");
+  const { closed, ...working } = asMap("sales_stage");
+  assert.deepEqual(working, { ...SALES_STAGE_TITLE }, "семь названий этапов продаж, те же, что у доски");
+  assert.equal(closed, closureWords.lead.closed, "закрытый лид — слово «Закрыт» из окна закрытия");
   const processKeys = [...TIMELINE_STAGE_KEYS, "contract_confirmed", "admissions_handoff", "completed", "closed"].sort();
   assert.deepEqual(Object.keys(asMap("process_stage")).sort(), processKeys, "одиннадцать ключей процесса");
   for (const [key, word] of Object.entries(asMap("process_stage"))) assert.equal(studentOperationalStage(key), word, key);
@@ -85,6 +94,20 @@ test("слова досье: канал «откуда узнал» и осно�
   for (const key of caseKeys) assert.equal(caseStatus(key), asMap("case_state")[key], key);
   for (const [key, word] of Object.entries(asMap("degree"))) assert.equal(caseDegree(key), word, key);
   assert.deepEqual(asMap("task_priority"), { urgent: taskPriorityMark("urgent") });
+  // Деньги: статусы и категории обязательств и виды платежей — из словаря экранов, не из CASE в SQL.
+  const statuses = asMap("obligation_status");
+  assert.deepEqual(Object.keys(statuses).sort(), ["overdue", "paid", "partially_paid", "pending"]);
+  for (const [key, word] of Object.entries(statuses)) assert.equal(paymentObligationStatus(key), word, key);
+  const categories = asMap("obligation_category");
+  assert.deepEqual(Object.keys(categories).sort(), ["evo_service_fee", "third_party_cost"]);
+  for (const [key, word] of Object.entries(categories)) assert.equal(paymentObligationCategory(key), word, key);
+  assert.equal(categories.third_party_cost, "сторонние расходы");
+  assert.deepEqual(asMap("payment_event"), { payment: caseMoneyWords.pay.status.paid, refund: caseMoneyWords.pay.status.refund });
+  // В телах сборщиков нет русских слов денег и статусов вне таблицы слов.
+  const builders = SQL.slice(SQL.indexOf("CREATE FUNCTION platform_private.ai_agent_lead_dossier_build("), SQL.indexOf("CREATE FUNCTION platform_private.ai_agent_dossier_minimal("));
+  for (const word of ["'услуги EVO'", "'просрочено'", "'оплачено'", "'платёж'", "'возврат'", "'расходы третьих сторон'", "'выигран'", "'проигран'", "'Закрыт'"]) {
+    assert.ok(!builders.includes(word), `слово ${word} стоит вне таблицы слов`);
+  }
 });
 
 test("слова досье: ответы анкеты — тот же словарь, что у анкеты на экране, целиком; страны направлений — как в списке продукта", () => {
@@ -133,8 +156,17 @@ test("шаг пути: те же правила, что в кабинете ст
   assert.equal(done.finished, true);
   assert.equal(done.position, done.of);
   assert.equal(my("applications", "ready_to_submit").step.finished, false);
-  assert.equal(my("applications", "ready_to_submit").step.path_status, COUNTRY_TIMELINES.my.status);
+  assert.equal(my("applications", "ready_to_submit").step.route, "country");
   assert.equal(my("applications", "ready_to_submit").step.title, COUNTRY_TIMELINES.my.steps[2].title.ru);
+  // Маршрут выбирает selectCountryTimeline кабинета: неутверждённый путь страны стал бы общим маршрутом, и досье сказало бы об этом.
+  for (const code of ["CN", "MY", "AE", "TR", "IT", "CZ"]) {
+    const view = selectCountryTimeline(code, { today: todayForTimeline() });
+    const step = dossierTimelineStep({ country_code: code, operational_stage: "documents", pipeline_stage: "documents" }).step;
+    assert.equal(step.route, view.kind, code);
+    assert.equal(step.of, view.steps.filter((item) => !item.optional).length, code);
+    assert.equal(step.text.endsWith("(общий маршрут)"), view.kind === "general", code);
+  }
+  assert.equal(my("documents", "documents").step.route, "country");
 
   // Китай: три шага «документов», первый из них — текущий; в путях Китая восемь шагов.
   const cn = dossierTimelineStep({ country_code: "CN", operational_stage: "documents", pipeline_stage: "documents" }).step;
@@ -213,14 +245,20 @@ test("досье не кладёт в ответ то, что запрещено
   assert.match(kase, /ai_agent_student_ai_allowed/u);
 });
 
-test("Postgres-прогон знает набор 381 по имени файла и требует маркер; набор не оставляет следов", () => {
+test("Postgres-прогон знает набор 382 по имени файла и требует маркер; набор не оставляет следов", () => {
   assert.match(RUNNER, /\*_platform_ai_agent_dossiers\.sql/u);
-  assert.match(RUNNER, /a381_already_applied/u);
-  assert.match(RUNNER, /platform_ai_agent_dossiers\.sql[\s\S]*A381_AI_AGENT_DOSSIERS_SUITE_PASSED/u);
-  assert.match(SUITE, /A381_AI_AGENT_DOSSIERS_SUITE_PASSED/u);
+  assert.match(RUNNER, /a382_already_applied/u);
+  assert.match(RUNNER, /platform_ai_agent_dossiers\.sql[\s\S]*A382_AI_AGENT_DOSSIERS_SUITE_PASSED/u);
+  assert.match(SUITE, /A382_AI_AGENT_DOSSIERS_SUITE_PASSED/u);
   assert.match(SUITE, /ROLLBACK;\s*$/u);
   assert.ok(RUNNER.indexOf("*_platform_ai_agent_dossiers.sql") < RUNNER.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'), "хук внутри цикла миграций");
   assert.doesNotMatch(SQL + SUITE, /sk-ant-|Bearer [A-Za-z0-9]|\+996\d{6,}|@gmail\.|@mail\./u);
+});
+
+test("наборы инструментов: досье лида у продаж и директора, досье дела у пяти кураторов и директора, ни у кого лишнего", () => {
+  const withTool = (name) => AI_AGENT_KEYS.filter((key) => AI_AGENT_TOOL_GRANTS[key].includes(name)).sort();
+  assert.deepEqual(withTool("get_lead_dossier"), ["director", "sales"]);
+  assert.deepEqual(withTool("get_case_dossier"), ["curator-ae", "curator-cn", "curator-eu", "curator-my", "curator-tr", "director"]);
 });
 
 test("преамбула агентов: одна строка про досье, и инструменты называются по реестру", () => {

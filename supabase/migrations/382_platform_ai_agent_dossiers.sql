@@ -1,6 +1,6 @@
--- 381 «Досье лида и дела одним вызовом для ИИ-агентов» (план «ИИ-агенты: мозг компании, досье и предохранители»,
+-- 382 «Досье лида и дела одним вызовом для ИИ-агентов» (план «ИИ-агенты: мозг компании, досье и предохранители»,
 -- разбор 27.11.2026: главная поломка «мозга» — агент собирает карточку клиента двадцатью вызовами и теряет нить).
--- Номер 381: 379 и 380 заняты параллельными PR; хуки набора и журнала привязаны к имени файла, не к номеру.
+-- Номер 382: 379–381 заняты параллельными PR (предохранители, сторож, факты); хуки набора и журнала привязаны к имени файла, не к номеру.
 --
 -- Что добавляется (только добавление: ни одна существующая функция не меняется, согласие 320 не трогается):
 --   1) platform.ai_agent_tool_get_lead_dossier_v1(org, agent, {lead_id}) — досье лида, потолок 6000 символов JSON:
@@ -21,7 +21,7 @@
 --   board_column   = student_cases.pipeline_stage — колонка доски кураторов «Воронка поступления» (9 ключей, ADMISSIONS_PIPELINE_STAGE);
 --   timeline_step  = шаг «пути поступления» страны («3 из 7, Малайзия»): пути лежат в src/content/timelines/*.json, база их не видит.
 --                    ЧЕСТНЫЙ ВАРИАНТ: база отдаёт timeline_step = null и ключи (keys.country_code, keys.operational_stage,
---                    keys.board_column); шаг считает обработчик MCP в приложении теми же функциями, что кабинет студента
+--                    keys.pipeline_stage); шаг считает обработчик MCP в приложении теми же функциями, что кабинет студента
 --                    (timelineStepProgress), и подмешивает объект. Страна вне шести — null и timeline_step_note.
 --   stage_mismatch = true, когда процесс и колонка расходятся по смыслу. Таблица соответствия (ai_agent_dossier_expected_boards),
 --                    она же обратная к BOARD_TIMELINE_STAGE в country-timeline.ts:
@@ -49,10 +49,10 @@
 --
 -- Порядок выката: сначала миграция, потом приложение (новое приложение просит инструменты, которых старая база не знает).
 -- После выката инструкции агентов изменились (prompts.generated.ts): агентов нужно пересинхронизировать, как после любой правки.
--- Forward-only: повтор отказывает a381_already_applied.
+-- Forward-only: повтор отказывает a382_already_applied.
 BEGIN;
 
-DO $a381_anchor$
+DO $a382_anchor$
 BEGIN
   IF to_regprocedure('platform_private.ai_agent_tool_begin(uuid,text,text,jsonb)') IS NULL
     OR to_regprocedure('platform_private.ai_agent_audit_read(uuid,text,text,text,uuid)') IS NULL
@@ -62,18 +62,20 @@ BEGIN
     OR to_regprocedure('platform_private.sales_lead_handoffs(uuid,uuid[])') IS NULL
     OR to_regprocedure('platform_private.sales_lead_stage(platform.lead_lifecycle_state,text,boolean)') IS NULL
     OR to_regprocedure('platform_private.study_country_from_text(text)') IS NULL
+    OR to_regprocedure('platform_private.wazzup_message_deleted(uuid,uuid)') IS NULL
+    OR to_regprocedure('platform_private.wazzup_conversation_unresolved(uuid,uuid)') IS NULL
     OR to_regclass('platform_private.lead_sale_conditions') IS NULL
     OR to_regclass('platform_private.catalog_preparation_bindings') IS NULL
     OR to_regclass('platform_private.student_applications') IS NULL THEN
-    RAISE EXCEPTION 'a381_anchor_drift: the 317 / 320 / 214 / 247 / 264 objects this migration builds on are missing' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a382_anchor_drift: the 317 / 320 / 214 / 247 / 264 objects this migration builds on are missing' USING ERRCODE = '55000';
   END IF;
   IF to_regprocedure('platform.ai_agent_tool_get_lead_dossier_v1(uuid,text,jsonb)') IS NOT NULL
     OR to_regprocedure('platform.ai_agent_tool_get_case_dossier_v1(uuid,text,jsonb)') IS NOT NULL
     OR EXISTS (SELECT 1 FROM platform_private.ai_agent_tool_schemas WHERE tool IN ('get_lead_dossier', 'get_case_dossier')) THEN
-    RAISE EXCEPTION 'a381_already_applied' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a382_already_applied' USING ERRCODE = '55000';
   END IF;
 END
-$a381_anchor$;
+$a382_anchor$;
 
 -- ---------------------------------------------------------------------------
 -- 1. Строки схем входа (зеркало contract.ts; совпадение проверяет tests/ai-agents-db-contract.test.mjs).
@@ -98,6 +100,7 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
     ('sales_stage', 'meeting_completed', 'Встреча проведена'),
     ('sales_stage', 'potential', 'Потенциальный клиент'),
     ('sales_stage', 'handed_off', 'Переданы'),
+    ('sales_stage', 'closed', 'Закрыт'),
     ('process_stage', 'contract_confirmed', 'договор подтверждён'),
     ('process_stage', 'admissions_handoff', 'передано в приёмную'),
     ('process_stage', 'intake', 'приём дела'),
@@ -148,6 +151,14 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
     ('task_status', 'blocked', 'заблокирована'),
     ('task_status', 'done', 'выполнена'),
     ('task_status', 'cancelled', 'отменена'),
+    ('obligation_status', 'pending', 'ожидает оплаты'),
+    ('obligation_status', 'partially_paid', 'оплачено частично'),
+    ('obligation_status', 'paid', 'оплачено'),
+    ('obligation_status', 'overdue', 'просрочено'),
+    ('obligation_category', 'evo_service_fee', 'услуги EVO'),
+    ('obligation_category', 'third_party_cost', 'сторонние расходы'),
+    ('payment_event', 'payment', 'Оплачено'),
+    ('payment_event', 'refund', 'Возврат'),
     ('case_state', 'pending', 'ожидает начала'),
     ('case_state', 'active', 'в работе'),
     ('case_state', 'closed', 'закрыт'),
@@ -232,13 +243,26 @@ RETURNS TEXT[] LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
     ELSE NULL END
 $$;
 
+-- Обрезка текста с честной меткой: обрезанная строка кончается на «[…]», по числу меток сборщик ставит в omitted `text_cut`.
+-- Строка длиннее предела режется до предела и получает метку; метка в предел не входит.
+CREATE FUNCTION platform_private.ai_agent_dossier_cut(p_text TEXT, p_cap INTEGER)
+RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT CASE WHEN char_length(p_text) > p_cap THEN left(p_text, p_cap) || '[…]' ELSE p_text END
+$$;
+
+-- Имя сотрудника в досье: не длиннее 200 символов.
+CREATE FUNCTION platform_private.ai_agent_dossier_name(p_organization_id UUID, p_membership_id UUID)
+RETURNS TEXT LANGUAGE sql STABLE SET search_path = '' AS $$
+  SELECT platform_private.ai_agent_dossier_cut(platform_private.ai_agent_member_name(p_organization_id, p_membership_id), 200)
+$$;
+
 -- Сумма в досье: валюта всегда рядом с числом; без валюты только «как записано».
 CREATE FUNCTION platform_private.ai_agent_dossier_amount(p_minor BIGINT, p_currency TEXT, p_raw TEXT)
 RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT CASE
     WHEN p_minor IS NOT NULL AND NULLIF(btrim(p_currency), '') IS NOT NULL
       THEN jsonb_build_object('amount', platform_private.ai_agent_money(p_minor), 'currency', p_currency)
-    WHEN NULLIF(btrim(p_raw), '') IS NOT NULL THEN jsonb_build_object('as_written', left(btrim(p_raw), 60))
+    WHEN NULLIF(btrim(p_raw), '') IS NOT NULL THEN jsonb_build_object('as_written', platform_private.ai_agent_dossier_cut(btrim(p_raw), 60))
   END
 $$;
 
@@ -248,7 +272,7 @@ CREATE FUNCTION platform_private.ai_agent_dossier_answer(p_value JSONB)
 RETURNS JSONB LANGUAGE plpgsql IMMUTABLE SET search_path = '' AS $$
 BEGIN
   RETURN CASE jsonb_typeof(p_value)
-    WHEN 'string' THEN to_jsonb(COALESCE(platform_private.ai_agent_dossier_word('answer', p_value #>> '{}'), left(p_value #>> '{}', 120)))
+    WHEN 'string' THEN to_jsonb(COALESCE(platform_private.ai_agent_dossier_word('answer', p_value #>> '{}'), platform_private.ai_agent_dossier_cut(p_value #>> '{}', 120)))
     WHEN 'array' THEN COALESCE((SELECT jsonb_agg(platform_private.ai_agent_dossier_answer(e.value)) FROM jsonb_array_elements(p_value) e), '[]'::JSONB)
     WHEN 'object' THEN COALESCE((SELECT jsonb_object_agg(j.key, platform_private.ai_agent_dossier_answer(j.value)) FROM jsonb_each(p_value) j), '{}'::JSONB)
     ELSE p_value END;
@@ -270,10 +294,10 @@ DECLARE
   v_tasks INTEGER := (ARRAY[5, 5, 4, 3, 2])[p_level + 1];
   v_task_chars INTEGER := (ARRAY[120, 100, 80, 60, 50])[p_level + 1];
   v_wishes BOOLEAN := p_level < 3;
-  v_stage TEXT; v_state_word TEXT; v_channel JSONB; v_conditions JSONB; v_conversation JSONB; v_tasks_json JSONB;
+  v_stage TEXT; v_channel JSONB; v_conditions JSONB; v_conversation JSONB; v_tasks_json JSONB;
   v_notes_json JSONB; v_calls JSONB; v_case_json JSONB;
   v_notes_total INTEGER; v_tasks_total INTEGER; v_msgs_total INTEGER := 0; v_shown_msgs INTEGER := 0;
-  v_omitted JSONB := '{}'::JSONB;
+  v_omitted JSONB := '{}'::JSONB; v_res JSONB; v_cut INTEGER;
 BEGIN
   SELECT * INTO l FROM platform.leads x WHERE x.organization_id = p_organization_id AND x.id = p_lead_id;
   SELECT * INTO c FROM platform.clients x WHERE x.organization_id = p_organization_id AND x.id = l.client_id;
@@ -282,8 +306,6 @@ BEGIN
   SELECT s.fields INTO v_f FROM platform_private.lead_sale_conditions s WHERE s.organization_id = p_organization_id AND s.lead_id = l.id;
 
   v_stage := platform_private.sales_lead_stage(l.lifecycle_state, l.stage_key, v_hand.lead_id IS NOT NULL);
-  v_state_word := CASE l.lifecycle_state::TEXT WHEN 'open' THEN 'открыт' WHEN 'converted' THEN 'выигран'
-    WHEN 'disqualified' THEN 'проигран' ELSE 'в архиве' END;
 
   v_channel := jsonb_build_object(
     'label', 'Откуда узнал клиент (не канал связи)',
@@ -298,7 +320,7 @@ BEGIN
     v_conditions := jsonb_strip_nulls(jsonb_build_object(
       'label', 'До договора: условия продажи и пожелания клиента, не обязательство и не долг',
       'filled', TRUE,
-      'service', NULLIF(left(btrim(COALESCE(v_f ->> 'service_label', '')), 200), ''),
+      'service', NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(v_f ->> 'service_label', '')), 200), ''),
       'planned_service_cost', platform_private.ai_agent_dossier_amount((v_f ->> 'service_cost_minor')::BIGINT,
         v_f ->> 'service_cost_currency', v_f ->> 'service_cost_raw'),
       'paid_at_sale', platform_private.ai_agent_dossier_amount((v_f ->> 'paid_minor')::BIGINT,
@@ -310,14 +332,14 @@ BEGIN
           || jsonb_build_object('per', CASE v_f ->> 'conditions_budget_period' WHEN 'year' THEN 'год'
             WHEN 'program' THEN 'вся программа' END) END,
       'signing_date', NULLIF(v_f ->> 'signing_date', ''),
-      'payment_note', NULLIF(left(btrim(COALESCE(v_f ->> 'payment_note', '')), 160), ''),
+      'payment_note', NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(v_f ->> 'payment_note', '')), 160), ''),
       'wishes', CASE WHEN v_wishes THEN jsonb_strip_nulls(jsonb_build_object(
-          'countries', NULLIF(left(btrim(COALESCE(v_f ->> 'wishes_countries', '')), 200), ''),
-          'study_fields', NULLIF(left(btrim(COALESCE(v_f ->> 'wishes_study_fields', '')), 200), ''),
-          'education_level', NULLIF(left(btrim(COALESCE(v_f ->> 'wishes_education_level', '')), 100), ''),
+          'countries', NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(v_f ->> 'wishes_countries', '')), 200), ''),
+          'study_fields', NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(v_f ->> 'wishes_study_fields', '')), 200), ''),
+          'education_level', NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(v_f ->> 'wishes_education_level', '')), 100), ''),
           'intake_season', NULLIF(btrim(COALESCE(v_f ->> 'wishes_intake_season', '')), ''),
           'intake_year', NULLIF(btrim(COALESCE(v_f ->> 'wishes_intake_year', '')), ''),
-          'universities', NULLIF(left(btrim(COALESCE(v_f ->> 'wishes_universities', '')), 200), ''))) END));
+          'universities', NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(v_f ->> 'wishes_universities', '')), 200), ''))) END));
   END IF;
 
   -- Открытые задачи лида.
@@ -325,11 +347,14 @@ BEGIN
   WHERE x.organization_id = p_organization_id AND x.status IN ('open', 'in_progress', 'blocked')
     AND x.id IN (SELECT k.staff_task_id FROM platform_private.staff_lead_task_links k
       WHERE k.organization_id = p_organization_id AND k.lead_id = l.id);
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('task_id', t.id, 'title', left(t.title, v_task_chars),
-      'assignee_name', platform_private.ai_agent_member_name(t.organization_id, t.assignee_membership_id),
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('task_id', t.id, 'title', platform_private.ai_agent_dossier_cut(t.title, v_task_chars),
+      'assignee_name', platform_private.ai_agent_dossier_name(t.organization_id, t.assignee_membership_id),
       'status', platform_private.ai_agent_dossier_word('task_status', t.status::TEXT),
-      'important', t.priority::TEXT IN ('high', 'urgent'), 'priority', platform_private.ai_agent_dossier_word('task_priority', t.priority::TEXT),
-      'due_on', COALESCE(t.due_on, (t.due_at AT TIME ZONE 'Asia/Bishkek')::DATE)) ORDER BY t.created_at DESC), '[]'::JSONB)
+      'important', t.priority::TEXT IN ('high', 'urgent'),
+      'due_on', COALESCE(t.due_on, (t.due_at AT TIME ZONE 'Asia/Bishkek')::DATE))
+      || CASE WHEN platform_private.ai_agent_dossier_word('task_priority', t.priority::TEXT) IS NULL THEN '{}'::JSONB
+        ELSE jsonb_build_object('priority', platform_private.ai_agent_dossier_word('task_priority', t.priority::TEXT)) END
+      ORDER BY t.created_at DESC), '[]'::JSONB)
   INTO v_tasks_json
   FROM (SELECT x.* FROM platform.staff_tasks x
     WHERE x.organization_id = p_organization_id AND x.status IN ('open', 'in_progress', 'blocked')
@@ -340,8 +365,8 @@ BEGIN
   -- Заметки лида.
   SELECT count(*) INTO v_notes_total FROM platform.case_notes x WHERE x.organization_id = p_organization_id AND x.lead_id = l.id;
   SELECT COALESCE(jsonb_agg(jsonb_build_object('at', n.created_at,
-      'author', platform_private.ai_agent_member_name(n.organization_id, n.created_by_membership_id),
-      'text', left(n.body, v_note_chars)) ORDER BY n.created_at DESC), '[]'::JSONB)
+      'author', platform_private.ai_agent_dossier_name(n.organization_id, n.created_by_membership_id),
+      'text', platform_private.ai_agent_dossier_cut(n.body, v_note_chars)) ORDER BY n.created_at DESC), '[]'::JSONB)
   INTO v_notes_json
   FROM (SELECT x.* FROM platform.case_notes x WHERE x.organization_id = p_organization_id AND x.lead_id = l.id
     ORDER BY x.created_at DESC LIMIT v_notes) n;
@@ -354,15 +379,23 @@ BEGIN
   LIMIT 1;
   IF NOT FOUND THEN
     v_conversation := jsonb_build_object('available', FALSE, 'reason', 'no_conversation');
+  ELSIF platform_private.wazzup_conversation_unresolved(p_organization_id, v_cv.id) THEN
+    -- 325: беседа Wazzup с неопределённым клиентом закрыта целиком, и до проверки согласия.
+    v_conversation := jsonb_build_object('available', FALSE, 'reason', 'identity_unresolved');
   ELSIF NOT platform_private.ai_agent_conversation_ai_allowed(p_organization_id, v_cv.id) THEN
     v_conversation := jsonb_build_object('available', FALSE, 'reason', 'ai_consent_missing');
   ELSE
     SELECT count(*) INTO v_msgs_total FROM platform.communication_messages x
     WHERE x.organization_id = p_organization_id AND x.conversation_id = v_cv.id;
+    -- 325: текст сообщения, которое клиент удалил у себя, не отдаётся (и его медиа тоже): только отметка deleted.
     SELECT COALESCE(jsonb_agg(jsonb_strip_nulls(jsonb_build_object('at', m.created_at,
         'from', platform_private.ai_agent_message_origin(m),
-        'text', left(COALESCE(platform_private.ai_message_view(m) ->> 'text', ''), v_msg_chars),
-        'media', (platform_private.ai_message_view(m) -> 'media' -> 0 ->> 'kind'))) ORDER BY m.created_at, m.id), '[]'::JSONB),
+        'text', CASE WHEN platform_private.wazzup_message_deleted(m.organization_id, m.id) THEN NULL
+          ELSE platform_private.ai_agent_dossier_cut(COALESCE(platform_private.ai_message_view(m) ->> 'text', ''), v_msg_chars) END,
+        'media', CASE WHEN platform_private.wazzup_message_deleted(m.organization_id, m.id) THEN NULL
+          ELSE platform_private.ai_message_view(m) -> 'media' -> 0 ->> 'kind' END)
+        || CASE WHEN platform_private.wazzup_message_deleted(m.organization_id, m.id) THEN jsonb_build_object('deleted', TRUE)
+          ELSE '{}'::JSONB END) ORDER BY m.created_at, m.id), '[]'::JSONB),
       count(*)::INTEGER
     INTO v_conversation, v_shown_msgs
     FROM (SELECT x.* FROM platform.communication_messages x
@@ -383,7 +416,7 @@ BEGIN
   WHERE s.organization_id = p_organization_id AND (s.id = v_hand.student_case_id OR s.canonical_lead_id = l.id)
   ORDER BY (s.id = v_hand.student_case_id) DESC NULLS LAST, s.created_at DESC LIMIT 1;
   IF FOUND THEN
-    v_case_json := jsonb_build_object('case_id', v_case.id, 'student_name', v_case.student_display_name,
+    v_case_json := jsonb_build_object('case_id', v_case.id, 'student_name', platform_private.ai_agent_dossier_cut(v_case.student_display_name, 200),
       'process_stage', COALESCE(platform_private.ai_agent_dossier_word('process_stage', v_case.operational_stage),
         CASE WHEN NULLIF(btrim(v_case.operational_stage), '') IS NULL THEN NULL ELSE 'индивидуальный этап сопровождения' END));
   END IF;
@@ -394,12 +427,17 @@ BEGIN
   IF v_tasks_total > jsonb_array_length(v_tasks_json) THEN
     v_omitted := v_omitted || jsonb_build_object('open_tasks', v_tasks_total - jsonb_array_length(v_tasks_json)); END IF;
 
-  RETURN jsonb_build_object(
-    'lead', jsonb_build_object('lead_id', l.id, 'client_id', l.client_id, 'name', c.display_name,
+  -- Пропущенные на сжатых уровнях разделы называются в omitted (раздел, а не число записей: значение 1).
+  IF NOT v_wishes AND v_f IS NOT NULL AND EXISTS (SELECT 1 FROM jsonb_each_text(v_f) e
+      WHERE e.key LIKE 'wishes\_%' AND NULLIF(btrim(e.value), '') IS NOT NULL) THEN
+    v_omitted := v_omitted || jsonb_build_object('wishes', 1);
+  END IF;
+
+  v_res := jsonb_build_object(
+    'lead', jsonb_build_object('lead_id', l.id, 'client_id', l.client_id, 'name', platform_private.ai_agent_dossier_cut(c.display_name, 200),
       'phone_masked', platform_private.ai_agent_mask_phone(c.phone), 'email_masked', platform_private.ai_agent_mask_email(c.email),
-      'sales_stage', CASE v_stage WHEN 'closed' THEN 'Закрыт' ELSE platform_private.ai_agent_dossier_word('sales_stage', v_stage) END,
-      'outcome', v_state_word,
-      'owner_name', platform_private.ai_agent_member_name(l.organization_id, l.current_owner_membership_id),
+      'sales_stage', platform_private.ai_agent_dossier_word('sales_stage', v_stage),
+      'owner_name', platform_private.ai_agent_dossier_name(l.organization_id, l.current_owner_membership_id),
       'created_at', l.created_at, 'updated_at', l.updated_at),
     'keys', jsonb_build_object('sales_stage', v_stage, 'stage_key', l.stage_key, 'source_key', l.source_key,
       'interest_direction', l.interest_direction, 'lifecycle', l.lifecycle_state::TEXT),
@@ -407,18 +445,20 @@ BEGIN
     'interest', jsonb_strip_nulls(jsonb_build_object('label', 'Страна интереса',
       'direction', platform_private.ai_agent_dossier_word('direction', l.interest_direction),
       'countries_written', CASE WHEN v_f IS NULL THEN NULL
-        ELSE NULLIF(left(btrim(COALESCE(v_f ->> 'wishes_countries', '')), 200), '') END)),
+        ELSE NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(v_f ->> 'wishes_countries', '')), 200), '') END)),
     'sale_conditions', v_conditions,
     'next_action', CASE WHEN NULLIF(btrim(COALESCE(l.next_action_text, '')), '') IS NULL THEN NULL
-      ELSE jsonb_build_object('text', left(btrim(l.next_action_text), 300), 'due_on', l.next_action_due_date) END,
+      ELSE jsonb_build_object('text', platform_private.ai_agent_dossier_cut(btrim(l.next_action_text), 300), 'due_on', l.next_action_due_date) END,
     'open_tasks', v_tasks_json,
     'notes', v_notes_json,
     'conversation', v_conversation,
     'calls', v_calls,
     'case', v_case_json,
-    'counts', jsonb_build_object('open_tasks', v_tasks_total, 'notes', v_notes_total),
-    'truncated', p_level > 0 OR v_omitted <> '{}'::JSONB,
-    'omitted', v_omitted);
+    'counts', jsonb_build_object('open_tasks', v_tasks_total, 'notes', v_notes_total));
+  -- Каждая обрезанная строка кончается меткой «[…]»: считаем их в готовом ответе, не по разделам.
+  v_cut := (char_length(v_res::TEXT) - char_length(replace(v_res::TEXT, '[…]"', ''))) / char_length('[…]"');
+  IF v_cut > 0 THEN v_omitted := v_omitted || jsonb_build_object('text_cut', v_cut); END IF;
+  RETURN v_res || jsonb_build_object('truncated', v_omitted <> '{}'::JSONB, 'omitted', v_omitted);
 END
 $$;
 
@@ -446,13 +486,13 @@ DECLARE
   v_chat_json JSONB; v_money JSONB; v_lead_json JSONB; v_qa JSONB; v_cond JSONB; v_contract JSONB;
   v_docs_total INTEGER; v_apps_total INTEGER; v_tasks_total INTEGER; v_notes_total INTEGER; v_chat_total INTEGER := 0;
   v_docs_counts JSONB; v_obl_total INTEGER; v_archived INTEGER; v_totals JSONB; v_overdue INTEGER; v_pay_json JSONB;
-  v_omitted JSONB := '{}'::JSONB; v_obl_json JSONB; v_chat_allowed BOOLEAN; v_shown INTEGER;
+  v_omitted JSONB := '{}'::JSONB; v_obl_json JSONB; v_chat_allowed BOOLEAN; v_shown INTEGER; v_res JSONB; v_cut INTEGER;
 BEGIN
   SELECT * INTO s FROM platform.student_cases x WHERE x.organization_id = p_organization_id AND x.id = p_case_id;
   v_country_code := platform_private.study_country_from_text(s.target_country);
   v_country := CASE WHEN NULLIF(btrim(COALESCE(s.target_country, '')), '') IS NULL THEN NULL
     ELSE jsonb_build_object('name', COALESCE((SELECT sc.name_ru FROM platform.study_countries sc WHERE sc.country_code = v_country_code),
-      left(btrim(s.target_country), 80))) END;
+      platform_private.ai_agent_dossier_cut(btrim(s.target_country), 80))) END;
 
   -- Три этапа: процесс, колонка доски, (шаг пути считает приложение).
   v_process_word := CASE WHEN NULLIF(btrim(COALESCE(s.operational_stage, '')), '') IS NULL THEN NULL
@@ -464,7 +504,7 @@ BEGIN
     v_process_word, v_board_word) END;
 
   v_next := CASE WHEN NULLIF(btrim(COALESCE(s.next_action, '')), '') IS NULL THEN NULL
-    ELSE jsonb_build_object('text', left(btrim(s.next_action), 300), 'due_on', s.next_action_due_on) END;
+    ELSE jsonb_build_object('text', platform_private.ai_agent_dossier_cut(btrim(s.next_action), 300), 'due_on', s.next_action_due_on) END;
 
   -- Лид дела: короткий источник и условия продажи «до договора».
   SELECT * INTO v_lead FROM platform.leads x WHERE x.organization_id = p_organization_id AND x.id = s.canonical_lead_id;
@@ -474,11 +514,9 @@ BEGIN
     v_lead_json := jsonb_build_object('lead_id', v_lead.id,
       'channel', platform_private.ai_agent_dossier_word('channel', COALESCE(v_ch.channel, 'unknown')),
       'basis', platform_private.ai_agent_dossier_word('channel_basis', COALESCE(v_ch.basis, 'unknown')),
-      'sales_stage', CASE platform_private.sales_lead_stage(v_lead.lifecycle_state, v_lead.stage_key, v_hand.lead_id IS NOT NULL)
-        WHEN 'closed' THEN 'Закрыт'
-        ELSE platform_private.ai_agent_dossier_word('sales_stage',
-          platform_private.sales_lead_stage(v_lead.lifecycle_state, v_lead.stage_key, v_hand.lead_id IS NOT NULL)) END,
-      'owner_name', platform_private.ai_agent_member_name(v_lead.organization_id, v_lead.current_owner_membership_id));
+      'sales_stage', platform_private.ai_agent_dossier_word('sales_stage',
+        platform_private.sales_lead_stage(v_lead.lifecycle_state, v_lead.stage_key, v_hand.lead_id IS NOT NULL)),
+      'owner_name', platform_private.ai_agent_dossier_name(v_lead.organization_id, v_lead.current_owner_membership_id));
     SELECT x.fields INTO v_f FROM platform_private.lead_sale_conditions x
     WHERE x.organization_id = p_organization_id AND x.lead_id = v_lead.id;
   END IF;
@@ -486,7 +524,7 @@ BEGIN
     'filled', v_f IS NOT NULL);
   IF v_f IS NOT NULL THEN
     v_cond := v_cond || jsonb_strip_nulls(jsonb_build_object(
-      'service', NULLIF(left(btrim(COALESCE(v_f ->> 'service_label', '')), 200), ''),
+      'service', NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(v_f ->> 'service_label', '')), 200), ''),
       'planned_service_cost', platform_private.ai_agent_dossier_amount((v_f ->> 'service_cost_minor')::BIGINT,
         v_f ->> 'service_cost_currency', v_f ->> 'service_cost_raw'),
       'paid_at_sale', platform_private.ai_agent_dossier_amount((v_f ->> 'paid_minor')::BIGINT,
@@ -528,7 +566,7 @@ BEGIN
   INTO v_docs_counts
   FROM platform.document_slots d
   WHERE d.organization_id = s.organization_id AND d.student_case_id = s.id AND d.removed_at IS NULL;
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('slot_id', q.id, 'name', left(q.name, v_label_chars),
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('slot_id', q.id, 'name', platform_private.ai_agent_dossier_cut(q.name, v_label_chars),
       'status', platform_private.ai_agent_dossier_word('document_status', q.status),
       'deadline', q.deadline_on) ORDER BY q.sort_rank, q.deadline_on NULLS LAST, q.created_at, q.id), '[]'::JSONB)
   INTO v_docs_json
@@ -547,8 +585,8 @@ BEGIN
   -- Заявки: вуз, программа, набор-ярлык; набор без постоянного id помечен.
   SELECT count(*) INTO v_apps_total FROM platform.university_applications u
   WHERE u.organization_id = s.organization_id AND u.student_case_id = s.id;
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('application_id', q.id, 'university', left(q.institution_name, v_label_chars),
-      'program', left(q.program_name, v_label_chars),
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('application_id', q.id, 'university', platform_private.ai_agent_dossier_cut(q.institution_name, v_label_chars),
+      'program', platform_private.ai_agent_dossier_cut(q.program_name, v_label_chars),
       'intake_label', q.intake_label,
       'intake_identity', CASE WHEN q.has_binding THEN 'stable' ELSE 'missing' END,
       'status', platform_private.ai_agent_dossier_word('application_status', q.status),
@@ -557,12 +595,12 @@ BEGIN
   FROM (SELECT u.id, u.institution_name, u.program_name, u.status::TEXT AS status, u.is_primary, u.university_deadline_on,
       u.created_at, b.application_id IS NOT NULL AS has_binding,
       CASE WHEN b.application_id IS NOT NULL
-        THEN (SELECT left(intake.value ->> 'label', 60)
+        THEN (SELECT platform_private.ai_agent_dossier_cut(intake.value ->> 'label', 60)
           FROM platform_private.university_catalog_publications p
           CROSS JOIN LATERAL jsonb_array_elements(p.content -> 'programs') program(value)
           CROSS JOIN LATERAL jsonb_array_elements(program.value -> 'intakes') intake(value)
           WHERE p.id = b.publication_id AND program.value ->> 'id' = b.program_id AND intake.value ->> 'id' = b.intake_id::TEXT)
-        ELSE NULLIF(left(btrim(COALESCE(s.intake, '')), 60), '') END AS intake_label
+        ELSE NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(s.intake, '')), 60), '') END AS intake_label
     FROM platform.university_applications u
     LEFT JOIN platform_private.catalog_preparation_bindings b ON b.organization_id = u.organization_id AND b.application_id = u.id
     WHERE u.organization_id = s.organization_id AND u.student_case_id = s.id
@@ -586,17 +624,17 @@ BEGIN
     FROM platform.payment_obligations o
     WHERE o.organization_id = s.organization_id AND o.student_case_id = s.id AND o.archived_at IS NULL
     GROUP BY o.currency) t;
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('obligation_id', q.id, 'label', left(q.label, v_label_chars),
-      'kind', CASE q.category WHEN 'evo_service_fee' THEN 'услуги EVO' ELSE 'расходы третьих сторон' END,
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('obligation_id', q.id, 'label', platform_private.ai_agent_dossier_cut(q.label, v_label_chars),
+      'kind', platform_private.ai_agent_dossier_word('obligation_category', q.category),
       'amount', platform_private.ai_agent_money(q.amount_minor), 'currency', q.currency,
       'paid_net', platform_private.ai_agent_money(q.paid), 'due_on', q.due_on,
-      'status', q.status) ORDER BY q.sort_rank, q.due_on NULLS LAST, q.created_at, q.id), '[]'::JSONB)
+      'status', platform_private.ai_agent_dossier_word('obligation_status', q.status)) ORDER BY q.sort_rank, q.due_on NULLS LAST, q.created_at, q.id), '[]'::JSONB)
   INTO v_obl_json
   FROM (SELECT o.id, o.label, o.category::TEXT AS category, o.amount_minor, o.currency, o.created_at,
       o.total_paid_minor - o.total_refunded_minor AS paid, (o.due_at AT TIME ZONE 'Asia/Bishkek')::DATE AS due_on,
-      CASE WHEN o.total_paid_minor - o.total_refunded_minor >= o.amount_minor THEN 'оплачено'
-        WHEN o.due_at IS NOT NULL AND o.due_at < clock_timestamp() THEN 'просрочено'
-        WHEN o.total_paid_minor - o.total_refunded_minor > 0 THEN 'оплачено частично' ELSE 'ожидает оплаты' END AS status,
+      CASE WHEN o.total_paid_minor - o.total_refunded_minor >= o.amount_minor THEN 'paid'
+        WHEN o.due_at IS NOT NULL AND o.due_at < clock_timestamp() THEN 'overdue'
+        WHEN o.total_paid_minor - o.total_refunded_minor > 0 THEN 'partially_paid' ELSE 'pending' END AS status,
       CASE WHEN o.total_paid_minor - o.total_refunded_minor >= o.amount_minor THEN 3
         WHEN o.due_at IS NOT NULL AND o.due_at < clock_timestamp() THEN 1 ELSE 2 END AS sort_rank
     FROM platform.payment_obligations o
@@ -606,9 +644,9 @@ BEGIN
       o.due_at NULLS LAST, o.created_at, o.id
     LIMIT v_obl) q;
   SELECT COALESCE(jsonb_agg(jsonb_build_object('on', (e.occurred_at AT TIME ZONE 'Asia/Bishkek')::DATE,
-      'kind', CASE e.event_type::TEXT WHEN 'payment' THEN 'платёж' ELSE 'возврат' END,
+      'kind', platform_private.ai_agent_dossier_word('payment_event', e.event_type::TEXT),
       'amount', platform_private.ai_agent_money(e.amount_minor), 'currency', e.currency,
-      'for', left(e.label, 60)) ORDER BY e.occurred_at DESC, e.id DESC), '[]'::JSONB)
+      'for', platform_private.ai_agent_dossier_cut(e.label, 60)) ORDER BY e.occurred_at DESC, e.id DESC), '[]'::JSONB)
   INTO v_pay_json
   FROM (SELECT pe.id, pe.occurred_at, pe.event_type, pe.amount_minor, pe.currency, o.label
     FROM platform.payment_events pe
@@ -629,12 +667,15 @@ BEGIN
   -- Открытые задачи дела.
   SELECT count(*) INTO v_tasks_total FROM platform.case_tasks x
   WHERE x.organization_id = s.organization_id AND x.student_case_id = s.id AND x.status IN ('open', 'in_progress', 'blocked');
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('task_id', t.id, 'title', left(t.title, v_label_chars),
-      'assignee_name', platform_private.ai_agent_member_name(t.organization_id, t.assignee_membership_id),
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('task_id', t.id, 'title', platform_private.ai_agent_dossier_cut(t.title, v_label_chars),
+      'assignee_name', platform_private.ai_agent_dossier_name(t.organization_id, t.assignee_membership_id),
       'status', platform_private.ai_agent_dossier_word('task_status', t.status::TEXT),
-      'important', t.priority::TEXT IN ('high', 'urgent'), 'priority', platform_private.ai_agent_dossier_word('task_priority', t.priority::TEXT),
+      'important', t.priority::TEXT IN ('high', 'urgent'),
       'due_on', t.due_on_eff,
-      'overdue', t.due_on_eff IS NOT NULL AND t.due_on_eff < v_today) ORDER BY t.due_on_eff NULLS LAST, t.created_at DESC), '[]'::JSONB)
+      'overdue', t.due_on_eff IS NOT NULL AND t.due_on_eff < v_today)
+      || CASE WHEN platform_private.ai_agent_dossier_word('task_priority', t.priority::TEXT) IS NULL THEN '{}'::JSONB
+        ELSE jsonb_build_object('priority', platform_private.ai_agent_dossier_word('task_priority', t.priority::TEXT)) END
+      ORDER BY t.due_on_eff NULLS LAST, t.created_at DESC), '[]'::JSONB)
   INTO v_tasks_json
   FROM (SELECT x.*, COALESCE(x.due_on, (x.due_at AT TIME ZONE 'Asia/Bishkek')::DATE) AS due_on_eff
     FROM platform.case_tasks x
@@ -645,8 +686,8 @@ BEGIN
   SELECT count(*) INTO v_notes_total FROM platform.case_notes x
   WHERE x.organization_id = s.organization_id AND x.student_case_id = s.id;
   SELECT COALESCE(jsonb_agg(jsonb_build_object('at', n.created_at,
-      'author', platform_private.ai_agent_member_name(n.organization_id, n.created_by_membership_id),
-      'text', left(n.body, v_note_chars)) ORDER BY n.created_at DESC), '[]'::JSONB)
+      'author', platform_private.ai_agent_dossier_name(n.organization_id, n.created_by_membership_id),
+      'text', platform_private.ai_agent_dossier_cut(n.body, v_note_chars)) ORDER BY n.created_at DESC), '[]'::JSONB)
   INTO v_notes_json
   FROM (SELECT x.* FROM platform.case_notes x WHERE x.organization_id = s.organization_id AND x.student_case_id = s.id
     ORDER BY x.created_at DESC LIMIT v_notes) n;
@@ -663,8 +704,8 @@ BEGIN
           WHEN EXISTS (SELECT 1 FROM platform_private.ai_agent_drafts d WHERE d.organization_id = m.organization_id
             AND d.student_case_id = m.student_case_id AND d.provider ->> 'messageId' = m.id::TEXT) THEN 'ai_agent'
           ELSE 'staff' END,
-        'author_name', platform_private.ai_agent_member_name(m.organization_id, m.author_membership_id),
-        'text', left(m.body, v_chat_chars)) ORDER BY m.created_at, m.id), '[]'::JSONB), count(*)::INTEGER
+        'author_name', platform_private.ai_agent_dossier_name(m.organization_id, m.author_membership_id),
+        'text', platform_private.ai_agent_dossier_cut(m.body, v_chat_chars)) ORDER BY m.created_at, m.id), '[]'::JSONB), count(*)::INTEGER
     INTO v_chat_json, v_shown
     FROM (SELECT x.* FROM platform.case_chat_messages x
       WHERE x.organization_id = s.organization_id AND x.student_case_id = s.id
@@ -684,15 +725,21 @@ BEGIN
   IF v_obl_total > jsonb_array_length(v_obl_json) THEN
     v_omitted := v_omitted || jsonb_build_object('obligations', v_obl_total - jsonb_array_length(v_obl_json)); END IF;
 
-  RETURN jsonb_build_object(
-    'case', jsonb_build_object('case_id', s.id, 'student_name', s.student_display_name,
+  IF NOT v_with_qa AND EXISTS (SELECT 1 FROM platform_private.student_applications x
+      WHERE x.organization_id = s.organization_id
+        AND (x.id = s.public_application_id OR x.student_case_id = s.id OR x.invited_case_id = s.id)) THEN
+    v_omitted := v_omitted || jsonb_build_object('questionnaire', 1);
+  END IF;
+
+  v_res := jsonb_build_object(
+    'case', jsonb_build_object('case_id', s.id, 'student_name', platform_private.ai_agent_dossier_cut(s.student_display_name, 200),
       'state', platform_private.ai_agent_dossier_word('case_state', s.state::TEXT),
-      'curator_name', platform_private.ai_agent_member_name(s.organization_id, s.current_curator_membership_id),
-      'sales_name', platform_private.ai_agent_member_name(s.organization_id, s.responsible_sales_membership_id),
+      'curator_name', platform_private.ai_agent_dossier_name(s.organization_id, s.current_curator_membership_id),
+      'sales_name', platform_private.ai_agent_dossier_name(s.organization_id, s.responsible_sales_membership_id),
       'country', v_country, 'degree', COALESCE(platform_private.ai_agent_dossier_word('degree', lower(btrim(COALESCE(s.target_degree, '')))),
-        NULLIF(left(btrim(COALESCE(s.target_degree, '')), 60), '')),
+        NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(s.target_degree, '')), 60), '')),
       'direction', platform_private.ai_agent_dossier_word('direction', s.admissions_direction),
-      'intake_written', NULLIF(left(btrim(COALESCE(s.intake, '')), 60), ''),
+      'intake_written', NULLIF(platform_private.ai_agent_dossier_cut(btrim(COALESCE(s.intake, '')), 60), ''),
       'handed_off_at', s.handoff_at, 'created_at', s.created_at, 'updated_at', s.updated_at),
     'process_stage', jsonb_build_object('label', 'Этап процесса (по плейбуку приёмной)', 'word', v_process_word),
     'board_column', jsonb_build_object('label', 'Колонка доски кураторов «Воронка поступления»', 'word', v_board_word),
@@ -711,10 +758,25 @@ BEGIN
     'portal_chat', v_chat_json,
     'lead', v_lead_json,
     'counts', jsonb_build_object('documents', v_docs_total, 'applications', v_apps_total, 'open_tasks', v_tasks_total,
-      'notes', v_notes_total),
-    'truncated', p_level > 0 OR v_omitted <> '{}'::JSONB,
-    'omitted', v_omitted);
+      'notes', v_notes_total));
+  v_cut := (char_length(v_res::TEXT) - char_length(replace(v_res::TEXT, '[…]"', ''))) / char_length('[…]"');
+  IF v_cut > 0 THEN v_omitted := v_omitted || jsonb_build_object('text_cut', v_cut); END IF;
+  RETURN v_res || jsonb_build_object('truncated', v_omitted <> '{}'::JSONB, 'omitted', v_omitted);
 END
+$$;
+
+-- Аварийная минимальная форма: если даже самый сжатый уровень выше потолка, остаются карточка, этапы, ключи и числа, а
+-- в omitted стоит `size_ceiling`. На деле сюда не попадают (имена и подписи ограничены), но потолок обещан безусловно.
+CREATE FUNCTION platform_private.ai_agent_dossier_minimal(p_out JSONB, p_kind TEXT)
+RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT (CASE p_kind
+      WHEN 'lead' THEN jsonb_build_object('lead', p_out -> 'lead', 'keys', p_out -> 'keys', 'case', p_out -> 'case',
+        'counts', p_out -> 'counts')
+      ELSE jsonb_build_object('case', p_out -> 'case', 'process_stage', p_out -> 'process_stage',
+        'board_column', p_out -> 'board_column', 'timeline_step', NULL, 'stage_mismatch', p_out -> 'stage_mismatch',
+        'keys', p_out -> 'keys', 'counts', p_out -> 'counts') END)
+    || jsonb_build_object('truncated', TRUE,
+      'omitted', COALESCE(p_out -> 'omitted', '{}'::JSONB) || jsonb_build_object('size_ceiling', TRUE))
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -738,6 +800,9 @@ BEGIN
     EXIT WHEN char_length(v_out::TEXT) <= v_ceiling OR v_level >= 4;
     v_level := v_level + 1;
   END LOOP;
+  IF char_length(v_out::TEXT) > v_ceiling THEN
+    v_out := platform_private.ai_agent_dossier_minimal(v_out, 'lead');
+  END IF;
   RETURN v_out;
 END
 $$;
@@ -760,6 +825,9 @@ BEGIN
     EXIT WHEN char_length(v_out::TEXT) <= v_ceiling OR v_level >= 4;
     v_level := v_level + 1;
   END LOOP;
+  IF char_length(v_out::TEXT) > v_ceiling THEN
+    v_out := platform_private.ai_agent_dossier_minimal(v_out, 'case');
+  END IF;
   RETURN v_out;
 END
 $$;
@@ -775,27 +843,30 @@ REVOKE ALL ON FUNCTION
   platform_private.ai_agent_dossier_word(TEXT, TEXT),
   platform_private.ai_agent_dossier_expected_boards(TEXT),
   platform_private.ai_agent_dossier_amount(BIGINT, TEXT, TEXT),
-  platform_private.ai_agent_dossier_answer(JSONB)
+  platform_private.ai_agent_dossier_answer(JSONB),
+  platform_private.ai_agent_dossier_cut(TEXT, INTEGER),
+  platform_private.ai_agent_dossier_name(UUID, UUID),
+  platform_private.ai_agent_dossier_minimal(JSONB, TEXT)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
 GRANT EXECUTE ON FUNCTION
   platform.ai_agent_tool_get_lead_dossier_v1(UUID, TEXT, JSONB),
   platform.ai_agent_tool_get_case_dossier_v1(UUID, TEXT, JSONB) TO service_role;
 
 COMMENT ON FUNCTION platform.ai_agent_tool_get_lead_dossier_v1(UUID, TEXT, JSONB) IS
-  '381: досье лида одним вызовом (потолок 6000 символов JSON); переписка WhatsApp только при согласии 320.';
+  '382: досье лида одним вызовом (потолок 6000 символов JSON); переписка WhatsApp только при согласии 320.';
 COMMENT ON FUNCTION platform.ai_agent_tool_get_case_dossier_v1(UUID, TEXT, JSONB) IS
-  '381: досье дела одним вызовом (потолок 11500 символов в базе); три этапа отдельными полями, деньги тремя блоками.';
+  '382: досье дела одним вызовом (потолок 11500 символов в базе); три этапа отдельными полями, деньги тремя блоками.';
 
 -- ---------------------------------------------------------------------------
 -- Проверка в конце: права, определитель, пустой search_path, строки схем.
 -- ---------------------------------------------------------------------------
-DO $a381_verify$
+DO $a382_verify$
 DECLARE f REGPROCEDURE;
 BEGIN
-  IF (SELECT count(*) FROM platform_private.ai_agent_tool_schemas) <> 26
-    OR (SELECT count(*) FROM platform_private.ai_agent_tool_schemas
+  -- Только свои строки: параллельные PR добавляют свои инструменты, общее число здесь не проверяется.
+  IF (SELECT count(*) FROM platform_private.ai_agent_tool_schemas
         WHERE tool IN ('get_lead_dossier', 'get_case_dossier') AND kind = 'read' AND audit = 'read') <> 2 THEN
-    RAISE EXCEPTION 'a381_verify_schema' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a382_verify_schema' USING ERRCODE = '55000';
   END IF;
   FOREACH f IN ARRAY ARRAY[
     'platform.ai_agent_tool_get_lead_dossier_v1(uuid,text,jsonb)'::REGPROCEDURE,
@@ -804,7 +875,7 @@ BEGIN
     'platform_private.ai_agent_case_dossier_build(uuid,uuid,integer)'::REGPROCEDURE] LOOP
     IF (SELECT p.proconfig IS DISTINCT FROM ARRAY['search_path=""']::TEXT[] OR NOT p.prosecdef
         FROM pg_catalog.pg_proc p WHERE p.oid = f) THEN
-      RAISE EXCEPTION 'a381_verify_function: %', f USING ERRCODE = '55000';
+      RAISE EXCEPTION 'a382_verify_function: %', f USING ERRCODE = '55000';
     END IF;
   END LOOP;
   FOREACH f IN ARRAY ARRAY[
@@ -813,7 +884,7 @@ BEGIN
     IF NOT has_function_privilege('service_role', f::OID, 'EXECUTE')
       OR has_function_privilege('authenticated', f::OID, 'EXECUTE') OR has_function_privilege('anon', f::OID, 'EXECUTE')
       OR has_function_privilege('evo_ai_agent', f::OID, 'EXECUTE') THEN
-      RAISE EXCEPTION 'a381_verify_tool_grant: %', f USING ERRCODE = '55000';
+      RAISE EXCEPTION 'a382_verify_tool_grant: %', f USING ERRCODE = '55000';
     END IF;
   END LOOP;
   FOREACH f IN ARRAY ARRAY[
@@ -822,15 +893,18 @@ BEGIN
     'platform_private.ai_agent_dossier_word(text,text)'::REGPROCEDURE,
     'platform_private.ai_agent_dossier_expected_boards(text)'::REGPROCEDURE,
     'platform_private.ai_agent_dossier_amount(bigint,text,text)'::REGPROCEDURE,
-    'platform_private.ai_agent_dossier_answer(jsonb)'::REGPROCEDURE] LOOP
+    'platform_private.ai_agent_dossier_answer(jsonb)'::REGPROCEDURE,
+    'platform_private.ai_agent_dossier_cut(text,integer)'::REGPROCEDURE,
+    'platform_private.ai_agent_dossier_name(uuid,uuid)'::REGPROCEDURE,
+    'platform_private.ai_agent_dossier_minimal(jsonb,text)'::REGPROCEDURE] LOOP
     IF has_function_privilege('service_role', f::OID, 'EXECUTE') OR has_function_privilege('authenticated', f::OID, 'EXECUTE')
       OR has_function_privilege('anon', f::OID, 'EXECUTE') OR has_function_privilege('evo_ai_agent', f::OID, 'EXECUTE')
       OR has_function_privilege('supabase_auth_admin', f::OID, 'EXECUTE') THEN
-      RAISE EXCEPTION 'a381_verify_helper_grant: %', f USING ERRCODE = '55000';
+      RAISE EXCEPTION 'a382_verify_helper_grant: %', f USING ERRCODE = '55000';
     END IF;
   END LOOP;
 END
-$a381_verify$;
+$a382_verify$;
 
 NOTIFY pgrst, 'reload schema';
 

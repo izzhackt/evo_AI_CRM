@@ -1,6 +1,6 @@
 /*
- * СГЕНЕРИРОВАНО scripts/maintenance/build-ai-agent-prompts.mjs из src/content/ai-agents/*.md — НЕ РЕДАКТИРОВАТЬ.
- * Правьте .md и запускайте: node scripts/maintenance/build-ai-agent-prompts.mjs (проверка: --check).
+ * СГЕНЕРИРОВАНО scripts/maintenance/build-ai-agent-prompts.mjs из src/content/ai-agents/<key>/{role,rules}.md и _shared/preamble.md — НЕ РЕДАКТИРОВАТЬ.
+ * Правьте исходники и запускайте: node scripts/maintenance/build-ai-agent-prompts.mjs (проверка: --check).
  */
 import type { AiAgentKey } from "../../lib/ai-agents/contract.ts";
 

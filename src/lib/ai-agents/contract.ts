@@ -2,10 +2,9 @@
  * «ИИ-агенты» на Claude Managed Agents — общий ЗАМОРОЖЕННЫЙ контракт
  * (docs/design/ai-agents/contract.md, ADR 0035). Чистый модуль: без React,
  * сервера и ввода-вывода. Его импортируют все пять строителей (БД, MCP, рантайм,
- * UI, контент), поэтому правка здесь всегда идёт вместе с миграцией (строка
- * platform_private.ai_agent_tool_schemas), тестами сверки и прогоном
- * tests/ai-agents-db-contract.test.mjs. С 28.11.2026 владелец разрешил менять файл
- * исполнителям: заморозка ослаблена, но сверки остаются.
+ * UI, контент), поэтому правьте его осторожно и малыми шагами (владелец 28.11.2026
+ * разрешил правки): новый инструмент — в AI_AGENT_TOOL_NAMES и AI_AGENT_TOOLS здесь,
+ * затем в `src/content/ai-agents/<key>/tools.json` тех агентов, которым он нужен.
  *
  * Импорты внутри src/lib — относительные с `.ts`: тесты идут через
  * `node --experimental-strip-types` и не знают алиаса `@/`.
@@ -52,7 +51,7 @@ export type AiAgentCatalogEntry = Readonly<{
 
 /**
  * Сид миграции 317 повторяет эти значения дословно; тексты инструкций живут в
- * src/content/ai-agents/*.md, а не здесь. Gemini-помощник («ИИ-агент», P1–P4) —
+ * src/content/ai-agents/<key>/ (role.md, rules.md), а не здесь. Gemini-помощник («ИИ-агент», P1–P4) —
  * не агент каталога и строки в базе не имеет.
  */
 export const AI_AGENT_CATALOG: readonly AiAgentCatalogEntry[] = [
@@ -376,7 +375,7 @@ const CURSOR = textArg("Opaque next_cursor from the previous page. Курсор 
 const toolRpc = (name: AiAgentToolName): string => `ai_agent_tool_${name}_v1`;
 
 export const AI_AGENT_TOOLS: readonly AiAgentToolDefinition[] = [
-  // 381: досье — первая остановка агента. Остальные инструменты чтения нужны, чтобы догрузить то, что в досье обрезано.
+  // 382: досье — первая остановка агента. Остальные инструменты чтения нужны, чтобы догрузить то, что в досье обрезано.
   {
     name: "get_lead_dossier", title: "Досье лида", kind: "read", audit: "read", rpc: toolRpc("get_lead_dossier"),
     description: "Start here: one call returns the whole lead card (about 6 000 characters) — stage in words, where the client heard of EVO (apart from the contact channel), sale conditions before the contract (labelled, not a debt), next action and due date, open tasks, latest notes, the last 15 WhatsApp messages (only if the student allows AI helpers), calls of 14 days and the link to the student case. Use get_lead, get_conversation and the other read tools only to load more. Начните отсюда: вся карточка лида одним вызовом, этап словами, откуда узнал, условия до договора, следующее действие, задачи, заметки, переписка WhatsApp (при согласии), звонки, ссылка на дело.",

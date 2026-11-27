@@ -184,6 +184,15 @@ export class CscaTestSession {
     this.tickTimer = null;
   }
 
+  /**
+   * Кнопка «Выйти»: токен ещё действует, и неотправленное (выбор, флажок, время на задании, повтор после обрыва) уходит сейчас; сразу
+   * после этого выход зовёт `abandon()`. Ждёт его выход не дольше 3 с в сумме (`flushBeforeSignOut`), поэтому без связи ничего
+   * не повторяется: `abandon()` снимает и таймер повтора, который заводит сбой.
+   */
+  flushForSignOut(): Promise<void> {
+    return this.flush({ settle: true });
+  }
+
   // ---- принятие попытки ------------------------------------------------------------------
   private adopt(next: CscaTestAttempt, receivedAt: number): void {
     this.attempt = next;

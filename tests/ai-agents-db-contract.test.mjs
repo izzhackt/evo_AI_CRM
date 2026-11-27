@@ -80,7 +80,7 @@ test("the tool schema table is the contract's registry, row for row", () => {
   const rows381 = seedRows(SOURCE_381);
   const rows382 = seedRows(SOURCE_382);
   assert.deepEqual(rows381.map((row) => row.name), ["get_company_facts"], "381 adds exactly the get_company_facts row");
-    const rows383 = seedRows(SOURCE_383);
+  const rows383 = seedRows(SOURCE_383);
   const rows = [...rows317, ...rows381, ...rows382, ...rows383];
   assert.deepEqual(rows383.map((row) => row.name), ["propose_next_step"], "383 seeds exactly propose_next_step");
   assert.deepEqual([rows383[0].kind, rows383[0].audit], ["write", "write"], "propose_next_step is an audited write");

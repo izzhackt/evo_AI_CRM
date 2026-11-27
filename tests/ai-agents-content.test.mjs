@@ -42,7 +42,7 @@ const PLACEHOLDERS = ["curator-eu", "curator-ae", "curator-tr"];
 
 const rawFile = (name) => readFileSync(path.join(CONTENT_DIR, name), "utf8");
 /** Сырой источник инструкции: role.md + rules.md в папке агента. */
-const rawAgent = (key) => rawFile(`${key}/role.md`) + rawFile(`${key}/rules.md`);
+const rawAgent = (key) => rawFile(`${key}/role.md`) + "\n" + rawFile(`${key}/rules.md`);
 const wordCount = (text) => text.split(/\s+/).filter(Boolean).length;
 
 /** Все тексты, которые уходят в промпт, плюс сырые .md (комментарии тоже проверяем: репозиторий публичный). */
@@ -366,7 +366,7 @@ test("загрузка источников: пределы, несоответ�
     write("one/rules.md", "## Правила\nТекст\n");
     write("one/tools.json", JSON.stringify({ tools: ["list_leads"] }));
     const loaded = loadSources({ contentDir: dir, keys: ["one"] });
-    assert.deepEqual(loaded.agents.one, { instructions: "# Роль\n## Правила\nТекст", schedulePrompt: null });
+    assert.deepEqual(loaded.agents.one, { instructions: "# Роль\n\n## Правила\nТекст", schedulePrompt: null });
     assert.deepEqual(loaded.grants.one, ["list_leads", "get_my_settings"]);
 
     write("one/role.md", "---\nkey: two\n---\nТекст");

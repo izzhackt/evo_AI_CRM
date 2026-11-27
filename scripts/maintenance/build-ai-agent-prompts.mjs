@@ -161,7 +161,7 @@ export function loadSources({ contentDir = CONTENT_DIR, keys = readCatalogKeys()
     const parsed = parseAgentFile(roleFile, roleSource);
     if (parsed.key !== key) fail(roleFile, `key «${parsed.key}» не совпадает с именем папки «${key}».`);
     if (rulesSource.startsWith("---\n")) fail(rulesFile, "frontmatter допустим только в role.md.");
-    const instructions = normalizeText(stripHtmlComments(parsed.body + rulesSource));
+    const instructions = normalizeText(stripHtmlComments(parsed.body + "\n" + rulesSource));
     if (instructions.length > LIMITS.instructionsMaxChars) {
       fail(roleFile, `инструкция ${instructions.length} символов, предел ${LIMITS.instructionsMaxChars}.`);
     }

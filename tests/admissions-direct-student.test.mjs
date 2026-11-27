@@ -33,7 +33,9 @@ const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "u
 const migration = source("supabase/migrations/281_platform_admissions_direct_student.sql");
 const suite = source("supabase/tests/platform_admissions_direct_student.sql");
 const script = source("scripts/test-runners/test-postgres-authorization.sh");
-const drawer = source("src/components/staff/admissions/AddStudentDrawer.tsx");
+// 27.11.2026 (дизайн «Главное и подробности»): форма — панель и три файла частей; проверки читают их вместе.
+const drawer = ["AddStudentDrawer", "AddStudentFields", "AddStudentMoney", "AddStudentDetails"]
+  .map((name) => source(`src/components/staff/admissions/${name}.tsx`)).join("\n");
 const page = source("src/app/(staff)/admissions-pipeline/page.tsx");
 const directSource = source("src/lib/v3/admissions-direct-student-source.ts");
 
@@ -177,7 +179,9 @@ test("review #1194 (6): a payment is dated today at the latest, as in 281", () =
   assert.equal(paidOn("2026-10-17").paymentErrors[0], "Укажите дату оплаты, не позже сегодняшнего дня.");
   assert.doesNotMatch(migration, /today \+ 1/u, "the database bound is today as well");
   assert.match(migration, /admissions_direct_date\(payment, 'paidOn', DATE '2000-01-01', today, 'paidOn'\)/u);
-  assert.match(drawer, /max=\{bishkekToday\(\)\} onChange=\{\(e\) => setPayment\(index, "paidOn"/u);
+  // 27.11.2026: строки оплат — в AddStudentMoney.tsx, смену поля отдаёт `onPayment` панели (`setPayment`).
+  assert.match(drawer, /max=\{bishkekToday\(\)\} onChange=\{\(e\) => onPayment\(index, "paidOn"/u);
+  assert.match(drawer, /onPayment=\{setPayment\}/u, "the drawer hands setPayment to the payment rows");
 });
 
 test("the server re-parse refuses foreign keys and types", () => {
@@ -418,10 +422,13 @@ test("study, English and Chinese are lists; the empty choice is omitted", () => 
   assert.equal(parseAdmissionsDirectPayload({ ...base, education: { current: "аспирантура" } }), null);
   assert.equal(parseAdmissionsDirectPayload({ ...base, education: { english: "B2" } }).education.english, "B2");
   assert.equal(parseAdmissionsDirectPayload({ ...base, education: { chinese: "HSK 9" } }), null);
-  assert.match(drawer, /<select \{\.\.\.fieldProps\("educationCurrent"\)\} name="educationCurrent" className=\{SELECT_CLS\}/u);
-  assert.match(drawer, /<select \{\.\.\.fieldProps\("english"\)\} name="english" className=\{SELECT_CLS\}/u);
-  assert.match(drawer, /<select \{\.\.\.fieldProps\("chinese"\)\} name="chinese" className=\{SELECT_CLS\}/u);
-  assert.equal(drawer.match(/<option value="">\{ADMISSIONS_DIRECT_UNSPECIFIED\}<\/option>/gu)?.length, 3);
+  // 27.11.2026 (AddStudentFields.tsx): «Где учится сейчас» — свой список, английский и китайский — один цикл по `levels`;
+  // у каждого из трёх списков пустой вариант «не указано».
+  assert.match(drawer, /<select \{\.\.\.field\("educationCurrent"\)\} name="educationCurrent" className=\{FIELD_CLS\}/u);
+  assert.match(drawer, /\{ key: "english", label: "Английский", options: ADMISSIONS_DIRECT_ENGLISH \}/u);
+  assert.match(drawer, /\{ key: "chinese", label: "Китайский", options: ADMISSIONS_DIRECT_CHINESE \}/u);
+  assert.match(drawer, /<select \{\.\.\.field\(key\)\} name=\{key\} className=\{FIELD_CLS\}[\s\S]{0,120}<option value="">\{ADMISSIONS_DIRECT_UNSPECIFIED\}<\/option>/u);
+  assert.equal(drawer.match(/<option value="">\{ADMISSIONS_DIRECT_UNSPECIFIED\}<\/option>/gu)?.length, 2, "one for «Где учится сейчас», one shared by the two language lists");
   assert.doesNotMatch(drawer, /name="educationCurrent"[\s\S]{0,80}<input/u);
   assert.match(drawer, /name="program"/u);
   assert.match(drawer, /name="intake"/u);

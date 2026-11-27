@@ -2,21 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
-import { btnCls, fieldLabelCls, inputCls } from "@/components/ui";
+import { btnCls } from "@/components/ui";
 import { createAdmissionsStudentAction } from "@/lib/admissions-direct-student-actions";
 import {
-  ADMISSIONS_DIRECT_CHINESE,
-  ADMISSIONS_DIRECT_CURRENCIES,
-  ADMISSIONS_DIRECT_DEGREES,
-  ADMISSIONS_DIRECT_EDUCATION_CURRENT,
-  ADMISSIONS_DIRECT_ENGLISH,
-  ADMISSIONS_DIRECT_MAX_PAYMENTS,
-  ADMISSIONS_DIRECT_PARENT_RELATIONS,
-  ADMISSIONS_DIRECT_SALES_NAME_MAX,
-  ADMISSIONS_DIRECT_UNSPECIFIED,
   CHINA_DEFAULT_COST,
   EMPTY_ADMISSIONS_DIRECT_DRAFT,
   admissionsDirectCaseHref,
@@ -30,11 +21,20 @@ import {
   type AdmissionsDirectField,
   type AdmissionsDirectResult,
 } from "@/lib/admissions-direct-student-contract";
-import { ADMISSIONS_PIPELINE_TAB_STAGES } from "@/lib/platform-admissions-pipeline-contract";
-import { PLATFORM_APPLICATION_COUNTRIES } from "@/lib/platform-application-contract";
-import { admissionsPipelineStage, admissionsPipelineTab, country as countryLabel } from "@/lib/v3/wording";
 
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
+import { DetailsSection, DraftAvatar, sectionSummary, type AddStudentSection } from "./AddStudentDetails";
+import {
+  MainFields,
+  NoteFields,
+  ParentFields,
+  RouteMoreFields,
+  StudentMoreFields,
+  StudyFields,
+  TEXT_ACTION,
+  type AddStudentForm,
+} from "./AddStudentFields";
+import { MoneyFields } from "./AddStudentMoney";
 
 export type AddStudentCuratorChoice =
   /** Куратор заводит студента только себе (своя область `case.create.direct`). */
@@ -49,31 +49,50 @@ export type AddStudentCuratorChoice =
     withoutCurator: boolean;
   }>;
 
-const SELECT_CLS = `${inputCls} aria-[invalid=true]:border-danger`;
-const FIELD_CLS = `${inputCls} aria-[invalid=true]:border-danger`;
-const TEXT_ACTION = "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 const CHINA_COST_MINOR = Number(CHINA_DEFAULT_COST.amount) * 100;
 
-/** Первое поле с ошибкой в порядке формы — туда уходит фокус после проверки. */
-const FIELD_ORDER: readonly AdmissionsDirectField[] = [
-  "firstName", "lastName", "phone", "email", "birthDate", "age",
-  "parentRelation", "parentFirstName", "parentLastName", "parentPhone",
-  "country", "degree", "program", "intake", "educationCurrent", "english", "chinese",
-  "curator", "stage", "costAmount", "costCurrency", "signedOn", "payments", "salesName", "note",
+/** «Главное» открыто всегда: в нём оба обязательных поля — имя и страна. */
+const MAIN_FIELDS: readonly AdmissionsDirectField[] = ["firstName", "lastName", "phone", "country", "curator", "salesName"];
+
+/** Раскрытия под «Главным» в порядке на экране; поля — в порядке внутри раскрытия. */
+const SECTIONS: readonly Readonly<{ key: AddStudentSection; title: string; fields: readonly AdmissionsDirectField[] }>[] = [
+  { key: "student", title: "Студент подробнее", fields: ["email", "birthDate", "age"] },
+  { key: "parent", title: "Родитель", fields: ["parentRelation", "parentPhone", "parentFirstName", "parentLastName"] },
+  { key: "route", title: "Направление подробнее", fields: ["degree", "intake", "program"] },
+  { key: "study", title: "Учёба и язык", fields: ["educationCurrent", "english", "chinese"] },
+  { key: "money", title: "Этап и деньги", fields: ["stage", "costAmount", "costCurrency", "signedOn", "payments"] },
+  { key: "note", title: "Заметка", fields: ["note"] },
 ];
+
+/** Первое поле с ошибкой в порядке формы на экране — туда уходит фокус после проверки. */
+const FIELD_ORDER: readonly AdmissionsDirectField[] = [...MAIN_FIELDS, ...SECTIONS.flatMap((section) => section.fields)];
+
+/** Куда встаёт фокус после проверки: поле, строка оплаты или «Добавить оплату». */
+type FocusRequest =
+  | Readonly<{ kind: "field"; field: AdmissionsDirectField }>
+  | Readonly<{ kind: "payment"; row: number }>
+  | Readonly<{ kind: "payments" }>;
 
 /**
  * «Добавить студента» (миграция 281, решения владельца 16.10.2026) — главное
  * действие «Воронки поступления». Кнопка открывает выдвижную панель справа
  * (модальный `<dialog>`, как «Приём дела»: фон недоступен, Esc закрывает,
- * фокус возвращается на кнопку). Группы: студент, родитель, направление,
- * образование и язык, куратор и этап, деньги, заметка.
+ * фокус возвращается на кнопку).
  *
- * Для Китая стоимость подставляется 1 500 USD, пока её не изменили руками.
- * Оплаты — список строк. Проверка в браузере та же, что у базы; после
- * сохранения открывается новое дело, а дело без куратора — в «Ждут куратора»,
- * где его назначают. «Сохранение не подтверждено» оставляет форму и ключ
- * запроса: повтор безопасен.
+ * Вариант «Главное и подробности»: белые листы на сером столе панели. Сверху
+ * всегда открыто «Главное» — имя, фамилия, телефон, страна, куратор и
+ * продажник (оба обязательных поля на первом экране). Ниже одна карточка
+ * раскрытий: «Студент подробнее», «Родитель», «Направление подробнее»,
+ * «Учёба и язык», «Этап и деньги», «Заметка»; свёрнутое раскрытие одной
+ * строкой называет, что в нём уже заполнено. После неудачной проверки
+ * раскрытия с ошибками открываются, фокус встаёт на первое неверное поле.
+ *
+ * Для Китая стоимость подставляется 1 500 USD, пока её не изменили руками —
+ * и при свёрнутом «Этап и деньги» (строка раскрытия это показывает). Оплаты —
+ * список строк. Проверка в браузере та же, что у базы; после сохранения
+ * открывается новое дело, а дело без куратора — в «Ждут куратора», где его
+ * назначают. «Сохранение не подтверждено» оставляет форму и ключ запроса:
+ * повтор безопасен.
  */
 export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCuratorChoice }>) {
   const router = useRouter();
@@ -84,6 +103,8 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
   // Без права оставить дело без куратора выбор обязателен: первым стоит первый из списка.
   const curatorRequired = curator.kind === "choose" && !curator.withoutCurator;
   const [draft, setDraft] = useState<AdmissionsDirectDraft>(() => ({
@@ -97,6 +118,8 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
   const [paymentErrors, setPaymentErrors] = useState<readonly (string | null)[]>([]);
   const [result, setResult] = useState<AdmissionsDirectResult | null>(null);
   const [pending, setPending] = useState(false);
+  const [openSections, setOpenSections] = useState<ReadonlySet<AddStudentSection>>(() => new Set());
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const statusId = useId();
   const ids = useFieldIds();
 
@@ -109,6 +132,19 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
     dialog.addEventListener("close", onClose);
     return () => dialog.removeEventListener("close", onClose);
   }, []);
+
+  // Фокус на первую ошибку — после отрисовки, когда раскрытия с ошибками уже открыты.
+  useEffect(() => {
+    if (!focusRequest) return;
+    const frame = requestAnimationFrame(() => {
+      const target = focusRequest.kind === "field" ? document.getElementById(ids[focusRequest.field])
+        : focusRequest.kind === "payment"
+          ? formRef.current?.querySelectorAll<HTMLInputElement>("[data-payment-amount]")[focusRequest.row]
+          : document.getElementById(ids.payments);
+      target?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusRequest, ids]);
 
   const open = () => {
     const dialog = dialogRef.current;
@@ -136,6 +172,10 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
     }
     setErrors((current) => ({ ...current, country: undefined, costAmount: undefined, costCurrency: undefined }));
   };
+  const setCost = (key: "costAmount" | "costCurrency", value: string) => {
+    setCostPrefilled(false);
+    set(key, value);
+  };
 
   const setPayment = (index: number, key: "amount" | "currency" | "paidOn", value: string) => {
     setDraft((current) => ({
@@ -160,19 +200,44 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
     setErrors((current) => ({ ...current, payments: undefined }));
   };
 
-  const focusFirstError = (fieldErrors: AdmissionsDirectErrors, rowErrors: readonly (string | null)[]) => {
-    const field = FIELD_ORDER.find((key) => fieldErrors[key]);
-    requestAnimationFrame(() => {
-      if (field === "payments" || (!field && rowErrors.some(Boolean))) {
-        const row = rowErrors.findIndex(Boolean);
-        const target = row >= 0
-          ? formRef.current?.querySelectorAll<HTMLInputElement>("[data-payment-amount]")[row]
-          : document.getElementById(ids.payments);
-        target?.focus();
-        return;
-      }
-      if (field) document.getElementById(ids[field])?.focus();
+  // Раскрытие у нижнего края (на телефоне — почти всегда) подтягивается в видимую часть, но не выше своей строки.
+  const revealSection = (key: AddStudentSection) => {
+    const dialog = dialogRef.current;
+    const section = formRef.current?.querySelector<HTMLElement>(`[data-add-section="${key}"]`);
+    const top = headerRef.current?.getBoundingClientRect().bottom;
+    const bottom = footerRef.current?.getBoundingClientRect().top;
+    if (!dialog || !section || top === undefined || bottom === undefined) return;
+    const box = section.getBoundingClientRect();
+    const by = Math.min(box.bottom + 16 - bottom, box.top - 16 - top);
+    if (by <= 0) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    dialog.scrollBy({ top: by, behavior: still ? "auto" : "smooth" });
+  };
+  const toggleSection = (key: AddStudentSection) => {
+    const opening = !openSections.has(key);
+    setOpenSections((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
     });
+    if (opening) requestAnimationFrame(() => revealSection(key));
+  };
+
+  // Сначала открываются раскрытия с ошибками, потом (эффект выше) фокус встаёт на первое неверное поле.
+  const focusFirstError = (fieldErrors: AdmissionsDirectErrors, rowErrors: readonly (string | null)[]) => {
+    const rowsInvalid = rowErrors.some(Boolean);
+    const withErrors = SECTIONS
+      .filter((section) => section.fields.some((key) => fieldErrors[key]) || (section.key === "money" && rowsInvalid))
+      .map((section) => section.key);
+    if (withErrors.length > 0) setOpenSections((current) => new Set([...current, ...withErrors]));
+    const field = FIELD_ORDER.find((key) => fieldErrors[key]);
+    if (field === "payments" || (!field && rowsInvalid)) {
+      const row = rowErrors.findIndex(Boolean);
+      setFocusRequest(row >= 0 ? { kind: "payment", row } : { kind: "payments" });
+    } else if (field) {
+      setFocusRequest({ kind: "field", field });
+    }
   };
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -225,14 +290,31 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
   };
 
   const error = (field: AdmissionsDirectField) => errors[field];
-  const fieldProps = (field: AdmissionsDirectField) => ({
-    id: ids[field],
-    "aria-invalid": error(field) ? true : undefined,
-    "aria-describedby": error(field) ? `${ids[field]}-error` : undefined,
-  });
-  const errorText = (field: AdmissionsDirectField) => error(field)
-    ? <span id={`${ids[field]}-error`} className="mt-1 block t-body-compact text-danger">{error(field)}</span>
-    : null;
+  const form: AddStudentForm = {
+    draft,
+    ids,
+    set,
+    error,
+    field: (field) => ({
+      id: ids[field],
+      "aria-invalid": error(field) ? true : undefined,
+      "aria-describedby": error(field) ? `${ids[field]}-error` : undefined,
+    }),
+    errorText: (field) => error(field)
+      ? <span id={`${ids[field]}-error`} className="mt-1 block t-body-compact text-danger">{error(field)}</span>
+      : null,
+  };
+  const bodies: Readonly<Record<AddStudentSection, ReactNode>> = {
+    student: <StudentMoreFields form={form} />,
+    parent: <ParentFields form={form} />,
+    route: <RouteMoreFields form={form} />,
+    study: <StudyFields form={form} />,
+    money: (
+      <MoneyFields form={form} costPrefilled={costPrefilled} onCost={setCost} paymentErrors={paymentErrors}
+        onPayment={setPayment} onAddPayment={addPayment} onRemovePayment={removePayment} />
+    ),
+    note: <NoteFields form={form} />,
+  };
   const saved = result?.status === "saved";
 
   return <>
@@ -245,10 +327,11 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
       ref={dialogRef}
       aria-labelledby={headingId}
       data-testid="v3-admissions-add-student-drawer"
-      className="fixed inset-y-0 end-0 start-auto m-0 h-dvh max-h-none w-full max-w-[40rem] overflow-y-auto border-0 border-s border-border bg-surface p-0 text-fg shadow-evo-lg backdrop:bg-black/45"
+      className="fixed inset-y-0 end-0 start-auto m-0 h-dvh max-h-none w-full max-w-[40rem] scroll-pt-20 scroll-pb-24 overflow-y-auto overscroll-contain border-0 border-s border-border bg-bg p-0 text-fg shadow-evo-lg backdrop:bg-black/45 animate-in fade-in slide-in-from-right-6 duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none"
     >
       <form ref={formRef} noValidate onSubmit={submit} aria-busy={pending} className="flex min-h-full flex-col">
-        <div className="sticky top-0 z-10 flex min-h-14 items-center gap-2 border-b border-border bg-surface ps-4 pe-2">
+        <div ref={headerRef} className="sticky top-0 z-10 flex min-h-16 items-center gap-3 border-b border-border bg-surface ps-4 pe-2">
+          <DraftAvatar firstName={draft.firstName} lastName={draft.lastName} />
           <h2 id={headingId} className="t-section min-w-0 flex-1 truncate text-fg">Новый студент</h2>
           <button type="button" onClick={close} aria-label="Закрыть"
             className="flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg">
@@ -256,235 +339,28 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
           </button>
         </div>
 
-        <fieldset disabled={pending || saved} className="flex-1 space-y-6 p-4">
-          <Group title="Студент">
-            <Field label="Имя" htmlFor={ids.firstName} required>
-              <input {...fieldProps("firstName")} name="firstName" autoComplete="off" maxLength={60} className={FIELD_CLS}
-                value={draft.firstName} onChange={(e) => set("firstName", e.target.value)} required />
-              {errorText("firstName")}
-            </Field>
-            <Field label="Фамилия" htmlFor={ids.lastName}>
-              <input {...fieldProps("lastName")} name="lastName" autoComplete="off" maxLength={60} className={FIELD_CLS}
-                value={draft.lastName} onChange={(e) => set("lastName", e.target.value)} />
-              {errorText("lastName")}
-            </Field>
-            <Field label="Телефон" htmlFor={ids.phone}>
-              <input {...fieldProps("phone")} name="phone" type="tel" autoComplete="off" maxLength={40} className={FIELD_CLS}
-                placeholder="+996 555 123 456" value={draft.phone} onChange={(e) => set("phone", e.target.value)} />
-              {errorText("phone")}
-            </Field>
-            <Field label="Почта" htmlFor={ids.email}>
-              <input {...fieldProps("email")} name="email" type="email" autoComplete="off" maxLength={120} className={FIELD_CLS}
-                value={draft.email} onChange={(e) => set("email", e.target.value)} />
-              {errorText("email")}
-            </Field>
-            <Field label="Дата рождения" htmlFor={ids.birthDate}>
-              <input {...fieldProps("birthDate")} name="birthDate" type="date" max={bishkekToday()} className={FIELD_CLS}
-                value={draft.birthDate} onChange={(e) => set("birthDate", e.target.value)} />
-              {errorText("birthDate")}
-            </Field>
-            <Field label="Возраст, если даты нет" htmlFor={ids.age}>
-              <input {...fieldProps("age")} name="age" inputMode="numeric" maxLength={2} className={FIELD_CLS}
-                disabled={draft.birthDate !== ""} value={draft.birthDate !== "" ? "" : draft.age}
-                onChange={(e) => set("age", e.target.value)} />
-              {errorText("age")}
-            </Field>
-          </Group>
+        <fieldset disabled={pending || saved} className="min-w-0 flex-1 space-y-4 p-4">
+          <div className="rounded-card border border-border bg-surface px-4 pb-5 pt-4 sm:px-5">
+            <fieldset className="min-w-0">
+              <legend className="mb-4 t-item text-fg">Главное</legend>
+              <MainFields form={form} curator={curator} onCountry={chooseCountry} />
+            </fieldset>
+          </div>
 
-          <Group title="Родитель">
-            <Field label="Кем приходится" htmlFor={ids.parentRelation}>
-              <select {...fieldProps("parentRelation")} name="parentRelation" className={SELECT_CLS}
-                value={draft.parentRelation} onChange={(e) => set("parentRelation", e.target.value)}>
-                <option value="">Не выбрано</option>
-                {Object.entries(ADMISSIONS_DIRECT_PARENT_RELATIONS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-              </select>
-              {errorText("parentRelation")}
-            </Field>
-            <Field label="Телефон родителя" htmlFor={ids.parentPhone}>
-              <input {...fieldProps("parentPhone")} name="parentPhone" type="tel" autoComplete="off" maxLength={40} className={FIELD_CLS}
-                placeholder="+996 555 123 456" value={draft.parentPhone} onChange={(e) => set("parentPhone", e.target.value)} />
-              {errorText("parentPhone")}
-            </Field>
-            <Field label="Имя родителя" htmlFor={ids.parentFirstName}>
-              <input {...fieldProps("parentFirstName")} name="parentFirstName" autoComplete="off" maxLength={60} className={FIELD_CLS}
-                value={draft.parentFirstName} onChange={(e) => set("parentFirstName", e.target.value)} />
-              {errorText("parentFirstName")}
-            </Field>
-            <Field label="Фамилия родителя" htmlFor={ids.parentLastName}>
-              <input {...fieldProps("parentLastName")} name="parentLastName" autoComplete="off" maxLength={60} className={FIELD_CLS}
-                value={draft.parentLastName} onChange={(e) => set("parentLastName", e.target.value)} />
-              {errorText("parentLastName")}
-            </Field>
-          </Group>
-
-          <Group title="Направление">
-            <Field label="Страна" htmlFor={ids.country} required>
-              <select {...fieldProps("country")} name="country" className={SELECT_CLS} required
-                value={draft.country} onChange={(e) => chooseCountry(e.target.value)}>
-                <option value="">Не выбрано</option>
-                {PLATFORM_APPLICATION_COUNTRIES.map((code) => <option key={code} value={code}>{countryLabel(code) ?? code}</option>)}
-              </select>
-              {errorText("country")}
-            </Field>
-            <Field label="Ступень" htmlFor={ids.degree}>
-              <select {...fieldProps("degree")} name="degree" className={SELECT_CLS}
-                value={draft.degree} onChange={(e) => set("degree", e.target.value)}>
-                <option value="">Не выбрано</option>
-                {ADMISSIONS_DIRECT_DEGREES.map((label) => <option key={label} value={label}>{label}</option>)}
-              </select>
-              {errorText("degree")}
-            </Field>
-            <Field label="Программа" htmlFor={ids.program}>
-              <input {...fieldProps("program")} name="program" autoComplete="off" maxLength={100} className={FIELD_CLS}
-                value={draft.program} onChange={(e) => set("program", e.target.value)} />
-              {errorText("program")}
-            </Field>
-            <Field label="Набор" htmlFor={ids.intake}>
-              <input {...fieldProps("intake")} name="intake" autoComplete="off" maxLength={30} className={FIELD_CLS}
-                placeholder="например, сентябрь 2027" value={draft.intake} onChange={(e) => set("intake", e.target.value)} />
-              {errorText("intake")}
-            </Field>
-          </Group>
-
-          <Group title="Образование и язык">
-            <Field label="Где учится сейчас" htmlFor={ids.educationCurrent} wide>
-              <select {...fieldProps("educationCurrent")} name="educationCurrent" className={SELECT_CLS}
-                value={draft.educationCurrent} onChange={(e) => set("educationCurrent", e.target.value)}>
-                <option value="">{ADMISSIONS_DIRECT_UNSPECIFIED}</option>
-                {ADMISSIONS_DIRECT_EDUCATION_CURRENT.map((label) => <option key={label} value={label}>{label}</option>)}
-              </select>
-              {errorText("educationCurrent")}
-            </Field>
-            <Field label="Английский" htmlFor={ids.english}>
-              <select {...fieldProps("english")} name="english" className={SELECT_CLS}
-                value={draft.english} onChange={(e) => set("english", e.target.value)}>
-                <option value="">{ADMISSIONS_DIRECT_UNSPECIFIED}</option>
-                {ADMISSIONS_DIRECT_ENGLISH.map((label) => <option key={label} value={label}>{label}</option>)}
-              </select>
-              {errorText("english")}
-            </Field>
-            <Field label="Китайский" htmlFor={ids.chinese}>
-              <select {...fieldProps("chinese")} name="chinese" className={SELECT_CLS}
-                value={draft.chinese} onChange={(e) => set("chinese", e.target.value)}>
-                <option value="">{ADMISSIONS_DIRECT_UNSPECIFIED}</option>
-                {ADMISSIONS_DIRECT_CHINESE.map((label) => <option key={label} value={label}>{label}</option>)}
-              </select>
-              {errorText("chinese")}
-            </Field>
-          </Group>
-
-          <Group title="Куратор и этап">
-            {curator.kind === "self" ? (
-              <div className="min-w-0">
-                <span className={fieldLabelCls}>Куратор</span>
-                <p className="flex min-h-11 items-center t-body text-fg">Вы</p>
-              </div>
-            ) : (
-              <Field label="Куратор" htmlFor={ids.curator}>
-                <select {...fieldProps("curator")} name="curator" className={SELECT_CLS}
-                  value={draft.curator} onChange={(e) => set("curator", e.target.value)}>
-                  {curator.withoutCurator ? <option value="">Без куратора: ждёт назначения</option>
-                    : curator.options.length === 0 ? <option value="">Нет кураторов, которых вы можете назначить</option> : null}
-                  {curator.options.map((option) => <option key={option.membershipId} value={option.membershipId}>{option.displayName}</option>)}
-                </select>
-                {errorText("curator")}
-              </Field>
-            )}
-            <Field label="Этап на доске" htmlFor={ids.stage}>
-              <select {...fieldProps("stage")} name="stage" className={SELECT_CLS}
-                value={draft.stage} onChange={(e) => set("stage", e.target.value)}>
-                {(["admission", "visa"] as const).map((tab) => (
-                  <optgroup key={tab} label={admissionsPipelineTab(tab)}>
-                    {ADMISSIONS_PIPELINE_TAB_STAGES[tab].map((stage) => (
-                      <option key={stage} value={stage}>{admissionsPipelineStage(stage) ?? stage}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              {errorText("stage")}
-            </Field>
-          </Group>
-
-          <Group title="Деньги">
-            <div className="min-w-0 sm:col-span-2">
-              <span className={fieldLabelCls} id={`${ids.costAmount}-label`}>Стоимость договора</span>
-              <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
-                <input {...fieldProps("costAmount")} aria-labelledby={`${ids.costAmount}-label`} name="costAmount"
-                  inputMode="decimal" autoComplete="off" maxLength={18} className={`${FIELD_CLS} tabular-nums`}
-                  value={draft.costAmount} onChange={(e) => { setCostPrefilled(false); set("costAmount", e.target.value); }} />
-                <select {...fieldProps("costCurrency")} aria-label="Валюта договора" name="costCurrency"
-                  className={SELECT_CLS} value={draft.costCurrency}
-                  onChange={(e) => { setCostPrefilled(false); set("costCurrency", e.target.value); }}>
-                  {ADMISSIONS_DIRECT_CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}
-                </select>
-              </div>
-              {errorText("costAmount") ?? errorText("costCurrency")
-                ?? (costPrefilled ? <span className="mt-1 block t-meta text-fg-2">По умолчанию для Китая.</span> : null)}
-            </div>
-            <Field label="Дата договора" htmlFor={ids.signedOn}>
-              <input {...fieldProps("signedOn")} name="signedOn" type="date" max={bishkekToday()} className={FIELD_CLS}
-                value={draft.signedOn} onChange={(e) => set("signedOn", e.target.value)} />
-              {errorText("signedOn")}
-            </Field>
-
-            <div className="min-w-0 sm:col-span-2" role="group" aria-labelledby={`${ids.payments}-label`}>
-              <span className={fieldLabelCls} id={`${ids.payments}-label`}>Полученные оплаты</span>
-              {draft.payments.length > 0 ? (
-                <ul className="space-y-2">
-                  {draft.payments.map((payment, index) => {
-                    const rowError = paymentErrors[index] ?? null;
-                    const rowErrorId = `${ids.payments}-row-${index}`;
-                    return (
-                      <li key={index} className="rounded-ctl border border-border p-2">
-                        <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-2 sm:grid-cols-[minmax(0,1fr)_6rem_10rem_auto]">
-                          <input data-payment-amount aria-label={`Сумма оплаты ${index + 1}`} inputMode="decimal" autoComplete="off"
-                            maxLength={18} className={`${FIELD_CLS} tabular-nums`} value={payment.amount}
-                            aria-invalid={rowError ? true : undefined} aria-describedby={rowError ? rowErrorId : undefined}
-                            onChange={(e) => setPayment(index, "amount", e.target.value)} />
-                          <select aria-label={`Валюта оплаты ${index + 1}`} className={SELECT_CLS} value={payment.currency}
-                            onChange={(e) => setPayment(index, "currency", e.target.value)}>
-                            {ADMISSIONS_DIRECT_CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}
-                          </select>
-                          <input type="date" aria-label={`Дата оплаты ${index + 1}`} className={FIELD_CLS} value={payment.paidOn}
-                            max={bishkekToday()} onChange={(e) => setPayment(index, "paidOn", e.target.value)} />
-                          <button type="button" onClick={() => removePayment(index)} aria-label={`Убрать оплату ${index + 1}`}
-                            className="flex size-11 items-center justify-center justify-self-end rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg">
-                            <Icon name="x" size={18} />
-                          </button>
-                        </div>
-                        {rowError ? <span id={rowErrorId} className="mt-1 block t-body-compact text-danger">{rowError}</span> : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
-              {draft.payments.length < ADMISSIONS_DIRECT_MAX_PAYMENTS ? (
-                <button type="button" id={ids.payments} onClick={addPayment} className={TEXT_ACTION}>
-                  <Icon name="plus" size={16} />
-                  Добавить оплату
-                </button>
-              ) : null}
-              {error("payments") ? <span role="alert" className="mt-1 block t-body-compact text-danger">{error("payments")}</span> : null}
-            </div>
-          </Group>
-
-          <Group title="Заметка">
-            {/* 27.11.2026, решение владельца: от какого продажника пришёл клиент — имя словами; уходит первой строкой заметки. */}
-            <Field label="Продажник" htmlFor={ids.salesName}>
-              <input {...fieldProps("salesName")} name="salesName" autoComplete="off" maxLength={ADMISSIONS_DIRECT_SALES_NAME_MAX}
-                className={FIELD_CLS} placeholder="Имя, если клиент от продаж" value={draft.salesName}
-                onChange={(e) => set("salesName", e.target.value)} />
-              {errorText("salesName")}
-            </Field>
-            <Field label="Что важно знать куратору" htmlFor={ids.note} wide>
-              <textarea {...fieldProps("note")} name="note" rows={3} maxLength={3500} className={`${FIELD_CLS} h-auto py-2`}
-                value={draft.note} onChange={(e) => set("note", e.target.value)} />
-              {errorText("note")}
-            </Field>
-          </Group>
+          <div className="divide-y divide-border rounded-card border border-border bg-surface">
+            {SECTIONS.map((section, index) => (
+              <DetailsSection key={section.key} name={section.key} title={section.title}
+                summary={sectionSummary(section.key, draft)}
+                invalid={section.fields.some((key) => errors[key]) || (section.key === "money" && paymentErrors.some(Boolean))}
+                open={openSections.has(section.key)} first={index === 0} last={index === SECTIONS.length - 1}
+                onToggle={() => toggleSection(section.key)}>
+                {bodies[section.key]}
+              </DetailsSection>
+            ))}
+          </div>
         </fieldset>
 
-        <div className="sticky bottom-0 z-10 space-y-2 border-t border-border bg-surface p-4">
+        <div ref={footerRef} className="sticky bottom-0 z-10 space-y-2 border-t border-border bg-surface p-4">
           {result && result.status !== "saved" ? (
             <div>
               <p id={statusId} role="alert" className="t-body-compact text-danger">{admissionsDirectMessage(result)}</p>
@@ -507,30 +383,10 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
   </>;
 }
 
-function Group({ title, children }: Readonly<{ title: string; children: ReactNode }>) {
-  return (
-    <fieldset className="min-w-0">
-      <legend className="mb-3 t-item text-fg">{title}</legend>
-      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
-    </fieldset>
-  );
-}
-
-function Field({ label, htmlFor, required = false, wide = false, children }: Readonly<{
-  label: string; htmlFor: string; required?: boolean; wide?: boolean; children: ReactNode;
-}>) {
-  return (
-    <div className={wide ? "min-w-0 sm:col-span-2" : "min-w-0"}>
-      <label htmlFor={htmlFor} className={fieldLabelCls}>
-        {label}
-        {required ? <span className="text-fg-3"> · обязательно</span> : null}
-      </label>
-      {children}
-    </div>
-  );
-}
-
 function useFieldIds(): Readonly<Record<AdmissionsDirectField, string>> {
   const base = useId();
-  return Object.fromEntries(FIELD_ORDER.map((field) => [field, `${base}-${field}`])) as Record<AdmissionsDirectField, string>;
+  return useMemo(
+    () => Object.fromEntries(FIELD_ORDER.map((field) => [field, `${base}-${field}`])) as Record<AdmissionsDirectField, string>,
+    [base],
+  );
 }

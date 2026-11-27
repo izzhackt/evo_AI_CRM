@@ -237,7 +237,7 @@ SELECT pg_temp.a381_assert((SELECT count(*) = 0 FROM platform_private.company_fa
   'another organization is untouched until it is seeded');
 SELECT pg_temp.a381_assert(
   (SELECT bool_and(source = 'agent_instruction' AND status = 'active' AND source_ref LIKE 'src/content/ai-agents/%.md#%'
-      AND valid_until IS NOT NULL AND valid_until >= verified_at AND verified_by_membership_id IS NULL AND supersedes_id IS NULL
+      AND (valid_until IS NULL) = (topic LIKE 'promise.%') AND (valid_until IS NULL OR valid_until >= verified_at) AND verified_by_membership_id IS NULL AND supersedes_id IS NULL
       AND audience IN ('client', 'internal') AND topic ~ '^[a-z0-9]+(\.[a-z0-9_-]+)+$')
    FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1))
   AND (SELECT statement_ru LIKE '%299%' AND statement_ru LIKE '%349%' AND valid_until = DATE '2026-12-31' AND verified_at = DATE '2026-10-23'
@@ -390,11 +390,14 @@ SELECT pg_temp.a381_assert(
   'a valid-until before the verification date is refused and changes nothing');
 -- Replay by request id.
 SELECT count(*) AS a381_rows_before FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1) \gset
+-- Separate statements: one statement sees one snapshot, so row counts must be read after each write.
+SELECT pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-03-31"}', pg_temp.a381_id(7134)) ->> 'status' AS a381_first \gset
+SELECT count(*) AS a381_rows_after_first FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1) \gset
+SELECT pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-03-31"}', pg_temp.a381_id(7134)) ->> 'status' AS a381_replay \gset
 SELECT pg_temp.a381_assert(
-  pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-03-31"}', pg_temp.a381_id(7134)) ->> 'status' = 'saved'
-  AND (SELECT count(*) FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1)) = :a381_rows_before + 1
-  AND pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-03-31"}', pg_temp.a381_id(7134)) ->> 'status' = 'saved'
-  AND (SELECT count(*) FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1)) = :a381_rows_before + 1
+  :'a381_first' = 'saved' AND :a381_rows_after_first = :a381_rows_before + 1
+  AND :'a381_replay' = 'saved'
+  AND (SELECT count(*) FROM platform_private.company_facts WHERE organization_id = pg_temp.a381_id(1)) = :a381_rows_after_first
   AND (SELECT count(*) = 1 FROM platform.audit_events WHERE request_id = pg_temp.a381_id(7134))
   AND pg_temp.a381_err(pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-04-30"}', pg_temp.a381_id(7134))) = '40001'
   AND pg_temp.a381_msg(pg_temp.a381_save(1, :'a381_fact_v4', '{"validUntil":"2098-04-30"}', pg_temp.a381_id(7134))) = 'company_fact_request_conflict'
@@ -406,8 +409,9 @@ SELECT pg_temp.a381_assert(
 -- ---------------------------------------------------------------------------
 SELECT id AS a381_fact_live FROM platform_private.company_facts
   WHERE organization_id = pg_temp.a381_id(1) AND topic = 'promise.test' AND status = 'active' \gset
+SELECT pg_temp.a381_retire(4, :'a381_fact_live', pg_temp.a381_id(7140)) AS a381_retired \gset
 SELECT pg_temp.a381_assert(
-  pg_temp.a381_retire(4, :'a381_fact_live', pg_temp.a381_id(7140)) = jsonb_build_object('factId', :'a381_fact_live'::UUID, 'status', 'retired')
+  :'a381_retired'::JSONB = jsonb_build_object('factId', :'a381_fact_live'::UUID, 'status', 'retired')
   AND (SELECT status = 'retired' FROM platform_private.company_facts WHERE id = :'a381_fact_live')
   AND pg_temp.a381_retire(4, :'a381_fact_live', pg_temp.a381_id(7140)) ->> 'status' = 'retired'
   AND (SELECT count(*) = 1 FROM platform.audit_events WHERE request_id = pg_temp.a381_id(7140))
@@ -518,6 +522,14 @@ SELECT pg_temp.a381_assert(
       AND f ->> 'source' = 'agent_instruction' AND f ->> 'audience' = 'client' AND (f -> 'statement' ->> 'ru') LIKE '%299%'
    FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"course.sat"}') -> 'facts') f),
   'tool: the shape is fact_id, topic, statement{ru}, audience, source, verified_at, valid_until');
+-- Default audience depends on the agent: sales sees client facts only, every other agent both; an explicit audience wins.
+SELECT pg_temp.a381_assert(
+  NOT EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"mark."}') -> 'facts') f WHERE f ->> 'topic' = 'mark.internal')
+  AND (SELECT count(*) = 1 FROM jsonb_array_elements(pg_temp.a381_tool('curator-cn', '{"topic_prefix":"mark."}') -> 'facts') f WHERE f ->> 'topic' = 'mark.internal')
+  AND (SELECT count(*) = 1 FROM jsonb_array_elements(pg_temp.a381_tool('curator-cn', '{"topic_prefix":"mark.","audience":"both"}') -> 'facts') f WHERE f ->> 'topic' = 'mark.internal')
+  AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.a381_tool('curator-cn', '{"topic_prefix":"mark.","audience":"client"}') -> 'facts') f WHERE f ->> 'topic' = 'mark.internal')
+  AND (SELECT count(*) = 1 FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","audience":"internal"}') -> 'facts') f WHERE f ->> 'topic' = 'mark.internal'),
+  'tool: sales defaults to client facts, a curator to both, and an explicit audience wins for either');
 -- A fact with the optional languages shows them; after it expires the tool stops returning it, with no other change.
 INSERT INTO platform_private.company_facts (organization_id, topic, statement_ru, statement_ky, statement_en, audience, source, verified_at, valid_until, status)
 VALUES (pg_temp.a381_id(1), 'lang.test', 'Русский', 'Кыргызча', 'English', 'client', 'owner', :'a381_today'::DATE - 5, :'a381_today'::DATE + 1, 'active');

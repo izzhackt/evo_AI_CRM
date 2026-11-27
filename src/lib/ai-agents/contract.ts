@@ -226,7 +226,7 @@ export const AI_AGENT_LIMITS = {
   fileMaxBytes: 26_214_400,
   /** Потолок расхода на один запуск, USD; 0 — без потолка. */
   defaultRunBudgetUsd: 5,
-  /** Не чаще одного запуска по событию на агента и вид за это окно, секунд. */
+  /** Не чаще одного запуска по событию на агента за это окно, секунд: для заявки сайта — на заявку, для WhatsApp — на чат (без id чата — на всю организацию). */
   eventDebounceSeconds: 300,
   pollIntervalMs: 2_000,
   idempotencyWindowMinutes: 10,
@@ -488,10 +488,10 @@ export const AI_AGENT_TOOLS: readonly AiAgentToolDefinition[] = [
   },
   {
     name: "get_company_facts", title: "Факты компании", kind: "read", audit: "none", rpc: toolRpc("get_company_facts"),
-    description: "Verified company facts with an expiry date: course prices and terms, promises and refusals, intake calendars, procedure terms. Only active, unexpired facts are returned; name verified_at when quoting a price or a date. By default only facts for clients are returned (audience client); internal facts come only when audience is internal or both. По умолчанию отдаются только клиентские факты; внутренние — только при audience internal или both. Проверенные факты компании со сроком годности: цены и условия курсов, обещания, календари наборов, процедурные сроки.",
+    description: "Verified company facts with an expiry date: course prices and terms, promises and refusals, intake calendars, procedure terms. Only active, unexpired facts are returned; name verified_at when quoting a price or a date. Default audience: client for the sales agent, both for every other agent (default: client for sales, both for other agents); an explicit audience wins. По умолчанию: у агента продаж только клиентские факты, у остальных агентов оба вида; явный audience сильнее. Проверенные факты компании со сроком годности: цены и условия курсов, обещания, календари наборов, процедурные сроки.",
     inputSchema: objectArg({
       topic_prefix: { type: "string", pattern: "^[a-z0-9][a-z0-9._-]*$", minLength: 1, maxLength: 80, description: "Topic prefix, e.g. course. or calendar.cn." },
-      audience: enumArg(["client", "internal", "both"], "Fact audience: client (default, may be told to clients), internal, or both.", "client"),
+      audience: enumArg(["client", "internal", "both"], "Fact audience: client (may be told to clients), internal, or both. Default: client for sales, both for other agents."),
       limit: intArg("Max facts.", 1, 50, 20),
     }),
   },

@@ -73,7 +73,7 @@ test("page frame validates byte boundaries and PNG header/hash before delivery; 
 test("PDF region geometry uses the actual image box per axis across scrolling and zoom", () => {
   const size = { width: 595.28, height: 841.89 };
   assert.deepEqual(universityPdfPoint(160, 260, { left: 10, top: 20, width: 300, height: 480 }, size), { x: 297.64, y: 420.95 });
-  assert.deepEqual(universityPdfPoint(310, 381, { left: 10, top: -100, width: 600, height: 960 }, size), { x: 297.64, y: 420.95 });
+  assert.deepEqual(universityPdfPoint(310, 380, { left: 10, top: -100, width: 600, height: 960 }, size), { x: 297.64, y: 420.95 });
   assert.deepEqual(universityPdfPoint(-5, 2000, { left: 10, top: 20, width: 300, height: 480 }, size), { x: 0, y: 841.89 });
   assert.equal(universityPdfPoint(0, 0, { left: 0, top: 0, width: 0, height: 480 }, size), null);
   assert.deepEqual(universityPdfGesturePosition("create", { x: 120, y: 80 }, { page: 2, x: 120, y: 80, width: 180, height: 24 },

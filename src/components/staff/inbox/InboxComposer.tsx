@@ -45,7 +45,7 @@ export function InboxComposer({
   /** null — права на шаблоны нет: кнопки нет. */
   snippets: readonly ReplySnippetPickerItem[] | null;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
-  /** Окно ИИ только что добавило текст: рамка поля на 381 мс подкрашивается (ai-agent.css). */
+  /** Окно ИИ только что добавило текст: рамка поля на 380 мс подкрашивается (ai-agent.css). */
   aiAdded?: boolean;
   /** Строки под полем: отказ, предупреждение канала. */
   children?: React.ReactNode;

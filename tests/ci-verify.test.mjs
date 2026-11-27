@@ -1,23 +1,50 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { DEFAULT_STEPS, parseArgs, runSteps, selectSteps, STEPS, summary } from "../scripts/ci/verify.mjs";
+import { DEFAULT_STEPS, EXPECTED_SECONDS, parseArgs, runSteps, selectSteps, STEPS, summary } from "../scripts/ci/verify.mjs";
 import { parseNodeTestShard, runNodeTestPlan } from "../scripts/test-runners/run-node-test-suite.mjs";
 
 // `npm run verify` (PLAN_CHANGES 22.11.2026): one command, the same steps on a laptop and in CI.
 
 test("verify: a plain run takes every default step; migrations join only when supabase/ changed; preview on request", () => {
-  assert.deepEqual(DEFAULT_STEPS, ["diff-check", "typecheck", "lint", "tests", "contracts", "mobile", "build"]);
+  assert.deepEqual(DEFAULT_STEPS, ["diff-check", "typecheck", "lint", "tests", "contracts", "mobile", "mobile-compiled", "build"]);
   assert.deepEqual(selectSteps(parseArgs([]), ["src/app/page.tsx"]), [...DEFAULT_STEPS]);
   assert.deepEqual(selectSteps(parseArgs([]), ["supabase/migrations/373_x.sql"]), [...DEFAULT_STEPS, "migrations"]);
   assert.deepEqual(selectSteps(parseArgs(["--with", "preview"]), []), [...DEFAULT_STEPS, "preview"]);
-  assert.deepEqual(selectSteps(parseArgs(["--skip", "build,mobile"]), []), ["diff-check", "typecheck", "lint", "tests", "contracts"]);
+  assert.deepEqual(selectSteps(parseArgs(["--skip", "build,mobile,mobile-compiled"]), []), ["diff-check", "typecheck", "lint", "tests", "contracts"]);
   // --only is exact: no automatic additions, table order kept.
   assert.deepEqual(selectSteps(parseArgs(["--only", "tests,lint"]), ["supabase/x.sql"]), ["lint", "tests"]);
   assert.deepEqual(selectSteps(parseArgs(["--only", "tests", "--shard", "2/4"]), []), ["tests"]);
+});
+
+test("verify: the mobile lane also runs the app's Jest suite through the React Compiler, the same command on a laptop and in CI, without a script in mobile/package.json", () => {
+  // `npm run verify` is "the same on a laptop and in CI": the compiled suite is part of it (review of #1608, 26.11.2026), and the CI step calls this very step.
+  assert.ok(DEFAULT_STEPS.includes("mobile-compiled"), "a plain `npm run verify` runs it");
+  assert.ok(DEFAULT_STEPS.indexOf("mobile-compiled") > DEFAULT_STEPS.indexOf("mobile"), "after the ordinary mobile check");
+  assert.deepEqual(selectSteps(parseArgs(["--only", "mobile-compiled"]), []), ["mobile-compiled"]);
+  assert.equal(typeof EXPECTED_SECONDS["mobile-compiled"], "number");
+  const [executable, args] = STEPS["mobile-compiled"].command({ root: "/repo", base: "origin/main", shard: null });
+  assert.match(executable, /^npm(?:\.cmd)?$/u);
+  // The existing `test` script of mobile/ (jest) passes the arguments through, so the command needs no new script there: the scripts of
+  // mobile/package.json are part of the native fingerprint (AGENTS.md, «Замок отпечатка нативной сборки»).
+  assert.deepEqual(args, ["--prefix", "mobile", "run", "--silent", "test", "--", "-c", "jest.compiler.config.js", "--ci", "--maxWorkers=2"]);
+  const mobilePackage = JSON.parse(readFileSync(new URL("../mobile/package.json", import.meta.url), "utf8"));
+  assert.equal(mobilePackage.scripts.test, "jest");
+  assert.doesNotMatch(JSON.stringify(mobilePackage.scripts), /compiler/u);
+  // It fails loudly, never skips, when what it runs is missing.
+  const bare = mkdtempSync(join(tmpdir(), "evo-verify-compiled-"));
+  try {
+    assert.match(STEPS["mobile-compiled"].requires({ root: bare }), /mobile\/node_modules is missing/u);
+    mkdirSync(join(bare, "mobile/node_modules"), { recursive: true });
+    assert.match(STEPS["mobile-compiled"].requires({ root: bare }), /mobile\/jest\.compiler\.config\.js is missing/u);
+    writeFileSync(join(bare, "mobile/jest.compiler.config.js"), "module.exports = {};\n");
+    assert.equal(STEPS["mobile-compiled"].requires({ root: bare }), null);
+  } finally {
+    rmSync(bare, { recursive: true, force: true });
+  }
 });
 
 test("verify: unknown steps, a bad shard or a shard without tests are refused, never ignored", () => {

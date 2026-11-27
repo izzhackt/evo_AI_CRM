@@ -35,20 +35,41 @@ const EVENT_PROMPTS: Readonly<Record<AiAgentEventKind, (ref: string | null) => s
   website_lead: (ref) =>
     `Событие: новая заявка с сайта (request_id=${ref ?? "неизвестен"}). Найди новый лид (list_leads, source=website, created_from=сегодня), `
     + "проверь дубли, оцени заявку и подготовь первое сообщение или задачу по инструкции.",
-  whatsapp_inbound: () =>
-    "Событие: новое входящее сообщение в WhatsApp продаж. Посмотри неотвеченные чаты (list_conversations, filter=unanswered), "
-    + "для каждого прочитай переписку и подготовь ответ по инструкции.",
+  whatsapp_inbound: (ref) => {
+    const conversationId = whatsappConversationRef(ref);
+    return conversationId
+      ? `Событие: новое входящее сообщение в WhatsApp продаж в чате conversation_id=${conversationId}. Прочитай переписку этого чата `
+        + `(get_conversation conversation_id=${conversationId}) и подготовь ответ по инструкции. Другие чаты в этом запуске не разбирай: `
+        + "на них придёт своё событие."
+      : "Событие: новое входящее сообщение в WhatsApp продаж. Посмотри неотвеченные чаты (list_conversations, filter=unanswered), "
+        + "для каждого прочитай переписку и подготовь ответ по инструкции.";
+  },
 };
+
+const CONVERSATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Id беседы из события WhatsApp: только настоящий uuid, иначе (старый путь, мусор) — как раньше, без привязки к чату. */
+function whatsappConversationRef(ref: string | null): string | null {
+  const value = ref?.trim().toLowerCase() ?? "";
+  return CONVERSATION_ID_PATTERN.test(value) ? value : null;
+}
 
 const EVENT_TITLES: Readonly<Record<AiAgentEventKind, string>> = {
   website_lead: "Новая заявка с сайта",
   whatsapp_inbound: "Входящее WhatsApp",
 };
 
-/** Ключ дедупликации: заявка — по id запроса; WhatsApp — не чаще одного запуска на агента за 5 минут. */
+/**
+ * Ключ дедупликации: заявка — по id запроса; WhatsApp с известной беседой — не чаще одного запуска на агента и чат
+ * за 5 минут (`wa:<беседа>:<окно>`, пачка сообщений одного клиента схлопывается, другие чаты будят отдельно);
+ * без id беседы (старый путь, сверка по таймеру) — прежний ключ `wa:<окно>` на всю организацию. Длина — до ~60 знаков
+ * при пределе 200 в `ai_agent_dedupe_key_check`.
+ */
 export function eventDedupeKey(event: AiAgentEvent, nowMs: number): string {
   const window = Math.floor(nowMs / 1_000 / AI_AGENT_LIMITS.eventDebounceSeconds);
-  return event.kind === "website_lead" && event.ref ? `wl:${event.ref}` : `${event.kind === "website_lead" ? "wl" : "wa"}:${window}`;
+  if (event.kind === "website_lead") return event.ref ? `wl:${event.ref}` : `wl:${window}`;
+  const conversationId = whatsappConversationRef(event.ref);
+  return conversationId ? `wa:${conversationId}:${window}` : `wa:${window}`;
 }
 
 /**

@@ -774,6 +774,25 @@ test("a new inbound message schedules the AI agents once per request, and only w
   assert.equal(await run({ aiTriggerEnabled: undefined, newInbound: true }), 0, "an answer without the flag does not start the agents");
 });
 
+test("the agents hook gets the distinct conversations of the new inbound messages", async () => {
+  const seen = [];
+  const conversations = ["c0000000-0000-4000-8000-000000000001", "c0000000-0000-4000-8000-000000000002"];
+  let n = 0;
+  const { handler } = harness({
+    ai: (ids) => seen.push([...ids]),
+    rpc: {
+      wazzup_webhook_persist_v1: (args) => ({ data: storedAnswer(args.p_elements), error: null }),
+      wazzup_project_event_v1: () => ({
+        data: { outcome: "projected", newInbound: true, aiTriggerEnabled: true, conversationId: conversations[n++ % 2] },
+        error: null,
+      }),
+    },
+  });
+  assert.equal((await handler(post({ messages: [message(1), message(2), message(3)] }))).status, 200);
+  assert.equal(seen.length, 1);
+  assert.deepEqual([...seen[0]].sort(), [...conversations].sort());
+});
+
 test("a failure of the agents hook never changes the answer", async () => {
   const { handler } = harness({
     ai: () => {

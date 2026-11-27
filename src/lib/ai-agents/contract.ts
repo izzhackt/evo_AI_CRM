@@ -225,7 +225,7 @@ export const AI_AGENT_LIMITS = {
   fileMaxBytes: 26_214_400,
   /** Потолок расхода на один запуск, USD; 0 — без потолка. */
   defaultRunBudgetUsd: 5,
-  /** Не чаще одного запуска по событию на агента и вид за это окно, секунд. */
+  /** Не чаще одного запуска по событию на агента за это окно, секунд: для заявки сайта — на заявку, для WhatsApp — на чат (без id чата — на всю организацию). */
   eventDebounceSeconds: 300,
   pollIntervalMs: 2_000,
   idempotencyWindowMinutes: 10,

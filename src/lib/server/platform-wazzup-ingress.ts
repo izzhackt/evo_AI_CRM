@@ -100,17 +100,29 @@ export type PlatformWazzupInboundDependencies = Readonly<{
   /** Все вызовы встроенной проекции одного запроса. */
   projectionBudgetMs: number;
   /** Запуск включённых ИИ-агентов после нового входящего; не бросает и не ждёт. */
-  scheduleAiAgents(): void;
+  scheduleAiAgents(conversationIds: readonly string[]): void;
 }>;
 
 function defaultLog(entry: Readonly<Record<string, LogValue>>): void {
   console.info(JSON.stringify(entry));
 }
 
-function defaultScheduleAiAgents(): void {
+// Больше бесед за один запрос будят одним общим событием: пачка бывает при догрузке, а не при живом потоке.
+export const MAX_AI_CONVERSATIONS_PER_REQUEST = 10;
+
+/** Какие события будить по беседам запроса: по одному на беседу; 0 или больше предела — одно общее без id. Чистая, для теста. */
+export function whatsappAgentEventRefs(conversationIds: readonly string[]): readonly (string | null)[] {
+  if (conversationIds.length === 0 || conversationIds.length > MAX_AI_CONVERSATIONS_PER_REQUEST) return [null];
+  return conversationIds;
+}
+
+function defaultScheduleAiAgents(conversationIds: readonly string[]): void {
   // Динамический импорт: маршрут без нового входящего не тянет модуль агентов, а тесты Node его не грузят.
   void import("./ai-agents/dispatch.ts").then(
-    (dispatch) => dispatch.scheduleAiAgentEvent({ kind: "whatsapp_inbound", ref: null }),
+    (dispatch) => {
+      // По событию на беседу: дебаунс в dispatch схлопывает пачку одного клиента и не глушит остальных.
+      for (const ref of whatsappAgentEventRefs(conversationIds)) dispatch.scheduleAiAgentEvent({ kind: "whatsapp_inbound", ref });
+    },
     () => undefined,
   ).catch(() => undefined);
 }
@@ -412,6 +424,7 @@ export function createPlatformWazzupInboundHandler(
     // 10. Встроенная проекция новых событий: в порядке времени сообщения, с общим бюджетом. Не успели - догрузит таймер.
     const projection = { projected: 0, deferred: 0, failed: 0, newInbound: 0 };
     let aiTrigger = false;
+    const aiConversationIds = new Set<string>();
     const owner = readPlatformWazzupIntakeOwner(dependencies.environment);
     if (toProject.length > 0 && owner === null) {
       projection.deferred = toProject.length;
@@ -454,7 +467,10 @@ export function createPlatformWazzupInboundHandler(
           else projection.projected += 1;
           if (data.newInbound === true) {
             projection.newInbound += 1;
-            if (data.aiTriggerEnabled === true) aiTrigger = true;
+            if (data.aiTriggerEnabled === true) {
+              aiTrigger = true;
+              if (typeof data.conversationId === "string" && data.conversationId !== "") aiConversationIds.add(data.conversationId);
+            }
           }
         } catch (error) {
           // Не уложились в бюджет или база не ответила: событие уже сохранено, его догрузит таймер.
@@ -476,7 +492,7 @@ export function createPlatformWazzupInboundHandler(
     // 11. Новое входящее при включённом в базе запуске ИИ: агентов запускают после ответа, без ожидания.
     if (aiTrigger) {
       try {
-        dependencies.scheduleAiAgents();
+        dependencies.scheduleAiAgents([...aiConversationIds]);
         context.ai_scheduled = true;
       } catch {
         // Запуск агентов не меняет ответ Wazzup.

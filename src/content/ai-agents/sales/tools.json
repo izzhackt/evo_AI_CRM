@@ -11,6 +11,7 @@
     "recent_calls",
     "search_catalog",
     "search_knowledge",
+    "get_company_facts",
     "list_tasks",
     "list_staff",
     "create_task",

@@ -15,6 +15,7 @@ import {
   ADMISSIONS_DIRECT_ENGLISH,
   ADMISSIONS_DIRECT_MAX_PAYMENTS,
   ADMISSIONS_DIRECT_PARENT_RELATIONS,
+  ADMISSIONS_DIRECT_SALES_NAME_MAX,
   ADMISSIONS_DIRECT_UNSPECIFIED,
   CHINA_DEFAULT_COST,
   EMPTY_ADMISSIONS_DIRECT_DRAFT,
@@ -58,7 +59,7 @@ const FIELD_ORDER: readonly AdmissionsDirectField[] = [
   "firstName", "lastName", "phone", "email", "birthDate", "age",
   "parentRelation", "parentFirstName", "parentLastName", "parentPhone",
   "country", "degree", "program", "intake", "educationCurrent", "english", "chinese",
-  "curator", "stage", "costAmount", "costCurrency", "signedOn", "payments", "note",
+  "curator", "stage", "costAmount", "costCurrency", "signedOn", "payments", "salesName", "note",
 ];
 
 /**
@@ -468,6 +469,13 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
           </Group>
 
           <Group title="Заметка">
+            {/* 27.11.2026, решение владельца: от какого продажника пришёл клиент — имя словами; уходит первой строкой заметки. */}
+            <Field label="Продажник" htmlFor={ids.salesName}>
+              <input {...fieldProps("salesName")} name="salesName" autoComplete="off" maxLength={ADMISSIONS_DIRECT_SALES_NAME_MAX}
+                className={FIELD_CLS} placeholder="Имя, если клиент от продаж" value={draft.salesName}
+                onChange={(e) => set("salesName", e.target.value)} />
+              {errorText("salesName")}
+            </Field>
             <Field label="Что важно знать куратору" htmlFor={ids.note} wide>
               <textarea {...fieldProps("note")} name="note" rows={3} maxLength={3500} className={`${FIELD_CLS} h-auto py-2`}
                 value={draft.note} onChange={(e) => set("note", e.target.value)} />

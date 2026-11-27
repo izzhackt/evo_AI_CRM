@@ -122,6 +122,11 @@ export type AdmissionsDirectDraft = Readonly<{
   costCurrency: string;
   signedOn: string;
   payments: readonly AdmissionsDirectPaymentDraft[];
+  /**
+   * Продажник, от которого пришёл клиент (27.11.2026, решение владельца): имя словами, по желанию. Отдельного поля в базе нет —
+   * имя уходит первой строкой заметки дела («Продажник: …»), её видит куратор.
+   */
+  salesName: string;
   note: string;
 }>;
 
@@ -133,6 +138,7 @@ export const EMPTY_ADMISSIONS_DIRECT_DRAFT: AdmissionsDirectDraft = Object.freez
   curator: "", stage: "new",
   costAmount: "", costCurrency: "USD", signedOn: "",
   payments: [],
+  salesName: "",
   note: "",
 });
 
@@ -154,12 +160,16 @@ export type AdmissionsDirectPayload = Readonly<{
   note?: string;
 }>;
 
+/** Продажник в заметке дела: строка «Продажник: Имя» первой строкой. */
+export const ADMISSIONS_DIRECT_SALES_NOTE_PREFIX = "Продажник: ";
+export const ADMISSIONS_DIRECT_SALES_NAME_MAX = 80;
+
 export type AdmissionsDirectField =
   | "firstName" | "lastName" | "phone" | "email" | "birthDate" | "age"
   | "parentRelation" | "parentFirstName" | "parentLastName" | "parentPhone"
   | "country" | "degree" | "program" | "intake"
   | "educationCurrent" | "english" | "chinese"
-  | "curator" | "stage" | "costAmount" | "costCurrency" | "signedOn" | "payments" | "note";
+  | "curator" | "stage" | "costAmount" | "costCurrency" | "signedOn" | "payments" | "salesName" | "note";
 
 export type AdmissionsDirectErrors = Readonly<Partial<Record<AdmissionsDirectField, string>>>;
 
@@ -346,7 +356,11 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
     if (sameCurrency > costMinor) errors.payments = `Получено больше стоимости договора в ${draft.costCurrency}.`;
   }
 
-  const note = draft.note.trim();
+  const salesName = draft.salesName.trim().replace(/\s+/gu, " ");
+  if (salesName.length > ADMISSIONS_DIRECT_SALES_NAME_MAX || LINE_CONTROL.test(salesName)) {
+    errors.salesName = `Продажник: одной строкой, не больше ${ADMISSIONS_DIRECT_SALES_NAME_MAX} символов.`;
+  }
+  const note = [salesName ? `${ADMISSIONS_DIRECT_SALES_NOTE_PREFIX}${salesName}` : "", draft.note.trim()].filter(Boolean).join("\n");
   if (note.length > 3500 || NOTE_CONTROL.test(note)) errors.note = "Заметка: не больше 3 500 символов.";
 
   if (Object.keys(errors).length > 0 || paymentErrors.some((e) => e !== null)) {

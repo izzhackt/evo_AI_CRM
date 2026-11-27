@@ -106,6 +106,24 @@ test("a minimal draft: name and country, no curator, stage new", () => {
   });
 });
 
+test("the salesperson name goes to the first line of the case note (owner decision 27.11.2026)", () => {
+  const with_ = (overrides) => buildAdmissionsDirectPayload(draft({ age: "17", ...overrides }), "2026-10-16");
+  const both = with_({ salesName: "  Алия   Продажи ", note: "Звонить после 18:00" });
+  assert.equal(both.ok, true);
+  assert.equal(both.payload.note, "Продажник: Алия Продажи\nЗвонить после 18:00");
+  assert.deepEqual(parseAdmissionsDirectPayload(both.payload), both.payload, "the server re-parse accepts the two-line note");
+  const alone = with_({ salesName: "Алия" });
+  assert.equal(alone.payload.note, "Продажник: Алия");
+  assert.equal(with_({ salesName: "   " }).payload.note, undefined, "an empty name adds nothing");
+  const long = with_({ salesName: "А".repeat(81) });
+  assert.equal(long.ok, false);
+  assert.match(long.errors.salesName, /не больше 80/u);
+  assert.equal(with_({ salesName: "Алия\tПродажи" }).payload?.note, "Продажник: Алия Продажи", "a tab is folded into a space");
+  assert.equal(with_({ salesName: "Алия\u0007" }).ok, false, "control characters are refused");
+  assert.equal(with_({ salesName: "Алия", note: "Ж".repeat(3490) }).errors?.note, "Заметка: не больше 3 500 символов.", "the limit counts the whole note");
+  assert.match(drawer, /label="Продажник"/u);
+});
+
 test("validation mirrors the database: required, shapes, money", () => {
   const errors = (overrides) => {
     const built = buildAdmissionsDirectPayload(draft(overrides), "2026-10-16");

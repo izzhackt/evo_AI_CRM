@@ -17,6 +17,7 @@ import {
   parseMcpIpPolicy,
   readClientAddress,
 } from "../src/lib/server/ai-agents/mcp-auth.ts";
+import { AI_AGENT_TOOL_GRANTS } from "../src/content/ai-agents/tool-grants.generated.ts";
 import { createAiAgentsMcpHandler } from "../src/lib/server/ai-agents/mcp-server.ts";
 import {
   classifyRpcError,
@@ -58,6 +59,9 @@ const PRINCIPAL = {
   enabled: true,
   autoSend: false,
 };
+
+const CURATOR = { ...PRINCIPAL, agentKey: "curator-cn", title: "Куратор Китай", direction: "CN" };
+const DIRECTOR = { ...PRINCIPAL, agentKey: "director", title: "Директор / Аналитик" };
 
 function harness({
   rpc,
@@ -320,24 +324,50 @@ test("initialize negotiates the protocol version and describes the server", asyn
   assert.equal(noParams.json.result.protocolVersion, AI_AGENTS_MCP_PROTOCOL_VERSIONS[0]);
 });
 
-test("tools/list returns exactly the 24 registry tools with their schemas", async () => {
-  const { handler } = harness();
-  const { response, json } = await call(handler, rpcRequest("tools/list"));
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
-  assert.equal(response.headers.get("cache-control"), "no-store");
-  const tools = json.result.tools;
-  assert.equal(tools.length, 24);
-  assert.deepEqual(
-    tools.map((tool) => tool.name),
-    AI_AGENT_TOOLS.map((tool) => tool.name),
-  );
-  for (const [index, tool] of tools.entries()) {
-    const registry = AI_AGENT_TOOLS[index];
-    assert.equal(tool.title, registry.title);
-    assert.equal(tool.description, registry.description);
-    assert.deepEqual(tool.inputSchema, JSON.parse(JSON.stringify(registry.inputSchema)));
+test("tools/list returns only the tools of the agent folder (tools.json), with registry schemas", async () => {
+  for (const principal of [PRINCIPAL, DIRECTOR, CURATOR]) {
+    const { handler } = harness({ principal });
+    const { response, json } = await call(handler, rpcRequest("tools/list"));
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const tools = json.result.tools;
+    const granted = AI_AGENT_TOOLS.filter((tool) => AI_AGENT_TOOL_GRANTS[principal.agentKey].includes(tool.name));
+    assert.ok(granted.length > 0 && granted.length < AI_AGENT_TOOLS.length, principal.agentKey);
+    assert.deepEqual(tools.map((tool) => tool.name), granted.map((tool) => tool.name), principal.agentKey);
+    assert.ok(tools.some((tool) => tool.name === "get_my_settings"), "get_my_settings is always listed");
+    for (const [index, tool] of tools.entries()) {
+      const registry = granted[index];
+      assert.equal(tool.title, registry.title);
+      assert.equal(tool.description, registry.description);
+      assert.deepEqual(tool.inputSchema, JSON.parse(JSON.stringify(registry.inputSchema)));
+    }
   }
+});
+
+test("tools/call: a tool outside the agent's set is a forbidden tool error, never reaches the database, and is logged as denied", async () => {
+  const cases = [
+    [PRINCIPAL, "payments_summary", {}],
+    [PRINCIPAL, "get_document_file", { document_version_id: "77300000-0000-4000-8000-0000000000b1" }],
+    [DIRECTOR, "send_message", {}],
+    [DIRECTOR, "get_conversation", { conversation_id: CONVERSATION }],
+    [CURATOR, "sales_report", {}],
+  ];
+  for (const [principal, tool, args] of cases) {
+    const { handler, toolCalls, logCalls } = harness({ principal, rpc: rpcWith(() => ({ data: { items: [] }, error: null }), { principal }) });
+    const { result, body } = await toolCall(handler, tool, args);
+    assert.equal(result.isError, true, `${principal.agentKey}: ${tool}`);
+    assert.equal(body.error_code, "forbidden");
+    assert.match(body.message, /не входит в набор этого агента/);
+    assert.equal(toolCalls().length, 0, "the database tool function is not called");
+    assert.equal(logCalls().length, 1);
+    assert.equal(logCalls()[0].args.p_status, "denied");
+    assert.equal(logCalls()[0].args.p_error_code, "forbidden");
+  }
+  // The refusal does not break the session: the next allowed call works, and get_my_settings is always allowed.
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: { agent_key: "sales", auto_send: false }, error: null })) });
+  assert.equal((await toolCall(handler, "payments_summary", {})).body.error_code, "forbidden");
+  assert.equal((await toolCall(handler, "get_my_settings", {})).result.isError, false);
 });
 
 test("a disabled agent can still initialize, list tools and ping", async () => {
@@ -579,7 +609,8 @@ test("tools/call: a refusal for a missing student consent (320) is its own code,
     const args = tool === "get_case_chat" ? { case_id: target }
       : tool === "get_conversation" ? { conversation_id: CONVERSATION } : { document_version_id: target };
     const { handler, logCalls } = harness({
-      rpc: rpcWith(() => ({ data: null, error: { code: "42501", message: "ai_consent_missing" } })),
+      principal: CURATOR,
+      rpc: rpcWith(() => ({ data: null, error: { code: "42501", message: "ai_consent_missing" } }), { principal: CURATOR }),
     });
     const { result, body } = await toolCall(handler, tool, args);
     assert.equal(result.isError, true, tool);
@@ -773,7 +804,7 @@ test("send_message: moved_on and closed become tool errors with that code; anyth
 test("get_document_file: builds a one-time link on the MCP origin and returns no file bytes", async () => {
   const fileToken = randomBytes(32).toString("base64url");
   const data = { token: fileToken, file_name: "scan.pdf", mime_type: "application/pdf", byte_size: 12345, expires_in_seconds: 600 };
-  const { handler, toolCalls } = harness({ rpc: rpcWith(() => ({ data, error: null })) });
+  const { handler, toolCalls } = harness({ principal: CURATOR, rpc: rpcWith(() => ({ data, error: null }), { principal: CURATOR }) });
   const versionId = "77300000-0000-4000-8000-0000000000b1";
   const { result, body } = await toolCall(handler, "get_document_file", { document_version_id: versionId });
   assert.equal(result.isError, false);
@@ -789,13 +820,14 @@ test("get_document_file: builds a one-time link on the MCP origin and returns no
 });
 
 test("get_document_file: a malformed token is an internal error and an unusable origin is 'unavailable'", async () => {
-  const bad = harness({ rpc: rpcWith(() => ({ data: { token: "short" }, error: null })) });
+  const bad = harness({ principal: CURATOR, rpc: rpcWith(() => ({ data: { token: "short" }, error: null }), { principal: CURATOR }) });
   const versionId = "77300000-0000-4000-8000-0000000000b1";
   assert.equal((await toolCall(bad.handler, "get_document_file", { document_version_id: versionId })).body.error_code, "internal_error");
 
   const fileToken = randomBytes(32).toString("base64url");
   const noOrigin = harness({
-    rpc: rpcWith(() => ({ data: { token: fileToken, file_name: "a.pdf", mime_type: "application/pdf", byte_size: 1 }, error: null })),
+    principal: CURATOR,
+    rpc: rpcWith(() => ({ data: { token: fileToken, file_name: "a.pdf", mime_type: "application/pdf", byte_size: 1 }, error: null }), { principal: CURATOR }),
     mcpOrigin: () => { throw new Error("ai_agents_mcp_url_invalid"); },
   });
   assert.equal((await toolCall(noOrigin.handler, "get_document_file", { document_version_id: versionId })).body.error_code, "unavailable");
@@ -947,7 +979,7 @@ test("MCP-Protocol-Version: известная версия или отсутс�
   for (const version of AI_AGENTS_MCP_PROTOCOL_VERSIONS) {
     const { response, json } = await call(handler, rpcRequest("tools/list"), { headers: { "mcp-protocol-version": version } });
     assert.equal(response.status, 200, version);
-    assert.equal(json.result.tools.length, 24);
+    assert.equal(json.result.tools.length, AI_AGENT_TOOL_GRANTS.sales.length);
   }
   const absent = await call(handler, rpcRequest("tools/list"));
   assert.equal(absent.response.status, 200, "без заголовка — совместимость со старыми клиентами");

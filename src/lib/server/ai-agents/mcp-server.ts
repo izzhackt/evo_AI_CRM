@@ -29,6 +29,7 @@ import {
 import {
   executeAiAgentTool,
   findAiAgentTool,
+  isAiAgentToolGranted,
   listAiAgentMcpTools,
   logAiAgentToolCall,
   refuseToolCall,
@@ -57,6 +58,7 @@ const RESPONSE_HEADERS = {
   "cache-control": "no-store",
   "content-type": "application/json; charset=utf-8",
 } as const;
+const TOOL_NOT_GRANTED_MESSAGE = "Инструмент не входит в набор этого агента. Не вызывайте его: передайте задачу человеку или другому агенту.";
 const WWW_AUTHENTICATE = 'Bearer realm="evo-crm-agents"';
 const DEFAULT_AUTH_DEADLINE_MS = 8_000;
 const DEFAULT_BODY_DEADLINE_MS = 5_000;
@@ -246,6 +248,8 @@ export function createAiAgentsMcpHandler(
     if (!deps.callLimiter.take(`${principal.organizationId}:${principal.agentKey}`)) {
       outcome = refuseToolCall("rate_limited", params.arguments);
       skipLog = true;
+    } else if (!isAiAgentToolGranted(principal.agentKey, def.name)) {
+      outcome = refuseToolCall("forbidden", params.arguments, TOOL_NOT_GRANTED_MESSAGE);
     } else if (!principal.enabled && def.name !== "get_my_settings") {
       outcome = refuseToolCall("agent_disabled", params.arguments);
     } else {
@@ -313,7 +317,7 @@ export function createAiAgentsMcpHandler(
       case "ping":
         return done(rpcResult(id, {}));
       case "tools/list":
-        return done(rpcResult(id, { tools: listAiAgentMcpTools() }));
+        return done(rpcResult(id, { tools: listAiAgentMcpTools(principal.agentKey) }));
       case "tools/call": {
         const called = await callTool(runtime, principal, id, message.params);
         return done(called.response, {

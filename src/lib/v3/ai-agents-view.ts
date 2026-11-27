@@ -616,6 +616,7 @@ const TOOL_PROGRESS: Readonly<Record<string, string>> = {
   send_message: "Пишет клиенту",
   post_digest: "Публикует отчёт",
   notify_staff: "Уведомляет сотрудников",
+  propose_next_step: "Предлагает следующий шаг",
 };
 
 export const toolProgressWord = (tool: string): string => TOOL_PROGRESS[tool] ?? AI_AGENT_TOOL_LABELS[tool] ?? "Работает с инструментом";

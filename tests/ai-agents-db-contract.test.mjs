@@ -63,6 +63,9 @@ const SUITE_322 = readFileSync(new URL("../supabase/tests/platform_ai_agents_dai
 // 382 adds the two dossier tools: two more rows of the registry, two more functions of schema platform, no replaced body.
 const SOURCE_382 = readFileSync(new URL("../supabase/migrations/382_platform_ai_agent_dossiers.sql", import.meta.url), "utf8");
 const DOSSIER_TOOLS = ["get_case_dossier", "get_lead_dossier"];
+// 383 adds the write tool propose_next_step (a suggestion a person accepts) and three staff RPCs; no existing body is replaced.
+const SOURCE_383 = readFileSync(new URL("../supabase/migrations/383_platform_agent_suggestions.sql", import.meta.url), "utf8");
+const SUGGESTION_FUNCTIONS = ["agent_suggestion_decide_v1", "agent_suggestion_read_v1", "ai_agent_tool_propose_next_step_v1", "case_handoff_note_v1"];
 const TEST_SCRIPT = readFileSync(new URL("../scripts/test-runners/test-postgres-authorization.sh", import.meta.url), "utf8");
 
 test("the tool schema table is the contract's registry, row for row", () => {
@@ -71,7 +74,10 @@ test("the tool schema table is the contract's registry, row for row", () => {
   );
   const rows317 = seedRows(SOURCE);
   const rows382 = seedRows(SOURCE_382);
-  const rows = [...rows317, ...rows382];
+  const rows383 = seedRows(SOURCE_383);
+  const rows = [...rows317, ...rows382, ...rows383];
+  assert.deepEqual(rows383.map((row) => row.name), ["propose_next_step"], "383 seeds exactly propose_next_step");
+  assert.deepEqual([rows383[0].kind, rows383[0].audit], ["write", "write"], "propose_next_step is an audited write");
   assert.deepEqual([...SCHEMA_UPDATES.keys()], ["get_case"], "336 updates exactly the get_case row");
   assert.equal(rows317.length, 24, "317 seeds 24 tools");
   assert.deepEqual(rows382.map((row) => row.name).sort(), DOSSIER_TOOLS, "382 seeds exactly the two dossier tools");
@@ -90,6 +96,9 @@ test("every RPC the contract names exists in the migration, in the right schema"
   const created = new Set([...SOURCE.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
   const created318 = new Set([...SOURCE_318.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
   const created382 = new Set([...SOURCE_382.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
+  const created383 = new Set([...SOURCE_383.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
+  assert.deepEqual([...created383].sort(), SUGGESTION_FUNCTIONS, "383 adds exactly the tool and three staff RPCs");
+  for (const name of created383) assert.ok(!created.has(name) && !created318.has(name) && !created382.has(name), `${name} is new in 383`);
   for (const name of created318) assert.ok(!created.has(name), `${name} is new in 318`);
   assert.deepEqual([...created382].sort(), DOSSIER_TOOLS.map((name) => `ai_agent_tool_${name}_v1`), "382 adds exactly the two dossier functions");
   for (const name of created382) assert.ok(!created.has(name) && !created318.has(name), `${name} is new in 382`);
@@ -99,7 +108,7 @@ test("every RPC the contract names exists in the migration, in the right schema"
     ...Object.values(AI_AGENT_MCP_RPC),
     ...AI_AGENT_TOOLS.map((tool) => tool.rpc),
   ]) {
-    assert.ok(created.has(name) || created318.has(name) || created382.has(name), `platform.${name} is created by 317, 318 or 382`);
+    assert.ok(created.has(name) || created318.has(name) || created382.has(name) || created383.has(name), `platform.${name} is created by 317, 318, 382 or 383`);
   }
   // Nothing extra in the public schema: 9 + 14 + 3 + 24 functions in 317, the two environment-lease functions in 318.
   assert.equal(created.size, 9 + 14 + 3 + 24);

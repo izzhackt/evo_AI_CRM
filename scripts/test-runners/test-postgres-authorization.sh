@@ -6362,6 +6362,37 @@ SQL
       exit 1
     fi
   fi
+  # «ИИ-агенты»: два предохранителя базы (migration 379, ночь 28.11.2026). Matched by name, not number. The migration
+  # replaces two function bodies by checked fragments and the reservation function by a new signature: right after it a second
+  # apply refuses (a379_already_applied), then the suite, insisting on its marker. The suite proves: the posture (two target
+  # columns and their CHECKs, one eleven-argument reservation for service_role only, the family counts unchanged); a disabled
+  # agent has no Auto (switching off clears it, Auto cannot be turned on while off, a stored leftover is cleared by the next
+  # write); the send authority code belongs to a target (named at the reservation or bound by the first right use; another
+  # chat with the same code is a draft, not an error; a case target does not send to a chat; the agent's own Auto is not
+  # touched; no code, a wrong code and a finished run behave as before).
+  if [[ "$(basename "$migration")" == *_platform_ai_agents_safeguards.sql ]]; then
+    t379_again_log="$(mktemp -t evo-t379-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t379_again_log" 2>&1; then
+      echo "migration 379 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a379_already_applied" "$t379_again_log"; then
+      echo "a second apply of migration 379 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t379_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t379_again_log"
+    ai_agents_safeguards_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agents_safeguards.sql </dev/null)"
+    printf '%s\n' "$ai_agents_safeguards_log"
+    if ! grep -q 'A379_AI_AGENTS_SAFEGUARDS_SUITE_PASSED' <<<"$ai_agents_safeguards_log"; then
+      echo "platform_ai_agents_safeguards.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

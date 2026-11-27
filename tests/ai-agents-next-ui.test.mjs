@@ -984,6 +984,13 @@ test("«Включён» и «Авто»: заперты без правил, в
   assert.doesNotMatch(readonly, /role="switch"/u);
   assert.match(readonly, /Включён/u);
   assert.match(readonly, /Авто: вкл/u);
+  // Выключенный агент: «Авто» не горит ни у администратора, ни в слове (даже если в базе значение осталось), и не включается.
+  const offAuto = strip(switches({ agentKey: "director", enabled: false, autoSend: true, configVersion: 3, hasInstructions: true, canEdit: true }));
+  const offAutoSwitch = offAuto.match(/<button[^>]*id="aia-sw-auto-director"[^>]*>/u)[0];
+  assert.match(offAutoSwitch, /aria-checked="false"/u, "у выключенного агента «Авто» не горит");
+  assert.match(offAutoSwitch, /aria-disabled="true"/u, "и заперт, пока агент выключен");
+  const offReadonly = strip(switches({ agentKey: "director", enabled: false, autoSend: true, configVersion: 3, hasInstructions: true, canEdit: false }));
+  assert.doesNotMatch(offReadonly, /Авто: вкл/u, "не администратору «Авто: вкл» у выключенного не говорится");
 });
 
 /* ------------------------------------------------------------------ каталог текстов остаётся на сервере */

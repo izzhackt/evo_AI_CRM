@@ -38,7 +38,7 @@
 -- Порядок выката: миграция до запуска сторожа; приложение она не меняет (сторож запускается скриптом по таймеру).
 BEGIN;
 
-DO $a383_anchor$
+DO $a380_anchor$
 BEGIN
   IF to_regclass('platform.document_slots') IS NULL OR to_regclass('platform.document_requirements') IS NULL
     OR to_regclass('platform.payment_obligations') IS NULL OR to_regclass('platform.case_tasks') IS NULL
@@ -52,14 +52,14 @@ BEGIN
     OR NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'platform'
       AND table_name = 'student_cases' AND column_name = 'next_action_due_on')
   THEN
-    RAISE EXCEPTION 'a383_anchor_drift: the objects this migration builds on are missing' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a380_anchor_drift: the objects this migration builds on are missing' USING ERRCODE = '55000';
   END IF;
   IF to_regclass('platform_private.case_deadline_watch_log') IS NOT NULL
     OR to_regprocedure('platform.case_deadline_watch_run_v1(uuid,date,boolean,integer)') IS NOT NULL THEN
-    RAISE EXCEPTION 'a383_already_applied' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a380_already_applied' USING ERRCODE = '55000';
   END IF;
 END
-$a383_anchor$;
+$a380_anchor$;
 
 -- Ключи, по которым задача уже ставилась (замок на повтор). Закрыта всем ролям API.
 CREATE TABLE platform_private.case_deadline_watch_log (
@@ -220,7 +220,7 @@ REVOKE ALL ON FUNCTION platform.case_deadline_watch_run_v1(UUID, DATE, BOOLEAN, 
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
 GRANT EXECUTE ON FUNCTION platform.case_deadline_watch_run_v1(UUID, DATE, BOOLEAN, INTEGER) TO service_role;
 
-DO $a383_verify$
+DO $a380_verify$
 DECLARE f REGPROCEDURE;
 BEGIN
   FOREACH f IN ARRAY ARRAY[
@@ -229,15 +229,15 @@ BEGIN
     'platform.case_deadline_watch_run_v1(uuid,date,boolean,integer)'::REGPROCEDURE] LOOP
     IF has_function_privilege('anon', f, 'EXECUTE') OR has_function_privilege('authenticated', f, 'EXECUTE')
       OR has_function_privilege('service_role', f, 'EXECUTE') IS DISTINCT FROM (f = 'platform.case_deadline_watch_run_v1(uuid,date,boolean,integer)'::REGPROCEDURE) THEN
-      RAISE EXCEPTION 'a383_posture: wrong grants on %', f USING ERRCODE = '55000';
+      RAISE EXCEPTION 'a380_posture: wrong grants on %', f USING ERRCODE = '55000';
     END IF;
   END LOOP;
   IF has_table_privilege('service_role', 'platform_private.case_deadline_watch_log', 'SELECT')
     OR has_table_privilege('authenticated', 'platform_private.case_deadline_watch_log', 'SELECT') THEN
-    RAISE EXCEPTION 'a383_posture: the watch log is open' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a380_posture: the watch log is open' USING ERRCODE = '55000';
   END IF;
 END
-$a383_verify$;
+$a380_verify$;
 
 NOTIFY pgrst, 'reload schema';
 

@@ -141,7 +141,7 @@ COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/telephony-main
 # AI agents background reconcile (docs/runbooks/ai-agents-managed.md): run by a host timer as
 # `docker exec evo-crm-app-1 node /app/ai-agents-maintenance.mjs`; a no-op without EVO_ANTHROPIC_API_KEY.
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/ai-agents-maintenance.mjs ./ai-agents-maintenance.mjs
-# Case deadline watch («Сторож сроков», migration 383): run by a host timer as `docker exec evo-crm-app-1 node /app/case-deadline-watch.mjs --apply`;
+# Case deadline watch («Сторож сроков», migration 380): run by a host timer as `docker exec evo-crm-app-1 node /app/case-deadline-watch.mjs --apply`;
 # dry run without `--apply`; no Claude call.
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/case-deadline-watch.mjs ./case-deadline-watch.mjs
 # WhatsApp connection alert (docs/runbooks/whatsapp-go-live.md, «Тревога об отключении и тишине»): run by the host

@@ -2062,7 +2062,7 @@ export function whatsappConnectError(code: string | null | undefined): string | 
 }
 
 /**
- * Названия задач «Сторожа сроков» (migration 383, `platform_private.case_deadline_watch_title`). Задачу пишет SQL, поэтому
+ * Названия задач «Сторожа сроков» (migration 380, `platform_private.case_deadline_watch_title`). Задачу пишет SQL, поэтому
  * слова лежат и там; равенство двух копий проверяет tests/case-deadline-watch.test.mjs. `{detail}` — документ или платёж в
  * кавычках, `{date}` — дата дд.мм.гггг.
  */

@@ -1,4 +1,4 @@
-// «Сторож сроков» (миграция 383): разбор аргументов (сухой прогон по умолчанию), один вызов RPC и строка только со
+// «Сторож сроков» (миграция 380): разбор аргументов (сухой прогон по умолчанию), один вызов RPC и строка только со
 // счётчиками, равенство слов задач в SQL и в wording.ts, упаковка в образ и файлы systemd. Подставной RPC; боевой базы,
 // VPS и живого запуска здесь нет. Правила и повторы проверяет supabase/tests/platform_case_deadline_watch.sql.
 //
@@ -129,8 +129,8 @@ test("без организации, без доступа к базе и при
 
 /* ------------------------------------------------------------------ слова и упаковка */
 
-test("слова задач в SQL (миграция 383) и в wording.ts одинаковы, других причин нет", () => {
-  const sql = read("supabase/migrations/383_platform_case_deadline_watch.sql");
+test("слова задач в SQL (миграция 380) и в wording.ts одинаковы, других причин нет", () => {
+  const sql = read("supabase/migrations/380_platform_case_deadline_watch.sql");
   const body = /FUNCTION platform_private\.case_deadline_watch_title[\s\S]*?\$\$;/u.exec(sql)?.[0] ?? "";
   const pairs = [...body.matchAll(/WHEN '([a-z_]+)' THEN '([^']+)'/gu)].map((match) => [match[1], match[2]]);
   assert.deepEqual(Object.fromEntries(pairs), CASE_DEADLINE_WATCH_TITLES);

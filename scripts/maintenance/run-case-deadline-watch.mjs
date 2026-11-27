@@ -1,4 +1,4 @@
-// Entry of the case deadline watch («Сторож сроков», migration 383; docs/runbooks/ai-agents-managed.md).
+// Entry of the case deadline watch («Сторож сроков», migration 380; docs/runbooks/ai-agents-managed.md).
 // Bundled by scripts/maintenance/build-case-deadline-watch.mjs into .next/case-deadline-watch.mjs and run by a systemd
 // timer on the host on weekdays as `docker exec evo-crm-app-1 node /app/case-deadline-watch.mjs --apply`.
 // DRY RUN BY DEFAULT: without `--apply` nothing is written. The only output is one JSON line of counters and fixed

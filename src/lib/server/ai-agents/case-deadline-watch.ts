@@ -4,7 +4,7 @@ import { callRpc, isRecord, numberOr, resolveDeps, type AiAgentsRuntimeDeps } fr
 import { readOrganizationId } from "./env.ts";
 
 /*
- * «Сторож сроков» (миграция 383): утренний проход, который находит дела со сроком, вычислимым без модели, и ставит
+ * «Сторож сроков» (миграция 380): утренний проход, который находит дела со сроком, вычислимым без модели, и ставит
  * задачу куратору. Вся работа в базе (`platform.case_deadline_watch_run_v1`): здесь только разбор аргументов, один вызов
  * RPC и строка со счётчиками. Ни Claude, ни токенов. Запускается как
  * `docker exec evo-crm-app-1 node /app/case-deadline-watch.mjs [--dry-run | --apply]`

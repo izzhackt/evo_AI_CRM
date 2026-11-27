@@ -117,7 +117,7 @@ export function CompanyFactForm({ fact, onDone, onLockedChange }: Readonly<{
         <div>
           <label htmlFor={`${id}-until`} className={LABEL}>{companyFactWords.validUntil}</label>
           <input id={`${id}-until`} name="valid_until" type="date" defaultValue={fact?.validUntil ?? ""} className={QUEUE_FIELD} disabled={saved} />
-          <p className="mt-1 t-meta text-fg-3">Пусто: без срока. После этой даты агенты факт не видят.</p>
+          <p className="mt-1 t-meta text-fg-3">{companyFactWords.validUntilHint}</p>
         </div>
       </div>
       <div>
@@ -130,9 +130,9 @@ export function CompanyFactForm({ fact, onDone, onLockedChange }: Readonly<{
       </label>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {saved ? (
-          <button type="button" className={QUEUE_CONFIRM} onClick={onDone}>Готово</button>
+          <button type="button" className={QUEUE_CONFIRM} onClick={onDone}>{companyFactWords.done}</button>
         ) : (
-          <button type="submit" className={QUEUE_CONFIRM} disabled={pending}>{pending ? "Сохраняем…" : "Сохранить"}</button>
+          <button type="submit" className={QUEUE_CONFIRM} disabled={pending}>{pending ? companyFactWords.saving : companyFactWords.save}</button>
         )}
         <p role={failed ? "alert" : "status"} className={`t-body-compact ${failed ? "text-danger" : "text-fg-2"}`}>{COMPANY_FACT_FORM_MESSAGE[state.status]}</p>
       </div>
@@ -161,7 +161,7 @@ export function CompanyFactVerifyButton({ fact }: Readonly<{ fact: CompanyFact }
       <input type="hidden" name="valid_until" value={fact.validUntil ?? ""} />
       <input type="hidden" name="mark_verified" value="1" />
       <button type="submit" className={QUEUE_SECONDARY} disabled={pending} aria-label={`${companyFactWords.verify}: ${companyFactTopicTitle(fact.topic)}`}>
-        {pending ? "…" : companyFactWords.verify}
+        {pending ? companyFactWords.verifying : companyFactWords.verify}
       </button>
       {state.status !== "idle" ? <p role={failed ? "alert" : "status"} className={`t-meta ${failed ? "text-danger" : "text-fg-3"}`}>{COMPANY_FACT_FORM_MESSAGE[state.status]}</p> : null}
     </form>
@@ -177,7 +177,7 @@ export function CompanyFactRetire({ fact, onDone, onLockedChange }: Readonly<{ f
     return (
       <div className="flex flex-wrap items-center gap-3" data-testid="v3-company-fact-retired">
         <p role="status" className="t-body-compact text-fg-2">{COMPANY_FACT_FORM_MESSAGE.retired}</p>
-        <button type="button" className={QUEUE_SECONDARY} onClick={onDone}>Готово</button>
+        <button type="button" className={QUEUE_SECONDARY} onClick={onDone}>{companyFactWords.done}</button>
       </div>
     );
   }
@@ -196,8 +196,8 @@ export function CompanyFactRetire({ fact, onDone, onLockedChange }: Readonly<{ f
       <p className="t-meta text-fg-3">{companyFactWords.retireHint}</p>
       {confirming ? (
         <div className="flex flex-wrap items-center gap-2">
-          <button type="submit" className={QUEUE_CONFIRM} disabled={pending}>{pending ? "Снимаем…" : "Да, снять факт"}</button>
-          <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={() => setConfirming(false)}>Отмена</button>
+          <button type="submit" className={QUEUE_CONFIRM} disabled={pending}>{pending ? companyFactWords.retiring : companyFactWords.retireConfirm}</button>
+          <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={() => setConfirming(false)}>{companyFactWords.cancel}</button>
         </div>
       ) : (
         <div><button type="button" className={QUEUE_SECONDARY} onClick={() => setConfirming(true)}>{companyFactWords.retire}</button></div>

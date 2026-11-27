@@ -44,7 +44,7 @@ export function CompanyFactsNext({ read, readOnly }: Readonly<{ read: CompanyFac
     return (
       <WidgetCard headingLevel={3} title={companyFactWords.title} bodyClassName="grid gap-3">
         <p role="alert" className="t-body-compact text-fg">{unavailableLine(read.status === "available" ? "unavailable" : read.status)}</p>
-        {read.status === "unavailable" ? <div><Button variant="outline" asChild><a href="/settings?section=facts">Обновить</a></Button></div> : null}
+        {read.status === "unavailable" ? <div><Button variant="outline" asChild><a href="/settings?section=facts">{companyFactWords.refresh}</a></Button></div> : null}
       </WidgetCard>
     );
   }
@@ -62,7 +62,7 @@ export function CompanyFactsNext({ read, readOnly }: Readonly<{ read: CompanyFac
       {data.counts.expiring > 0 ? <p role="status" className="rounded-ctl border border-border bg-surface-2 px-3 py-2 t-body-compact text-fg" data-testid="v3-company-facts-expiring">{companyFactWords.expiringBanner(data.counts.expiring)}</p> : null}
       {data.truncated ? <p role="status" className="t-meta text-fg-3">{companyFactWords.truncated}</p> : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div role="group" aria-label="Фильтр по сроку" className="flex flex-wrap gap-2">
+        <div role="group" aria-label={companyFactWords.filterGroup} className="flex flex-wrap gap-2">
           {chips.map((chip) => (
             <Button key={chip.key} variant={filter === chip.key ? "default" : "outline"} aria-pressed={filter === chip.key} onClick={() => setFilter(chip.key)}>
               {chip.label}{chip.count !== null ? ` · ${chip.count}` : ""}
@@ -94,7 +94,7 @@ export function CompanyFactsNext({ read, readOnly }: Readonly<{ read: CompanyFac
         open={open !== null}
         onOpenChange={(next) => { if (!next && guard.allowClose(locked)) setOpenId(null); }}
         title={open ? companyFactTopicTitle(open.topic) : companyFactWords.edit}
-        description={open ? `Проверено ${companyFactDateLabel(open.verifiedAt)}` : undefined}
+        description={open ? `${companyFactWords.verifiedAt} ${companyFactDateLabel(open.verifiedAt)}` : undefined}
       >
         <GuardedBody guard={guard}>
           {open ? (

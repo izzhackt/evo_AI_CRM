@@ -32,6 +32,7 @@ import { DIRECTION_LABELS } from "../../components/staff/profile/admissions-view
 import { parseCaseDirectionChange } from "../platform-case-direction-change.ts";
 import { casePaymentLine, type CasePaymentDetail } from "../platform-case-payment-detail.ts";
 import { studyCountryFromWebsiteValue, studyCountryName, studyCountryOptions } from "../study-countries.ts";
+import { COMPANY_FACT_LIMITS } from "../ai-agents/company-facts.ts";
 
 export function studentProfileFieldState(value: string): string | null {
   const labels: Record<string, string> = {
@@ -2210,6 +2211,20 @@ export const companyFactWords = {
   truncated: "Показана часть фактов. Сузьте поиск, чтобы найти нужный.",
   verifyCheckbox: "Проверено сегодня: текст и срок актуальны",
   verifyCheckboxCreate: "Подтверждаю: факт проверен сегодня",
+  refresh: "Обновить",
+  filterGroup: "Фильтр по сроку",
+  actions: "Действия",
+  retiredBadge: "Снят",
+  save: "Сохранить",
+  saving: "Сохраняем…",
+  done: "Готово",
+  cancel: "Отмена",
+  retireConfirm: "Да, снять факт",
+  retiring: "Снимаем…",
+  verifying: "Проверяем…",
+  validUntilHint: "Пусто: без срока. После этой даты агенты факт не видят.",
+  langKy: "KY",
+  langEn: "EN",
 } as const;
 
 export const COMPANY_FACT_AUDIENCE_WORD: Readonly<Record<string, string>> = {
@@ -2242,7 +2257,7 @@ export const COMPANY_FACT_FORM_MESSAGE: Readonly<Record<string, string>> = {
   unchanged: "Без изменений.",
   retired: "Факт снят.",
   forbidden: "Править факты могут сотрудники с правом управлять ИИ-агентами.",
-  invalid: "Проверьте поля: тема латиницей через точки, текст не длиннее 1500 знаков, срок датой.",
+  invalid: `Не удалось принять значения. Проверьте поля: тема латиницей через точки, текст не длиннее ${COMPANY_FACT_LIMITS.statementMaxChars} знаков, срок датой. Если нажимали «Проверено», обновите страницу и повторите.`,
   verification_required: "Изменили текст: отметьте «Проверено сегодня».",
   invalid_dates: "Срок «Годен до» не может быть раньше даты проверки.",
   topic_exists: "Такой факт для этой темы и аудитории уже есть. Измените его в списке.",

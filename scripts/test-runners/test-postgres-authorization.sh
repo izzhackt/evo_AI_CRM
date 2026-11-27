@@ -5107,7 +5107,7 @@ SQL
   # marks; the tool giving only active, unexpired facts of the organization (the last valid day counts), `agent_disabled`
   # and invalid arguments; the journal rows without statement texts.
   if [[ "$(basename "$migration")" == *_platform_company_facts.sql ]]; then
-    t381_again_log="$(mktemp -t evo-t380-again.XXXXXX)"
+    t381_again_log="$(mktemp -t evo-t381-again.XXXXXX)"
     if docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f "/workspace/$migration" >"$t381_again_log" 2>&1; then

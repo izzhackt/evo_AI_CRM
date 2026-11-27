@@ -26,9 +26,9 @@ export function buildColumns(canEdit: boolean, onEdit: (fact: CompanyFact) => vo
           <span className="block t-meta text-fg-3 [overflow-wrap:anywhere]">{row.original.topic}</span>
           <span className="mt-1 flex flex-wrap gap-1 md:hidden">
             <StatusBadge tone={row.original.audience === "client" ? "info" : "neutral"} label={COMPANY_FACT_AUDIENCE_WORD[row.original.audience] ?? ""} />
-            {row.original.status === "retired" ? <StatusBadge tone="neutral" label="Снят" /> : null}
+            {row.original.status === "retired" ? <StatusBadge tone="neutral" label={companyFactWords.retiredBadge} /> : null}
           </span>
-          {row.original.status === "retired" ? <StatusBadge tone="neutral" label="Снят" className="mt-1 hidden md:inline-flex" /> : null}
+          {row.original.status === "retired" ? <StatusBadge tone="neutral" label={companyFactWords.retiredBadge} className="mt-1 hidden md:inline-flex" /> : null}
         </span>
       ),
     },
@@ -37,8 +37,8 @@ export function buildColumns(canEdit: boolean, onEdit: (fact: CompanyFact) => vo
       cell: ({ row }) => (
         <span className="block min-w-0 max-w-prose">
           <span className="line-clamp-4 t-body-compact text-fg [overflow-wrap:anywhere]">{row.original.statementRu}</span>
-          {row.original.statementKy ? <span className="mt-1 line-clamp-2 block t-meta text-fg-3 [overflow-wrap:anywhere]">KY: {row.original.statementKy}</span> : null}
-          {row.original.statementEn ? <span className="mt-1 line-clamp-2 block t-meta text-fg-3 [overflow-wrap:anywhere]">EN: {row.original.statementEn}</span> : null}
+          {row.original.statementKy ? <span className="mt-1 line-clamp-2 block t-meta text-fg-3 [overflow-wrap:anywhere]">{companyFactWords.langKy}: {row.original.statementKy}</span> : null}
+          {row.original.statementEn ? <span className="mt-1 line-clamp-2 block t-meta text-fg-3 [overflow-wrap:anywhere]">{companyFactWords.langEn}: {row.original.statementEn}</span> : null}
         </span>
       ),
     },
@@ -84,7 +84,7 @@ export function buildColumns(canEdit: boolean, onEdit: (fact: CompanyFact) => vo
   ];
   if (canEdit) {
     columns.push({
-      id: "actions", header: "Действия", enableSorting: false, meta: { label: "Действия", fit: true },
+      id: "actions", header: companyFactWords.actions, enableSorting: false, meta: { label: companyFactWords.actions, fit: true },
       cell: ({ row }) => row.original.status === "active" ? (
         <span className="flex flex-wrap items-start gap-2">
           <CompanyFactVerifyButton fact={row.original} />

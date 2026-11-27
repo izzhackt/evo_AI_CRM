@@ -31,7 +31,6 @@ import {
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const read = (path) => readFileSync(root(path), "utf8");
-const require = createRequire(import.meta.url);
 
 const ID = (n) => `38000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const FACT = (n, over = {}) => ({
@@ -427,4 +426,14 @@ test("«Факты» is a settings section read only for its own section, render
   const src = read("src/lib/v3/company-facts-source.ts");
   assert.deepEqual([...new Set([...src.matchAll(/COMPANY_FACT_RPC\.([a-z]+)/gu)].map((match) => match[1]))].sort(), ["list", "retire", "save"]);
   assert.doesNotMatch(src + read("src/lib/platform-company-fact-actions.ts"), /service_role|createSupabaseServiceClient|sk-ant-/u, "staff client only, no service client");
+});
+
+test("no label of the facts screen is written in the components: all of them come from wording.ts", () => {
+  for (const file of ["src/components/staff/settings-next/CompanyFactsNext.tsx", "src/components/staff/settings-next/company-fact-columns.tsx", "src/components/staff/settings/CompanyFactForm.tsx"]) {
+    const code = read(file).replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
+    const lines = code.split("\n").filter((line) => /[А-Яа-я]/u.test(line));
+    assert.deepEqual(lines, [], `${file} has Russian text outside wording.ts`);
+  }
+  assert.ok(COMPANY_FACT_FORM_MESSAGE.invalid.includes(String(COMPANY_FACT_LIMITS.statementMaxChars)), "the limit comes from the constant");
+  assert.match(COMPANY_FACT_FORM_MESSAGE.invalid, /«Проверено»/u);
 });

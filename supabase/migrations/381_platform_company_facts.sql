@@ -460,17 +460,21 @@ $$;
 -- D. Инструмент агента `get_company_facts` и его схема.
 -- ---------------------------------------------------------------------------
 INSERT INTO platform_private.ai_agent_tool_schemas (tool, kind, audit, input_schema) VALUES
-  ('get_company_facts', 'read', 'none', $j${"type":"object","properties":{"topic_prefix":{"type":"string","pattern":"^[a-z0-9][a-z0-9._-]*$","minLength":1,"maxLength":80,"description":"Topic prefix, e.g. course. or calendar.cn."},"audience":{"type":"string","enum":["client","internal","both"],"default":"both","description":"Fact audience."},"limit":{"type":"integer","minimum":1,"maximum":50,"default":20,"description":"Max facts."}},"required":[],"additionalProperties":false}$j$::jsonb);
+  ('get_company_facts', 'read', 'none', $j${"type":"object","properties":{"topic_prefix":{"type":"string","pattern":"^[a-z0-9][a-z0-9._-]*$","minLength":1,"maxLength":80,"description":"Topic prefix, e.g. course. or calendar.cn."},"audience":{"type":"string","enum":["client","internal","both"],"default":"client","description":"Fact audience: client (default, may be told to clients), internal, or both."},"limit":{"type":"integer","minimum":1,"maximum":50,"default":20,"description":"Max facts."}},"required":[],"additionalProperties":false}$j$::jsonb);
 
 -- Отдаёт ТОЛЬКО действующие факты, у которых нет срока или срок не раньше сегодняшнего дня по Бишкеку.
 CREATE FUNCTION platform.ai_agent_tool_get_company_facts_v1(p_organization_id UUID, p_agent_key TEXT, p_args JSONB)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  a platform_private.ai_agents; v_aud TEXT := COALESCE(p_args ->> 'audience', 'both');
-  v_limit INTEGER := COALESCE((p_args ->> 'limit')::INTEGER, 20); v_prefix TEXT := p_args ->> 'topic_prefix';
+  a platform_private.ai_agents; v_aud TEXT; v_limit INTEGER; v_prefix TEXT;
   v_today DATE; v_out JSONB; v_total INTEGER;
 BEGIN
   a := platform_private.ai_agent_tool_begin(p_organization_id, p_agent_key, 'get_company_facts', p_args);
+  -- Аргументы читаются ПОСЛЕ проверки схемы (как в 317): плохой limit - invalid_arguments, а не ошибка приведения.
+  -- По умолчанию только клиентские факты; внутренние - по явному internal или both.
+  v_aud := COALESCE(p_args ->> 'audience', 'client');
+  v_limit := COALESCE((p_args ->> 'limit')::INTEGER, 20);
+  v_prefix := p_args ->> 'topic_prefix';
   v_today := platform_private.company_facts_today();
   SELECT count(*) INTO v_total FROM platform_private.company_facts f
   WHERE f.organization_id = p_organization_id AND f.status = 'active' AND (f.valid_until IS NULL OR f.valid_until >= v_today)

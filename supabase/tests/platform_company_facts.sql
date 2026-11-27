@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
--- Boundary suite for migration 380: «мозг компании» - проверенные факты со сроком годности отдельно от инструкций
--- (docs/design/ai-agents/facts-seed-map.md). Runs on the real chain right after 380 inside one transaction that is
+-- Boundary suite for migration 381: «мозг компании» - проверенные факты со сроком годности отдельно от инструкций
+-- (docs/design/ai-agents/facts-seed-map.md). Runs on the real chain right after 381 inside one transaction that is
 -- rolled back, with its own synthetic organizations and members; sessions are the real custom_access_token_hook
 -- claims. No provider, no Claude/Anthropic call, no real person, no production action.
 --
@@ -138,7 +138,7 @@ DECLARE r RECORD; m INTEGER; published JSONB; items JSONB; bindings JSONB;
 BEGIN
   FOR r IN SELECT * FROM a381_roles ORDER BY request_base LOOP
     PERFORM platform.staff_role_command(pg_temp.a381_id(1), r.role_id, 0, 'create',
-      jsonb_build_object('label', 'A381 ' || r.label, 'description', 'Migration 380 synthetic role',
+      jsonb_build_object('label', 'A381 ' || r.label, 'description', 'Migration 381 synthetic role',
         'permissionKeys', r.keys), 'A381 create role', pg_temp.a381_id(r.request_base + 1));
     published := platform.staff_role_publish(pg_temp.a381_id(1), r.role_id, 1,
       platform.staff_role_impact(pg_temp.a381_id(1), r.role_id, 1) ->> 'impactFingerprint',
@@ -475,6 +475,9 @@ SELECT pg_temp.a381_assert(
   AND pg_temp.a381_err(pg_temp.a381_tool('no-such-agent')) = 'P0002'
   AND pg_temp.a381_err(pg_temp.a381_tool('sales', '{"limit":51}')) = '22023'
   AND pg_temp.a381_err(pg_temp.a381_tool('sales', '{"limit":0}')) = '22023'
+  AND pg_temp.a381_err(pg_temp.a381_tool('sales', '{"limit":"abc"}')) = '22023'
+  AND pg_temp.a381_msg(pg_temp.a381_tool('sales', '{"limit":"abc"}')) = 'invalid_arguments'
+  AND pg_temp.a381_msg(pg_temp.a381_tool('curator-my', '{"limit":"abc"}')) = 'agent_disabled'
   AND pg_temp.a381_err(pg_temp.a381_tool('sales', '{"audience":"all"}')) = '22023'
   AND pg_temp.a381_err(pg_temp.a381_tool('sales', '{"topic_prefix":"Course!"}')) = '22023'
   AND pg_temp.a381_err(pg_temp.a381_tool('sales', '{"query":"x"}')) = '22023'
@@ -483,7 +486,7 @@ SELECT pg_temp.a381_assert(
   'tool: a disabled agent, an unknown agent, bad arguments and non-service callers are refused');
 SELECT pg_temp.a381_assert(
   (SELECT string_agg(f ->> 'topic', ',' ORDER BY f ->> 'topic') = 'mark.internal,mark.later,mark.open,mark.soon,mark.today'
-      FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","limit":50}') -> 'facts') f)
+      FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","audience":"both","limit":50}') -> 'facts') f)
   AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","audience":"both"}') -> 'facts') f
       WHERE f ->> 'topic' IN ('mark.expired', 'mark.draft', 'mark.retired', 'mark.other')),
   'tool: expired, draft, retired and other-organization facts are not returned');
@@ -495,12 +498,14 @@ SELECT pg_temp.a381_assert(
   AND (SELECT string_agg(f ->> 'topic', ',') = 'mark.internal'
        FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","audience":"internal"}') -> 'facts') f)
   AND (pg_temp.a381_tool('sales', '{"topic_prefix":"mark."}') ->> 'today') = :'a381_today'
-  AND jsonb_array_length(pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","limit":2}') -> 'facts') = 2
-  AND (pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","limit":2}') ->> 'truncated')::BOOLEAN
-  AND NOT (pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","limit":50}') ->> 'truncated')::BOOLEAN
+  AND (SELECT string_agg(f ->> 'topic', ',' ORDER BY f ->> 'topic') = 'mark.later,mark.open,mark.soon,mark.today'
+       FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"mark."}') -> 'facts') f)
+  AND jsonb_array_length(pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","audience":"both","limit":2}') -> 'facts') = 2
+  AND (pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","audience":"both","limit":2}') ->> 'truncated')::BOOLEAN
+  AND NOT (pg_temp.a381_tool('sales', '{"topic_prefix":"mark.","audience":"both","limit":50}') ->> 'truncated')::BOOLEAN
   AND jsonb_array_length(pg_temp.a381_tool('sales', '{"topic_prefix":"nothing."}') -> 'facts') = 0
-  AND jsonb_array_length(pg_temp.a381_tool('curator-cn', '{"limit":50}') -> 'facts') = :a381_expect50
-  AND (pg_temp.a381_tool('curator-cn', '{"limit":50}') ->> 'truncated')::BOOLEAN = :'a381_over50'::BOOLEAN
+  AND jsonb_array_length(pg_temp.a381_tool('curator-cn', '{"audience":"both","limit":50}') -> 'facts') = :a381_expect50
+  AND (pg_temp.a381_tool('curator-cn', '{"audience":"both","limit":50}') ->> 'truncated')::BOOLEAN = :'a381_over50'::BOOLEAN
   AND (SELECT string_agg(f ->> 'topic', ',') = 'mark.other'
        FROM jsonb_array_elements(pg_temp.a381_tool('sales', '{"topic_prefix":"mark.other"}', 2) -> 'facts') f),
   'tool: the last valid day counts, audience and prefix filters, limit and truncated, one organization at a time');

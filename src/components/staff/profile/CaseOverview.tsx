@@ -90,6 +90,8 @@ export type CaseOverviewInput = Readonly<{
   help: ReactNode;
   /** Читатель «Ждут куратора» без права на дело: вместо обращений - «нет доступа» (`help` это и есть). «Новый вид» рисует то же карточкой. */
   helpNoAccess?: boolean;
+  /** Кнопка «Собрать передачу» (миграция 383): те же держатели, что у записи шага дела; в просмотре роли и у закрытого дела её нет. */
+  handoffEditable?: boolean;
   /** Лента (`caseFeed`) и заметка в одну строку; null — писать заметки нельзя (просмотр роли). */
   feed: Readonly<{ items: readonly CaseFeedItem[]; eventsUnavailable: boolean }>;
   noteComposer: ReactNode;

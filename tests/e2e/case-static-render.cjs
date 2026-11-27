@@ -348,8 +348,32 @@ function work(fields = {}) {
     activity: fields.activity ?? ACTIVITY,
     needsCurator: false, deletionRequested: fields.deletionRequested ?? false, today: TODAY, nowIso: NOW.toISOString(),
     ...(fields.aiConsent === undefined ? {} : { aiConsent: fields.aiConsent }),
+    ...(fields.agent === undefined ? {} : { agent: fields.agent }),
   };
 }
+
+// «Предложить шаг» и «Передача» (миграция 383): синтетические предложение агента и страница передачи.
+const AGENT_IDS = { nextStepRequestId: uuid("77777777", 1), handoffRequestId: uuid("77777777", 2) };
+const AGENT_SUGGESTION = {
+  id: uuid("77777777", 3), studentCaseId: CASE_ID, text: "Запросить у студента скан загранпаспорта и аттестата", dueOn: "2026-09-25",
+  assigneeMembershipId: ME, assigneeName: "Айгүл Осмонова", reason: "В деле нет скана паспорта, а срок подачи через три недели",
+  agentKey: "curator-cn", agentTitle: "Куратор Китай", createdAt: "2026-09-23T04:00:00.000000+00:00", expiresAt: "2026-09-30T04:00:00.000000+00:00",
+};
+const HANDOFF_NOTE = {
+  noteId: uuid("77777777", 4), createdAt: "2026-09-23T05:00:00.000000+00:00", agentTitle: "Куратор Китай",
+  lines: [
+    { label: "Студент", text: "Синтетический Студент, Китай, бакалавриат, этап «Документы», куратор Айгүл Осмонова", sub: false },
+    { label: "Что обещали", text: "не сказано", sub: false },
+    { label: "Деньги", text: "", sub: false },
+    { label: "Условия продажи (до договора, не долг)", text: "план 1 200 USD, пожелание клиента 1 000 USD", sub: true },
+    { label: "По договору", text: "обязательств нет", sub: true },
+    { label: "Каталог вузов", text: "справочные цены, не долг клиента", sub: true },
+    { label: "Документы", text: "получено 3 из 16, на проверке 1", sub: false },
+    { label: "Следующий шаг", text: "Собрать апостиль на аттестат до 20.09.2026, делает куратор", sub: false },
+    { label: "Открытые вопросы", text: "Кто платит за обучение, не сказано", sub: false },
+    { label: "Кто решает", text: "решает родитель (так сказано в анкете)", sub: false },
+  ],
+};
 
 // Закрытое дело: в журнале — «Состояние дела изменено» в момент закрытия.
 const CLOSED_ACTIVITY = { ...ACTIVITY, events: [activityEvent(20, "case.lifecycle.change", "overview", "2026-09-22T06:30:00.000Z"), ...ACTIVITY.events] };
@@ -491,6 +515,15 @@ const SCENARIOS = {
   // Более ранняя страница заметок: в ленте только заметки, событий нет (они — на первой странице).
   "notes-page": { actor: CURATOR, profile: profile(), draft: draft(), sales: null, work: work(),
     notesLatestHref: `/profile?case=${CASE_ID}&tab=overview` },
+  // «Предложить шаг» (383): шага нет, предложения нет — кнопка; страницы передачи нет — «Собрать передачу».
+  "agent-empty": { actor: CURATOR, profile: profile(), draft: draft({ handoff: HANDOFF_ACCEPTED }), sales: null,
+    work: work({ row: queueRow({ step: null, flags: [] }), agent: { ...AGENT_IDS, suggestion: null, handoff: { kind: "ready", note: null } } }) },
+  // Шага нет, агент предложил: строка предложения с «Принять» и «Не то»; страница передачи собрана.
+  "agent-suggestion": { actor: CURATOR, profile: profile(), draft: draft({ handoff: HANDOFF_ACCEPTED }), sales: null,
+    work: work({ row: queueRow({ step: null, flags: [] }), agent: { ...AGENT_IDS, suggestion: AGENT_SUGGESTION, handoff: { kind: "ready", note: HANDOFF_NOTE } } }) },
+  // Шаг уже задан: предложение не показывается, даже если оно лежит в базе; страница передачи не прочитана.
+  "agent-step-set": { actor: CURATOR, profile: profile(), draft: draft({ handoff: HANDOFF_ACCEPTED }), sales: null,
+    work: work({ row: queueRow({ flags: [] }), agent: { ...AGENT_IDS, suggestion: AGENT_SUGGESTION, handoff: { kind: "unavailable" } } }) },
   // Закрытое дело: шаг не меняется, задач нет.
   "closed": { actor: CURATOR, profile: profile({ state: "closed" }), draft: draft({ state: "closed" }), sales: null,
     work: work({ row: queueRow({ state: "closed", flags: [] }), tasks: { kind: "ready", tasks: [], assignees: [] }, chat: { kind: "ready", awaitState: "none", last: null },

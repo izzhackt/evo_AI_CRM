@@ -4,6 +4,7 @@
  * «Обзора» из уже прочитанных данных. По ней работают страница, статический
  * рендер и unit-тест. Новых чтений и команд здесь нет.
  */
+import type { AgentSuggestion, HandoffNote } from "../../../lib/agent-suggestions-contract.ts";
 import type { StaffAiConsent } from "../../../lib/ai-agents/consent.ts";
 import type { PlatformAdmissionsTask } from "../../../lib/platform-admissions-task-contract.ts";
 import type { PlatformApplicationQueueRow } from "../../../lib/platform-application-contract.ts";
@@ -64,6 +65,18 @@ export type CaseWorkActivity =
   | Readonly<{ kind: "forbidden" }>;
 
 /** Всё, что вид дела читает сверх профиля (`readProfileTarget`). */
+/**
+ * Предложение агента и страница передачи (миграция 383). `suggestion` — текущее предложение шага или null (нет или не
+ * прочитано); страница передачи — последняя заметка «Передача дела» (`ready`), «не прочитана» (`unavailable`) или не читалась
+ * на этой вкладке (`not_read`). Id запросов кнопок — свежие на каждое чтение страницы.
+ */
+export type CaseWorkAgent = Readonly<{
+  suggestion: AgentSuggestion | null;
+  handoff: Readonly<{ kind: "ready"; note: HandoffNote | null }> | Readonly<{ kind: "unavailable" }> | Readonly<{ kind: "not_read" }>;
+  nextStepRequestId: string;
+  handoffRequestId: string;
+}>;
+
 export type CaseWorkRead = Readonly<{
   row: CaseWorkRow;
   tasks: CaseWorkTasks;
@@ -85,6 +98,8 @@ export type CaseWorkRead = Readonly<{
    * не читали, нет права или сбой: чип не рисуется.
    */
   aiConsent?: StaffAiConsent | null;
+  /** «Предложить шаг» и «Передача» (миграция 383); нет поля — читатель «Ждут куратора» или чтение не делалось. */
+  agent?: CaseWorkAgent | null;
   /** Сегодня в Бишкеке. */
   today: string;
   /** Момент чтения: одинаковые сроки при рендере и гидрации. */

@@ -77,7 +77,11 @@ export function CaseHeader(input: CaseHeaderInput) {
         <Fact term="Что дальше" wide>
           <CaseNextStep row={row} fallbackStep={input.fallbackStep} access={input.stepAccess}
             openTasks={work.tasks.kind === "ready" ? work.tasks.tasks : []}
-            today={work.today} nowIso={work.nowIso} requestId={input.stepRequestId} />
+            today={work.today} nowIso={work.nowIso} requestId={input.stepRequestId}
+            agent={work.agent && row ? {
+              suggestion: work.agent.suggestion, studentCaseId: input.studentCaseId, direction: row.admissionsDirection,
+              country: row.targetCountry, requestId: work.agent.nextStepRequestId,
+            } : null} />
         </Fact>
         {closed ? (
           <Fact term="Состояние" wide>

@@ -180,7 +180,7 @@ test("error wording: no codes, no long dashes, every server key maps to a field"
     { status: "saved", studentCaseId: "x", state: "active" }, { status: "saved", studentCaseId: "x", state: "pending" },
     { status: "invalid", field: "paymentsExceedCost" }, { status: "invalid", field: "curator" }, { status: "invalid", field: null },
     { status: "forbidden" }, { status: "curator_forbidden" }, { status: "case_exists" }, { status: "lead_exists" },
-    { status: "request_conflict" }, { status: "unavailable" },
+    { status: "request_conflict" }, { status: "unavailable" }, { status: "saved", studentCaseId: "x", state: "pending", leadTaken: true },
   ]) {
     const message = admissionsDirectMessage(result);
     assert.ok(message.length > 0);
@@ -198,6 +198,11 @@ test("error wording: no codes, no long dashes, every server key maps to a field"
   assert.equal(admissionsDirectMessage({ status: "lead_exists", leadId: null }),
     "Этот человек уже есть в продажах как открытый лид, например после звонка. Дело появится, когда продажи передадут его в поступление.");
   assert.doesNotMatch(admissionsDirectMessage({ status: "lead_exists" }), /Admin/u);
+  // 378: открытый лид продаж взят в дело — ответ это называет; без поля слова прежние.
+  assert.equal(admissionsDirectMessage({ status: "saved", studentCaseId: "x", state: "active", leadTaken: true }),
+    "Лид из продаж перенесён в дело. Студент добавлен. Открываем дело.");
+  assert.equal(admissionsDirectMessage({ status: "saved", studentCaseId: "x", state: "active" }), "Студент добавлен. Открываем дело.");
+  assert.match(directSource, /receipt\.lead_taken === true \? \{ leadTaken: true \} : \{\}/u);
   assert.match(directSource, /error\.code === "42501" && message === "admissions_direct_curator_forbidden"\) return \{ status: "curator_forbidden" \}/u);
   // The way out of the refusal: a link to the lead, only when RLS shows this lead to this person: otherwise the card says «не найден».
   assert.match(directSource, /error\.code === "PT409" && message === "admissions_direct_lead_exists"\) \{[\s\S]*?from\("leads"\)\.select\("id"\)[\s\S]*?return \{ status: "lead_exists", leadId: visible && !visible\.error && visible\.data \? detail : null \}/u);
@@ -442,4 +447,26 @@ test("delta review #1194 r2 (2): manual sales leads and website enquiries match 
   assert.match(suite, /'D5: after a direct case on \+996555281001 a manual sales lead in any spelling of the number is a duplicate'/u);
   assert.match(suite, /'D1: a sales lead stored as the bare 9 digits 555281555 is found from \+996 555 281 555 and from 0555 281 555'/u);
   assert.match(suite, /'D6: the import refuses a phone or parent phone with letters or other signs'/u);
+});
+
+test("migration 378: the staff command takes an open sales lead instead of refusing; the import still reports it", () => {
+  const takes = source("supabase/migrations/378_platform_admissions_direct_takes_open_lead.sql");
+  // Самопроверяемая замена: каждый якорь ровно один раз, повтор — отказ.
+  assert.match(takes, /a378_anchor_drift:%/u);
+  assert.match(takes, /IF position\('lead_taken' IN original\) > 0 THEN\s+RAISE EXCEPTION 'a378_already_applied';/u);
+  assert.match(takes, /\$o3\$    RAISE EXCEPTION 'admissions_direct_lead_exists' USING ERRCODE = 'PT409', DETAIL = open_lead_id::TEXT;\n  END IF;\$o3\$/u, "the refusal of the staff command is the replaced anchor");
+  assert.match(takes, /lead_taken := TRUE;/u);
+  assert.doesNotMatch(takes, /'status', 'lead_exists'/u, "the import branch (lead_exists report) is not touched");
+  // Взятый лид: его клиент и сам лид, без новых клиента, лида и кандидатов в дубли.
+  assert.match(takes, /IF lead_taken THEN\n    client_id_value := open_lead_client_id;\n    lead_id_value := open_lead_id;\n  ELSE/u);
+  assert.match(takes, /SELECT l\.id, l\.client_id INTO open_lead_id, open_lead_client_id/u);
+  // Условия продажи дополняются (revision + 1), направление интереса не стирается.
+  assert.match(takes, /ON CONFLICT \(lead_id\) DO UPDATE SET[\s\S]*?revision = platform_private\.lead_sale_conditions\.revision \+ 1/u);
+  // Поверх записанного продажами ложатся только заполненные значения формы: результат нормализатора несёт пустые
+  // умолчания и стёр бы название услуги, оплату, заметки и (при форме с одной датой) цену продаж.
+  assert.match(takes, /platform_private\.lead_sale_conditions\.fields \|\| jsonb_strip_nulls\(jsonb_build_object\(\s+'service_cost_minor', cost_minor::TEXT, 'service_cost_currency', cost_currency,\s+'signing_date', to_char\(signed_on, 'YYYY-MM-DD'\)\)\)\),\s+revision = /u);
+  assert.doesNotMatch(takes, /\|\| EXCLUDED\.fields/u, "the normalizer's blank defaults must not overwrite what sales recorded");
+  assert.match(takes, /COALESCE\(CASE direction WHEN 'EUROPE' THEN 'EU' ELSE direction END, l\.interest_direction\)/u);
+  assert.match(takes, /'lead_taken', lead_taken,/u);
+  assert.doesNotMatch(takes, /GRANT|REVOKE|SECURITY INVOKER/u, "rights and owner stay as 281 left them");
 });

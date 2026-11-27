@@ -13,6 +13,7 @@ import {
   type TestNavigatorProps,
 } from "@/features/learning/test-runner/TestNavigator";
 import { PortalShell, testApi, testClient } from "@/test-fixtures/render";
+import { itUncompiledOnly } from "@/test-fixtures/uncompiled-only";
 import { fakeTransport } from "@/test-fixtures/universities";
 import { monoFont } from "@/theme/fonts";
 
@@ -198,7 +199,8 @@ describe("перерисовки: часы идут, навигатор стои
     expect(mono).not.toHaveBeenCalled(); // не перерисовалось вообще: ни ячейки, ни пояснение
   });
 
-  it("ответ на задание перерисовывает только его ячейку", async () => {
+  // Считает вызовы `monoFont("bold")` за отрисовки ячеек: скомпилированный вызов с теми же аргументами запоминается, счёт ниже. Только без компилятора.
+  itUncompiledOnly("ответ на задание перерисовывает только его ячейку", async () => {
     const view = await show();
     await measure(PHONE);
     mono.mockClear();
@@ -207,7 +209,8 @@ describe("перерисовки: часы идут, навигатор стои
     expect(screen.getByTestId("nav-7").props.accessibilityLabel).toBe("Задание 7, отвечено");
   });
 
-  it("переход к другому заданию перерисовывает две ячейки: ушедшую и текущую", async () => {
+  // То же: счёт вызовов `monoFont("bold")` (при компиляторе он ниже). Только без компилятора.
+  itUncompiledOnly("переход к другому заданию перерисовывает две ячейки: ушедшую и текущую", async () => {
     const view = await show();
     await measure(PHONE);
     mono.mockClear();

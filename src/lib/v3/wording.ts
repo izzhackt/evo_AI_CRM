@@ -1014,6 +1014,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "lead.lifecycle.change": "Состояние лида изменено",
   "lead.sale.conditions.save": "Условия сделки по лиду сохранены",
   "lead.sales.workflow.changed": "Этап работы с лидом изменён",
+  "lead.testflag.change": "Пометка «Тестовый лид» изменена",
   "lead.website.receive": "Лид получен с сайта",
   "sales.register.create": "Запись отчёта продаж создана",
   "sales.register.update": "Запись отчёта продаж изменена",

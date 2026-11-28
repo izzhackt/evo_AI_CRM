@@ -11,7 +11,7 @@
 --   1. `platform.leads.is_test boolean not null default false`.
 --   2. `platform.set_lead_is_test_v1(org, lead, is_test, request_id)` — «Тестовый лид» вкл/выкл: те же права, что у закрытия и
 --      правки лида (`lead.sales.workflow.manage` + `lead.read` на этот лид), идемпотентность по request_id через журнал
---      платформы (`lead.test_flag.change`), версия процесса лида не меняется. Закрытые лиды помечать можно, архивные — нет.
+--      платформы (`lead.testflag.change`), версия процесса лида не меняется. Закрытые лиды помечать можно, архивные — нет.
 --   3. `platform.staff_lead_test_flags_v1(org, lead_ids)` — какие из названных лидов тестовые (для метки «Тест» на доске
 --      и в карточке; читает только то, что сотрудник и так видит по `lead.read`).
 --   4. `platform.ai_agent_runtime_event_lead_is_test_v1(org, kind, ref)` — только service_role: лид события (заявка сайта
@@ -41,8 +41,13 @@ BEGIN
     OR to_regprocedure('platform.ai_agent_tool_list_conversations_v1(uuid,text,jsonb)') IS NULL
     OR to_regprocedure('platform.current_sales_funnel(uuid)') IS NULL
     OR to_regprocedure('platform_private.lock_p2d_request(uuid)') IS NULL
-    OR to_regprocedure('platform_private.require_p2g_service()') IS NULL THEN
+    OR to_regprocedure('platform_private.require_p2g_service()') IS NULL
+    OR to_regprocedure('platform_private.p7a_safe_audit_actions()') IS NULL THEN
     RAISE EXCEPTION 'a385_anchor_missing';
+  END IF;
+  IF to_regprocedure('platform_private.p7a_safe_audit_actions_pre_leads_is_test()') IS NOT NULL
+    OR 'lead.testflag.change' = ANY (platform_private.p7a_safe_audit_actions()) THEN
+    RAISE EXCEPTION 'a385_already_applied';
   END IF;
 END
 $a385_guard$;
@@ -51,6 +56,29 @@ $a385_guard$;
 -- 1. Колонка.
 -- ---------------------------------------------------------------------------
 ALTER TABLE platform.leads ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Журнал платформы: одно действие `lead.testflag.change` (rename-and-union, как 311, 316 и 381); тип объекта `lead` уже есть.
+ALTER FUNCTION platform_private.p7a_safe_audit_actions()
+  RENAME TO p7a_safe_audit_actions_pre_leads_is_test;
+CREATE FUNCTION platform_private.p7a_safe_audit_actions()
+RETURNS TEXT[]
+LANGUAGE SQL
+IMMUTABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT pg_catalog.array_agg(DISTINCT allowed.action ORDER BY allowed.action)
+  FROM pg_catalog.unnest(
+    platform_private.p7a_safe_audit_actions_pre_leads_is_test()
+      || ARRAY[
+    'lead.testflag.change'
+      ]::TEXT[]
+  ) AS allowed(action)
+$$;
+REVOKE ALL ON FUNCTION
+  platform_private.p7a_safe_audit_actions_pre_leads_is_test(),
+  platform_private.p7a_safe_audit_actions()
+  FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
 
 -- ---------------------------------------------------------------------------
 -- 2. «Тестовый лид» вкл/выкл.
@@ -94,7 +122,7 @@ BEGIN
   SELECT * INTO prior FROM platform.audit_events WHERE request_id = p_request_id;
   IF FOUND THEN
     IF prior.organization_id IS DISTINCT FROM p_organization_id
-      OR prior.action IS DISTINCT FROM 'lead.test_flag.change'
+      OR prior.action IS DISTINCT FROM 'lead.testflag.change'
       OR prior.resource_type IS DISTINCT FROM 'lead'
       OR prior.resource_id IS DISTINCT FROM p_lead_id
       OR prior.actor_membership_id IS DISTINCT FROM actor.membership_id
@@ -125,7 +153,7 @@ BEGIN
     after_state, reason, request_id
   ) VALUES (
     lead_row.organization_id, 'user', actor.profile_id, actor.membership_id,
-    'auth:' || actor.auth_user_id::TEXT, 'lead.test_flag.change', 'lead', lead_row.id,
+    'auth:' || actor.auth_user_id::TEXT, 'lead.testflag.change', 'lead', lead_row.id,
     jsonb_build_object('is_test', lead_row.is_test),
     jsonb_build_object('is_test', changed.is_test),
     CASE WHEN p_is_test THEN 'Lead marked as test' ELSE 'Lead is no longer marked as test' END,
@@ -141,7 +169,7 @@ REVOKE ALL ON FUNCTION platform.set_lead_is_test_v1(UUID, UUID, BOOLEAN, UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION platform.set_lead_is_test_v1(UUID, UUID, BOOLEAN, UUID) TO authenticated;
 COMMENT ON FUNCTION platform.set_lead_is_test_v1(UUID, UUID, BOOLEAN, UUID) IS
-  '«Тестовый лид» вкл/выкл (385). lead.sales.workflow.manage + lead.read на лид; идемпотентно по request_id (журнал lead.test_flag.change); то же значение — без записи; архивный лид не помечается. Тестовый лид не будит ИИ-агентов и не считается в воронке и инструментах агента.';
+  '«Тестовый лид» вкл/выкл (385). lead.sales.workflow.manage + lead.read на лид; идемпотентно по request_id (журнал lead.testflag.change); то же значение — без записи; архивный лид не помечается. Тестовый лид не будит ИИ-агентов и не считается в воронке и инструментах агента.';
 
 -- ---------------------------------------------------------------------------
 -- 3. Какие из лидов тестовые (метка «Тест»).

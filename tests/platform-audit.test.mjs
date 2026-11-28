@@ -111,6 +111,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["360_platform_student_payment_proof.sql", "student_payment_proof"],
   // «Мозг компании» (факты со сроком годности для ИИ-агентов): одно действие ai.fact.change и тип объекта ai_company_fact.
   ["381_platform_company_facts.sql", "company_facts"],
+  // «Тестовый лид»: одно действие lead.testflag.change, объект lead (нового типа нет).
+  ["385_platform_leads_is_test.sql", "leads_is_test"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -303,6 +305,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "lead.registration.link.create",
     "lead.sale.conditions.save",
     "lead.sales.workflow.changed",
+    "lead.testflag.change",
     "lead.website.receive",
     "media.download.grant",
     "note.create",

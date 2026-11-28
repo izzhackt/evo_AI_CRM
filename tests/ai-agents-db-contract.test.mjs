@@ -59,6 +59,7 @@ const SOURCE_322 = readFileSync(new URL("../supabase/migrations/322_platform_ai_
 const SOURCE_336 = readFileSync(new URL("../supabase/migrations/336_platform_ai_agent_case_questionnaire.sql", import.meta.url), "utf8");
 const SCHEMA_UPDATES = new Map([...SOURCE_336.matchAll(/UPDATE platform_private\.ai_agent_tool_schemas SET input_schema = \$j\$(.*?)\$j\$::jsonb\s*WHERE tool = '([a-z_]+)';/gsu)]
   .map(([, schema, name]) => [name, JSON.parse(schema)]));
+const SOURCE_385 = readFileSync(new URL("../supabase/migrations/385_platform_leads_is_test.sql", import.meta.url), "utf8");
 const SUITE_322 = readFileSync(new URL("../supabase/tests/platform_ai_agents_daily_spend.sql", import.meta.url), "utf8");
 // 382 adds the two dossier tools: two more rows of the registry, two more functions of schema platform, no replaced body.
 const SOURCE_382 = readFileSync(new URL("../supabase/migrations/382_platform_ai_agent_dossiers.sql", import.meta.url), "utf8");
@@ -107,6 +108,8 @@ test("every RPC the contract names exists in the migration, in the right schema"
   assert.deepEqual([...created383].sort(), SUGGESTION_FUNCTIONS, "383 adds exactly the tool and four staff RPCs");
   for (const name of created383) assert.ok(!created.has(name) && !created318.has(name) && !created382.has(name), `${name} is new in 383`);
   for (const name of created318) assert.ok(!created.has(name), `${name} is new in 318`);
+  // 385 adds the one runtime function that tells whether the lead of an event is a test lead.
+  const created385 = new Set([...SOURCE_385.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
   assert.deepEqual([...created382].sort(), DOSSIER_TOOLS.map((name) => `ai_agent_tool_${name}_v1`), "382 adds exactly the two dossier functions");
   for (const name of created382) assert.ok(!created.has(name) && !created318.has(name), `${name} is new in 382`);
   for (const name of [
@@ -115,7 +118,7 @@ test("every RPC the contract names exists in the migration, in the right schema"
     ...Object.values(AI_AGENT_MCP_RPC),
     ...AI_AGENT_TOOLS.map((tool) => tool.rpc),
   ]) {
-    assert.ok(created.has(name) || created318.has(name) || created381.has(name) || created382.has(name) || created383.has(name), `platform.${name} is created by 317, 318, 381, 382 or 383`);
+    assert.ok(created.has(name) || created318.has(name) || created381.has(name) || created382.has(name) || created383.has(name) || created385.has(name), `platform.${name} is created by 317, 318, 381, 382, 383 or 385`);
   }
   // Nothing extra in the public schema: 9 + 14 + 3 + 24 functions in 317, the two environment-lease functions in 318.
   assert.equal(created.size, 9 + 14 + 3 + 24);

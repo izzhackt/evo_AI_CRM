@@ -308,6 +308,8 @@ export const AI_AGENT_RUNTIME_RPC = {
   runsOpen: "ai_agent_runtime_runs_open_v1",
   scheduledRunUpsert: "ai_agent_runtime_scheduled_run_upsert_v1",
   dispatchTargets: "ai_agent_runtime_dispatch_targets_v1",
+  /** Миграция 385: лид события (заявка сайта, чат WhatsApp) помечен «Тестовый лид» — такое событие агентов не будит. */
+  eventLeadIsTest: "ai_agent_runtime_event_lead_is_test_v1",
   draftGet: "ai_agent_runtime_draft_get_v1",
   draftMark: "ai_agent_runtime_draft_mark_v1",
   portalSend: "ai_agent_runtime_portal_send_v1",

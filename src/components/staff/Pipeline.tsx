@@ -63,6 +63,8 @@ export type PipelineLead = Readonly<{
   latestNote: PlatformSalesLeadLatestNote | null;
   href: string;
   workflow: PlatformSalesWorkflowLead;
+  /** Помечен «Тестовый лид» (миграция 385): рядом с именем метка «Тест». Не прочиталось — нет метки. */
+  isTest?: boolean;
 }>;
 
 /**

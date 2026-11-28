@@ -12,7 +12,7 @@ import { callRecordingItems, callbackDayBounds, type LeadCallsState } from "@/li
 import { DIAL_TOUCH_HINT, type DialOptions } from "@/lib/v3/telephony-dial";
 import { stageTrack } from "@/lib/v3/stages";
 import type { CaseAgreementReadResult } from "@/lib/v3/case-agreement-source";
-import { source as sourceWord, sourceUnderLabel } from "@/lib/v3/wording";
+import { leadTestWords, source as sourceWord, sourceUnderLabel } from "@/lib/v3/wording";
 import type { SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 
 import { DueWord } from "../blocks/DueWord";
@@ -27,6 +27,7 @@ import { handoffFootnote, handoffStripView, stripCaseMoney, type StripCaseMoney,
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { EditGroup } from "./EditGroup";
 import { LeadEditGroups, LeadMoreMenu } from "./LeadEditGroups";
+import { LeadTestToggle } from "./LeadTestToggle";
 import { LeadCallRecording } from "./LeadCallRecording";
 import { LeadCallsRetry } from "./LeadCallsRetry";
 import { LeadCallResult } from "./LeadCallResult";
@@ -85,7 +86,7 @@ export type LeadWorkPartsInput = Readonly<{
    * кабинета лида: детерминированные id команды (`studentPortalProvisioningRequestId`);
    * пустая строка — такого дела нет.
    */
-  requestIds: ProfileSalesRequestIds & Readonly<{ step: string; note: string; portal: string; cabinetPortal: string }>;
+  requestIds: ProfileSalesRequestIds & Readonly<{ step: string; note: string; portal: string; cabinetPortal: string; testFlag: string }>;
   /** Этапы формы решения — рабочие этапы доски, без «Переданы». */
   stages: readonly Readonly<{ key: PlatformSalesStage; title: string }>[];
   ownerOptions: readonly PlatformSalesOwnerOption[];
@@ -119,6 +120,8 @@ export type LeadWorkPartsInput = Readonly<{
    * задачу вместо «Шаг не задан». null и отсутствие — не читались или не прочитались.
    */
   openTasks?: readonly Readonly<{ id: string; title: string; status: string }>[] | null;
+  /** «Тестовый лид» (385): записана ли пометка; null и отсутствие — не читалась, переключателя и метки нет. */
+  isTest?: boolean | null;
   hrefFor: (tab: string) => string;
   now: Date;
 }>;
@@ -140,6 +143,8 @@ export type LeadNextSource = Readonly<{
   financeStop: string | null;
   facts: Readonly<{
     owner: string | null;
+    /** Лид помечен «Тестовый лид» (385): в шапке рисуется метка «Тест». */
+    isTest: boolean;
     source: string;
     arrived: Readonly<{ iso: string; label: string }> | null;
     phone: string | null;
@@ -690,6 +695,11 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           {portalControls}
         </PlatformAccessCard>
       </EditGroup>
+      {typeof input.isTest === "boolean" ? (
+        <EditGroup title={leadTestWords.label} summary={input.isTest ? leadTestWords.summaryOn : leadTestWords.summaryOff} testId="v3-lead-group-test">
+          <LeadTestToggle leadId={leadId} initialIsTest={input.isTest} requestId={input.requestIds.testFlag} readOnly={!canManage} />
+        </EditGroup>
+      ) : null}
     </LeadEditGroups>
   );
   const groups = (
@@ -727,6 +737,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     financeStop: profile.financeStop,
     facts: {
       owner,
+      isTest: input.isTest === true,
       source: sourceUnderLabel(profile.source) ?? "неизвестно",
       arrived: sales.leadCreatedAt && arrivedDay ? { iso: sales.leadCreatedAt, label: arrivedDay } : null,
       phone: profile.phone || null,

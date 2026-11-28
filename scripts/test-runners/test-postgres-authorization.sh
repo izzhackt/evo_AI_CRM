@@ -5099,6 +5099,36 @@ SQL
       exit 1
     fi
   fi
+  # «ИИ-агенты»: «мозг компании» - проверенные факты со сроком годности (migration 381, PLAN_CHANGES 28.11.2026). Matched by
+  # name, not number. Right after the migration: a second apply refuses (a381_already_applied), then the suite, insisting on
+  # its marker. The suite proves: the posture of the closed table, the three staff functions and the tool, the journal
+  # allowlist; the idempotent seed from the agent instructions; who may read and who may write; create, versions
+  # (the old row retired, the new one supersedes it), stale saves, replay by request id; retire and list with validity
+  # marks; the tool giving only active, unexpired facts of the organization (the last valid day counts), `agent_disabled`
+  # and invalid arguments; the journal rows without statement texts.
+  if [[ "$(basename "$migration")" == *_platform_company_facts.sql ]]; then
+    t381_again_log="$(mktemp -t evo-t381-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t381_again_log" 2>&1; then
+      echo "migration 381 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a381_already_applied" "$t381_again_log"; then
+      echo "a second apply of migration 381 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t381_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t381_again_log"
+    company_facts_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_company_facts.sql </dev/null)"
+    printf '%s\n' "$company_facts_log"
+    if ! grep -q 'A381_COMPANY_FACTS_SUITE_PASSED' <<<"$company_facts_log"; then
+      echo "platform_company_facts.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Вернуть документ без кабинета» (migration 328, PLAN_CHANGES 02.11.2026). Matched by name, not number. Right after the
   # migration: a second apply refuses (a328_already_applied), then the suite, insisting on its marker. The suite proves: a case
   # with no activated portal saves the decision and notifies nobody, the reason stays required, staff without the case are
@@ -5294,6 +5324,56 @@ SQL
 ' "$agent_questionnaire_log"
     if ! grep -q 'A336_AI_AGENT_CASE_QUESTIONNAIRE_SUITE_PASSED' <<<"$agent_questionnaire_log"; then
       echo "platform_ai_agent_case_questionnaire.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Досье лида и дела одним вызовом для ИИ-агентов» (migration 382, план «ИИ-агенты: мозг компании», 28.11.2026). Matched by name,
+  # not number. Only additions (two tools, their schema rows, closed helpers): right after it a second apply refuses
+  # (a382_already_applied), then the suite, insisting on its marker. The suite proves: stage in words with the key only in `keys`;
+  # the channel apart from source_key; three stages of a case apart with the mismatch flag; money in three blocks, the archived
+  # tranche never summed, currencies apart; intake identity; no file data; consent declined = no chat text; foreign organization
+  # not_found; every read audited; the size ceiling on a huge lead and a huge case.
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_dossiers.sql ]]; then
+    t382_again_log="$(mktemp -t evo-t382-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t382_again_log" 2>&1; then
+      echo "migration 382 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a382_already_applied" "$t382_again_log"; then
+      echo "a second apply of migration 382 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t382_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t382_again_log"
+    agent_dossiers_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_ai_agent_dossiers.sql </dev/null)"
+    printf '%s\n' "$agent_dossiers_log"
+    if ! grep -q 'A382_AI_AGENT_DOSSIERS_SUITE_PASSED' <<<"$agent_dossiers_log"; then
+      echo "platform_ai_agent_dossiers.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Предложение агента, которое принимает человек» (migration 383, план «ИИ-агенты: мозг компании», 28.11.2026). Matched by name,
+  # not number. Only additions (a closed table, the tool propose_next_step, three staff RPCs): right after it a second apply refuses
+  # (a383_already_applied), then the suite, insisting on its marker. The suite proves: propose = pending, a repeat returns the first
+  # answer, a new proposal expires the old one; closed case, foreign organization, disabled agent and forbidden wording are refused;
+  # «Принять» writes the step through set_case_next_action_v1 with the staff version (stale = conflict, suggestion stays pending),
+  # «Не то» dismisses, rights and organizations are enforced; the handoff note is the latest «Передача дела»; the table is closed.
+  if [[ "$(basename "$migration")" == *_platform_agent_suggestions.sql ]]; then
+    t383_again_log="$(mktemp -t evo-t383-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t383_again_log" 2>&1; then
+      echo "migration 383 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a383_already_applied" "$t383_again_log"; then
+      echo "a second apply of migration 383 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t383_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t383_again_log"
+    agent_suggestions_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_agent_suggestions.sql </dev/null)"
+    printf '%s\n' "$agent_suggestions_log"
+    if ! grep -q 'A383_AGENT_SUGGESTIONS_SUITE_PASSED' <<<"$agent_suggestions_log"; then
+      echo "platform_agent_suggestions.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

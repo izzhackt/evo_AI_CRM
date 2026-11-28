@@ -39,6 +39,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "chat-focus.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "command-palette-actions.ts", // #1085 (27.09.2026)
     "command-palette.ts", // #1085 (27.09.2026)
+    "company-facts-source.ts", // «Факты компании» (381, 28.11.2026)
     "country-curators-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "current-sales-funnel-source.ts",
     "document-suggestions-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
@@ -156,6 +157,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "case-operations-source.ts",
     "case-work-source.ts",
     "catalog-geography-source.ts", // «Университеты» v2 (283, S3.5, 16.10.2026)
+    "company-facts-source.ts", // «Факты компании» (381, 28.11.2026): RPC сотрудника от его имени
     "country-curators-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "current-sales-funnel-source.ts",
     "document-suggestions-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned

@@ -4,6 +4,7 @@ import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { settingsNextProps } from "@/lib/v3/settings-next-props";
 import { readTelephonyAdmin, telephonyIntegrationFactsFrom } from "@/lib/server/platform-telephony-admin";
+import { readCompanyFacts } from "@/lib/v3/company-facts-source";
 import { readCountryCurators } from "@/lib/v3/country-curators-source";
 import { readPaymentDetailsAdmin } from "@/lib/v3/student-receipts-source";
 import { readReportLink } from "@/lib/v3/report-links-source";
@@ -72,9 +73,11 @@ export default async function SettingsPart({
     ? Promise.all([readReportLink(actor, "marketing"), readReportLink(actor, "finance")]).then(([marketing, finance]) => ({ marketing, finance }))
     : Promise.resolve(undefined);
   // «Кураторы стран» (миграция 335): читается только в своём разделе.
+  // «Факты» (миграция 381): читаются только в своём разделе; права чтения (`ai.agent.use`) проверяет база.
+  const companyFactsRead = section === "facts" ? readCompanyFacts(actor) : Promise.resolve(undefined);
   const paymentDetailsRead = section === "payment" ? readPaymentDetailsAdmin(actor) : Promise.resolve(undefined);
   const countryCuratorsRead = section === "curators" ? readCountryCurators(actor) : Promise.resolve(undefined);
-  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, deletionOpen, telephony, whatsappConnection, reports, countryCurators, paymentDetails] = await Promise.all([
+  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, deletionOpen, telephony, whatsappConnection, reports, countryCurators, paymentDetails, companyFacts] = await Promise.all([
     telephonyRead.then((read) => readIntegrations(actor, new Date(), telephonyIntegrationFactsFrom(read))),
     isAdmin
       ? readJournal(actor, journalFilters, {
@@ -102,6 +105,7 @@ export default async function SettingsPart({
     reportsRead,
     countryCuratorsRead,
     paymentDetailsRead,
+    companyFactsRead,
   ]);
 
   // Протухший курсор из адреса читается первой страницей; адрес при этом
@@ -141,6 +145,7 @@ export default async function SettingsPart({
         reportsReadOnly: isStaffPreview(actor),
         countryCurators,
         paymentDetails,
+        companyFacts,
         journal,
         journalStatus: journalRead.status,
         auditExportEnabled: readAuditExportEnabled(),

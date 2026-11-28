@@ -304,6 +304,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
     salesDataOpen: input.salesDataOpen,
     help: assignOnly ? <CaseHelpNoAccess /> : input.help,
     helpNoAccess: assignOnly,
+    handoffEditable: !preview && !assignOnly && input.stepAccess.kind === "edit",
     feed,
     // Та же заметка, что у Lead 360 (Э4): то же действие, субъект и предел; просмотр роли не пишет,
     // читатель «Ждут куратора» тоже (`create_case_note` ему отвечает 42501).

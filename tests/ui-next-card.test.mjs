@@ -29,8 +29,8 @@ function summaryFacts(html) {
   return [...block.matchAll(/<dt /gu)].length;
 }
 
-test("сценарии собираются: девять дел, семь лидов и три исхода «Интересует»", () => {
-  assert.equal(CASES.length, 9);
+test("сценарии собираются: двенадцать дел, семь лидов и три исхода «Интересует»", () => {
+  assert.equal(CASES.length, 12);
   assert.equal(LEADS.length, 7);
   assert.equal([...pages.keys()].filter((name) => name.startsWith("widget-interest-")).length, 3);
 });
@@ -275,4 +275,41 @@ test("шапка дела на телефоне: строка «Документ
   assert.match(caseNext, /summaryFromSm=\{tab !== null && \(CASE_SUMMARY_REPEATED_ON as readonly string\[\]\)\.includes\(tab\)\}/u);
   const page = readFileSync(new URL("../src/app/(staff)/profile/page.tsx", import.meta.url), "utf8");
   assert.match(page, /caseNextParts\(caseParts\.next, caseParts\.actions, tab\)/u);
+});
+
+test("«Предложить шаг» и «Передача» (383): кнопка без шага, строка предложения с «Принять» и «Не то», страница передачи в «Обзоре»", () => {
+  const empty = page("case-agent-empty");
+  assert.match(empty, /data-testid="v3-agent-suggest"[^>]*>Предложить шаг</u, "шага нет: кнопка «Предложить шаг»");
+  assert.doesNotMatch(empty, /data-testid="v3-agent-suggestion"/u);
+  // Страницы передачи нет: карточка с пояснением и кнопкой «Собрать передачу».
+  const emptyHandoff = empty.slice(empty.indexOf('data-testid="v3-case-handoff"'));
+  assert.match(emptyHandoff, /data-testid="v3-case-handoff-empty"/u);
+  assert.match(emptyHandoff, /data-testid="v3-case-handoff-build"[^>]*>Собрать передачу</u);
+  assert.match(empty, /<h2 data-slot="card-title"[^>]*id="case-handoff-title"[^>]*>Передача</u);
+
+  const suggested = page("case-agent-suggestion");
+  const row = suggested.slice(suggested.indexOf('data-testid="v3-agent-suggestion"'));
+  assert.match(row, /Агент предлагает · Куратор Китай/u);
+  assert.match(row, /data-testid="v3-agent-suggestion-text"[^>]*>Запросить у студента скан загранпаспорта и аттестата</u);
+  assert.match(row, /срок: <time dateTime="2026-09-25"/u);
+  assert.match(row, /исполнитель: Айгүл Осмонова/u);
+  assert.match(row, /data-testid="v3-agent-suggestion-reason"[^>]*>Почему: В деле нет скана паспорта/u);
+  assert.match(row, />Принять<\/button>[\s\S]*>Не то<\/button>/u);
+  assert.doesNotMatch(suggested, /data-testid="v3-agent-suggest"/u, "пока предложение висит, кнопки «Предложить шаг» нет");
+  // Страница передачи: подписи полей, деньги тремя отдельными строками, пометка «внутренняя».
+  const handoff = text(suggested.slice(suggested.indexOf('data-testid="v3-case-handoff-page"')));
+  for (const part of ["Студент", "Что обещали", "Условия продажи (до договора, не долг)", "По договору", "Каталог вузов", "Документы", "Следующий шаг",
+    "Открытые вопросы", "решает родитель", "Собрал агент: Куратор Китай", "Внутренняя страница: клиент и студент её не видят."]) {
+    assert.ok(handoff.includes(part), part);
+  }
+  assert.match(suggested, /data-testid="v3-case-handoff-build"[^>]*>Собрать заново</u);
+
+  // Шаг уже задан: предложение не показывается, кнопки нет; страница передачи не прочитана — сказано словами.
+  const set = page("case-agent-step-set");
+  assert.doesNotMatch(set, /data-testid="v3-agent-suggestion"|data-testid="v3-agent-suggest"/u);
+  assert.match(set, /data-testid="v3-case-handoff-unread"[^>]*>Страница передачи сейчас не прочитана/u);
+  // Дела без агентских данных (читатель «Ждут куратора», прежние сценарии): ни кнопок, ни карточки «Передача».
+  for (const name of ["case-admin", "case-assign-only", "case-closed-outcome"]) {
+    assert.doesNotMatch(page(name), /v3-agent-suggest|v3-case-handoff"/u, name);
+  }
 });

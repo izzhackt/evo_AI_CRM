@@ -540,6 +540,41 @@ test("tools/call: success returns the database value as JSON text and logs the a
   assert.equal(Number.isInteger(logged.p_duration_ms), true);
 });
 
+test("get_company_facts: the registry entry, the defaults, the database function and the bounds of its arguments", async () => {
+  const tool = AI_AGENT_TOOLS.find((candidate) => candidate.name === "get_company_facts");
+  assert.equal(tool.kind, "read");
+  assert.equal(tool.audit, "none");
+  assert.equal(tool.rpc, "ai_agent_tool_get_company_facts_v1");
+  const schema = schemaOf("get_company_facts");
+  // Everything is optional; the defaults are the ones the database function applies.
+  assert.deepEqual(validateToolArguments(schema, {}).value, { limit: 20 });
+  assert.deepEqual(validateToolArguments(schema, { topic_prefix: "calendar.cn.", audience: "client", limit: 50 }).value, { topic_prefix: "calendar.cn.", audience: "client", limit: 50 });
+  const issues = (value) => validateToolArguments(schema, value).issues;
+  assert.deepEqual(issues({ limit: 51 }), [{ path: "limit", problem: "maximum" }]);
+  assert.deepEqual(issues({ limit: 0 }), [{ path: "limit", problem: "minimum" }]);
+  assert.deepEqual(issues({ audience: "everyone" }), [{ path: "audience", problem: "enum" }]);
+  assert.deepEqual(issues({ topic_prefix: "Course!" }), [{ path: "topic_prefix", problem: "pattern" }]);
+  assert.deepEqual(issues({ topic_prefix: "a".repeat(81) }), [{ path: "topic_prefix", problem: "max_length" }]);
+  assert.deepEqual(issues({ query: "x" }), [{ path: "query", problem: "unknown_property" }]);
+
+  const data = { facts: [{ fact_id: AGENT_USER, topic: "course.sat.group", statement: { ru: "Тест" }, audience: "client", source: "owner", verified_at: "2026-10-23", valid_until: "2026-12-31" }], today: "2026-11-28", truncated: false };
+  const { handler, toolCalls, logCalls } = harness({ rpc: rpcWith(() => ({ data, error: null })) });
+  const { result, body } = await toolCall(handler, "get_company_facts", { topic_prefix: "course." });
+  assert.equal(result.isError, false);
+  assert.deepEqual(body, data);
+  assert.equal(toolCalls()[0].functionName, "ai_agent_tool_get_company_facts_v1");
+  assert.deepEqual(toolCalls()[0].args.p_args, { topic_prefix: "course.", limit: 20 });
+  assert.equal(logCalls()[0].args.p_tool, "get_company_facts");
+  assert.equal(logCalls()[0].args.p_status, "ok");
+});
+
+test("get_company_facts: a disabled agent gets agent_disabled from the database function", async () => {
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: null, error: { code: "55000", message: "agent_disabled" } })) });
+  const { result, body } = await toolCall(handler, "get_company_facts", {});
+  assert.equal(result.isError, true);
+  assert.equal(body.error_code, "agent_disabled");
+});
+
 test("tools/call: invalid arguments never reach the tool and list fields without values", async () => {
   const { handler, toolCalls, logCalls } = harness();
   const { result, body } = await toolCall(handler, "search_clients", { query: SECRET_QUERY, limit: 1000, rogue: SECRET_QUERY });
@@ -721,6 +756,88 @@ test("tools/call: the authority code reaches the tool but never the action log",
   assert.equal(toolCalls()[0].args.p_args.authority_code, code);
   assert.equal(JSON.stringify(logCalls()[0].args).includes(code), false);
   assert.equal(logCalls()[0].args.p_args.authority_code, "<redacted>");
+});
+
+/* ------------------------------------------------------------------- досье (382) */
+
+const DOSSIER_CASE = "77300000-0000-4000-8000-0000000000f2";
+
+test("dossier tools: the registry lists them first, read + audited, with one required id each", () => {
+  assert.deepEqual(AI_AGENT_TOOLS.slice(0, 2).map((tool) => tool.name), ["get_lead_dossier", "get_case_dossier"]);
+  for (const tool of AI_AGENT_TOOLS.slice(0, 2)) {
+    assert.equal(tool.kind, "read");
+    assert.equal(tool.audit, "read");
+    assert.equal(tool.rpc, `ai_agent_tool_${tool.name}_v1`);
+    assert.match(tool.description, /^Start here: one call returns the whole /u, tool.name);
+    assert.match(tool.description, /Начните отсюда/u, tool.name);
+  }
+  assert.deepEqual(schemaOf("get_lead_dossier").required, ["lead_id"]);
+  assert.deepEqual(schemaOf("get_case_dossier").required, ["case_id"]);
+  assert.equal(schemaOf("get_case_dossier").additionalProperties, false);
+});
+
+test("get_case_dossier: the app fills the timeline step from the keys of the database answer, and nothing else changes", async () => {
+  const dossier = {
+    case: { case_id: DOSSIER_CASE, student_name: "Тест" },
+    process_stage: { label: "Этап процесса", word: "подача заявок в университеты" },
+    board_column: { label: "Колонка доски", word: "Готовы к подаче" },
+    timeline_step: null,
+    stage_mismatch: false,
+    keys: { operational_stage: "applications", pipeline_stage: "ready_to_submit", country_code: "MY" },
+    money: { catalog: { note: "не долг клиента" } },
+  };
+  const { handler, toolCalls } = harness({ principal: CURATOR, rpc: rpcWith(() => ({ data: dossier, error: null }), { principal: CURATOR }) });
+  const { result, body } = await toolCall(handler, "get_case_dossier", { case_id: DOSSIER_CASE });
+  assert.equal(result.isError, false);
+  assert.equal(toolCalls()[0].functionName, "ai_agent_tool_get_case_dossier_v1");
+  assert.deepEqual(toolCalls()[0].args.p_args, { case_id: DOSSIER_CASE });
+  assert.equal(body.timeline_step.text, "3 из 7, Малайзия");
+  assert.equal(body.timeline_step.position, 3);
+  assert.equal(body.timeline_step.of, 7);
+  assert.equal(body.timeline_step.finished, false);
+  assert.equal(body.process_stage.word, "подача заявок в университеты");
+  assert.equal(body.board_column.word, "Готовы к подаче");
+  assert.deepEqual(body.money, dossier.money);
+  assert.equal("timeline_step_note" in body, false);
+
+  // A country outside the six: null with a reason, never a guess.
+  const other = { ...dossier, keys: { ...dossier.keys, country_code: null } };
+  const second = harness({ principal: CURATOR, rpc: rpcWith(() => ({ data: other, error: null }), { principal: CURATOR }) });
+  const answer = await toolCall(second.handler, "get_case_dossier", { case_id: DOSSIER_CASE });
+  assert.equal(answer.body.timeline_step, null);
+  assert.match(answer.body.timeline_step_note, /не из шести/u);
+});
+
+test("get_lead_dossier passes the answer through untouched; the lead tool has no timeline", async () => {
+  const dossier = { lead: { lead_id: AGENT_USER, sales_stage: "Квалифицирован" }, keys: { country_code: "MY", operational_stage: "applications" }, truncated: false };
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: dossier, error: null })) });
+  const { body } = await toolCall(handler, "get_lead_dossier", { lead_id: AGENT_USER });
+  assert.deepEqual(body, dossier);
+});
+
+test("get_case_dossier: a database answer at the ceiling plus the step still fits the 12 000 characters the contract promises", async () => {
+  const filler = "я".repeat(11_500 - 900);
+  const dossier = {
+    case: { case_id: DOSSIER_CASE, note: filler },
+    timeline_step: null,
+    keys: { operational_stage: "visa_and_predeparture", pipeline_stage: "visa", country_code: "CN" },
+  };
+  assert.ok(JSON.stringify(dossier).length < 11_500);
+  const { handler } = harness({ principal: CURATOR, rpc: rpcWith(() => ({ data: dossier, error: null }), { principal: CURATOR }) });
+  const { result, body } = await toolCall(handler, "get_case_dossier", { case_id: DOSSIER_CASE });
+  assert.ok(result.content[0].text.length <= 12_000, `${result.content[0].text.length}`);
+  assert.equal(body.timeline_step.country, "Китай");
+});
+
+test("the dossier tools validate their arguments before any database call", async () => {
+  const { handler, toolCalls } = harness({ principal: DIRECTOR, rpc: rpcWith(() => ({ data: {}, error: null }), { principal: DIRECTOR }) });
+  const missing = await toolCall(handler, "get_case_dossier", {});
+  assert.equal(missing.body.error_code, "invalid_arguments");
+  const extra = await toolCall(handler, "get_lead_dossier", { lead_id: AGENT_USER, include: ["notes"] });
+  assert.equal(extra.body.error_code, "invalid_arguments");
+  const bad = await toolCall(handler, "get_lead_dossier", { lead_id: "nope" });
+  assert.equal(bad.body.error_code, "invalid_arguments");
+  assert.equal(toolCalls().length, 0);
 });
 
 /* --------------------------------------------------------------- send_message */

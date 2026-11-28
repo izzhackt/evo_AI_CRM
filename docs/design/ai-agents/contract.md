@@ -293,6 +293,7 @@
 | `list_tasks` | `staff_tasks`, `case_tasks` | `items[{task_id, kind:'staff'\|'case', title, assignee_name, status, priority, due_on, case_id, lead_id, created_at}]` |
 | `search_catalog` | `catalog_institutions`, `catalog_cities`, `catalog_costs`, программы | `{institutions:[{id,name,country,city,programs:[{id,name,degree,language}],costs:[{kind,amount,currency,period,checked_on}]}]}` |
 | `search_knowledge` | `platform_private.ai_chunks` (FTS по `fts` русским конфигом) + `ai_documents` (`status='ready'`), страницы `kb_nodes` области `internal`/`clients` (`kind='page'`, не удалены/не в архиве) | `{results:[{source:'agent_kb'\|'crm_kb',document_title,section_path,text≤1500,audience:'client'\|'internal',updated_at,approved_for_clients}]}`; области `secrets`/`raw` и `kb_sealed_*` — никогда |
+| `get_company_facts` | `platform_private.company_facts` (миграция 381): только `status='active'` и `valid_until IS NULL OR valid_until >= сегодня по Бишкеку` | `{facts:[{fact_id,topic,statement:{ru,ky?,en?},audience,source,verified_at,valid_until}],today,truncated}`; аргументы `topic_prefix`, `audience` (`client` по умолчанию, `internal`, `both`: внутренние факты только по явному запросу), `limit` ≤ 50. Аудита нет (`none`) |
 | `recent_calls` | телеф. таблицы 288–301 | `items[{call_id,at,direction,status,duration_s,lead_id,client_name,staff_name,result}]` (без записей и номеров) |
 | `list_staff` | `organization_memberships`, профили, роли, направления | `items[{staff_id (membership), name, roles[], directions[], active}]` |
 | `get_my_settings` | `ai_agents` | `{agent_key,title,direction,enabled,auto_send,now_utc,timezone,whatsapp_state,responsible_staff_name}` |
@@ -301,6 +302,7 @@
 | `send_message` | §A.6 | `{status:'sent'\|'draft_created'\|'needs_dispatch', mode:'direct'\|'draft', draft_id, message_id, sender_membership_id, hint}`; `needs_dispatch` — только WhatsApp в режиме direct: MCP-слой (B) вызывает `sendAiAgentWhatsAppDraft` и сам формирует итоговый ответ модели |
 | `post_digest` | `ai_agent_digests` | `{digest_id}`; `metrics` — объект ≤ 16 KiB, иначе `too_large`. Аудит `ai.agent.tool.write` |
 | `notify_staff` | `staff_tasks` | ровно один из `staff_id`/`role`/`direction`; ≤ 10 получателей; приоритет high, срок сегодня; заголовок `[ИИ] <title>`; `dedupe_key` — один раз в 24 часа на получателя. Ответ `{created:[{staff_id,task_id}], deduplicated}` |
+| `propose_next_step` | `platform_private.agent_suggestions` (383) | только предложение: `{suggestion_id, status:'pending', expires_at}`, шаг дела не меняется; дело своей организации и в работе (иначе `conflict`), текст ≤300 одной строкой без гарантий визы/поступления и сумм денег (иначе `text_invalid`), срок не раньше сегодня, исполнитель — действующий сотрудник; одна `pending` на (дело, вид), новое заменяет старое (старое `expired`); живёт 7 дней. «Принять» делает человек кнопкой на карточке дела: `agent_suggestion_decide_v1` пишет шаг существующим `set_case_next_action_v1` от имени сотрудника (его версия дела и право). Аудит `ai.agent.tool.write` |
 
 ### A.6 `send_message`: правила и предохранители (в БД, не в промпте)
 
@@ -356,8 +358,8 @@
 
 Реестр целиком — `AI_AGENT_TOOLS` в `contract.ts` (имя, русский заголовок, описание для модели «EN. RU.», вид, аудит, функция БД, JSON-схема). MCP-сервер **не дублирует** его, а читает оттуда; БД перепроверяет входы (§A.5.2). Состав (24):
 
-- **Чтения (19):** `search_clients`, `get_client_card`*, `list_leads`, `get_lead`*, `list_student_cases`, `get_case`*, `get_document_file`*, `list_conversations`, `get_conversation`*, `get_case_chat`*, `sales_report`, `payments_summary`, `funnel_stats`, `list_tasks`, `search_catalog`, `search_knowledge`, `recent_calls`, `list_staff`, `get_my_settings`. Звёздочка — «чувствительное» чтение: строка в журнале платформы (`ai.agent.tool.read`, для файла — `ai.agent.document.read`).
-- **Записи (5):** `create_task`, `add_note`, `send_message`, `post_digest`, `notify_staff`. Журнал платформы пишет сама функция БД в той же транзакции (`ai.agent.tool.write`; `send_message` — `ai.agent.draft.create` или `ai.agent.message.send`).
+- **Чтения (20):** `search_clients`, `get_client_card`*, `list_leads`, `get_lead`*, `list_student_cases`, `get_case`*, `get_document_file`*, `list_conversations`, `get_conversation`*, `get_case_chat`*, `sales_report`, `payments_summary`, `funnel_stats`, `list_tasks`, `search_catalog`, `search_knowledge`, `get_company_facts` (миграция 381, «мозг компании»: факты со сроком годности), `recent_calls`, `list_staff`, `get_my_settings`. Звёздочка — «чувствительное» чтение: строка в журнале платформы (`ai.agent.tool.read`, для файла — `ai.agent.document.read`).
+- **Записи (6):** `create_task`, `add_note`, `propose_next_step` (383), `send_message`, `post_digest`, `notify_staff`. Журнал платформы пишет сама функция БД в той же транзакции (`ai.agent.tool.write`; `send_message` — `ai.agent.draft.create` или `ai.agent.message.send`).
 - Имя функции БД: `platform.ai_agent_tool_<имя>_v1(p_organization_id uuid, p_agent_key text, p_args jsonb) → jsonb`.
 
 ### B.1 Маршрут и протокол

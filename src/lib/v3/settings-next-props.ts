@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import type { SettingsNextProps } from "@/components/staff/settings-next/settings-next-types";
 import { SECTIONS, type GateFacts, type IntegrationRow, type JournalEntry, type SectionKey, type StaffView } from "@/components/staff/settings/types";
+import type { CompanyFactsRead } from "@/lib/ai-agents/company-facts";
 import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
 import { COUNTRY_CURATOR_DIRECTIONS, type CountryCuratorDirection, type CountryCuratorsRead } from "@/lib/country-curator-contract";
 import { REPORT_KEYS, type ReportKey, type ReportLinkRead } from "@/lib/report-link-contract";
@@ -37,6 +38,8 @@ export function settingsNextProps(input: Readonly<{
   reports?: Readonly<Record<ReportKey, ReportLinkRead>>;
   reportsReadOnly: boolean;
   countryCurators?: CountryCuratorsRead;
+  /** «Факты» (миграция 381): чтение фактов компании; читается только в своём разделе. */
+  companyFacts?: CompanyFactsRead;
   /** «Реквизиты для оплаты» (миграция 358): чтение редактора администратора. */
   paymentDetails?: PaymentDetailsRead;
   journal: readonly JournalEntry[];
@@ -81,6 +84,7 @@ export function settingsNextProps(input: Readonly<{
     reports: section === "reports" && input.reports
       ? { reads: input.reports, readOnly: input.reportsReadOnly, ids: Object.fromEntries(REPORT_KEYS.map((key) => [key, { save: randomUUID(), remove: randomUUID() }])) as NonNullable<SettingsNextProps["reports"]>["ids"] }
       : undefined,
+    companyFacts: section === "facts" && input.companyFacts ? { read: input.companyFacts, readOnly: input.reportsReadOnly } : undefined,
     journal: section === "journal"
       ? journalNextProps({
         entries: input.journal, status: input.journalStatus, facets: input.journalFacets, filters: input.journalFilters, hrefFor: input.journalHrefFor,

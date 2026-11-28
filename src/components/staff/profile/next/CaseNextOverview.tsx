@@ -7,6 +7,7 @@ import { CaseHelpNoAccess, FeedItem, Groups, caseFactValues, type CaseOverviewIn
 import { CASE_FACTS_ID, type CaseFeedItem } from "../case-work-view";
 import { FeedCard, FeedPager } from "./FeedCard";
 import { ApplicationsValue } from "./CaseApplications";
+import { CaseHandoff } from "./CaseHandoff";
 import { NamedCard } from "./NamedCard";
 
 type Values = ReturnType<typeof caseFactValues>;
@@ -114,6 +115,7 @@ export function CaseNextOverview({ input, values }: Props) {
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[auto_1fr]" data-testid="v3-case-overview">
       <div className="grid min-w-0 grid-cols-1 content-start gap-4 xl:col-start-1 xl:row-start-1">
         <TasksCard input={input} />
+        <CaseHandoff input={input} />
         <HelpCard input={input} />
       </div>
       <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1">

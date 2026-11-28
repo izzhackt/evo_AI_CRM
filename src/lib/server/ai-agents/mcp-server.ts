@@ -38,6 +38,7 @@ import {
   type McpToolOutcome,
   type McpToolRuntime,
 } from "./mcp-tools.ts";
+import { createKnowledgeQueryEmbedder, KNOWLEDGE_QUERY_EMBEDDING_TIMEOUT_MS, type KnowledgeQueryEmbedder } from "./mcp-knowledge-query.ts";
 import { sendAiAgentWhatsAppDraft } from "./whatsapp-send.ts";
 
 /**
@@ -86,6 +87,10 @@ export type AiAgentsMcpDependencies = Readonly<{
   authDeadlineMs: number;
   toolDeadlineMs: number;
   bodyDeadlineMs: number;
+  /** Вектор вопроса для `search_knowledge`; null — ключа эмбеддингов нет, поиск без вектора. */
+  embedQuery: KnowledgeQueryEmbedder | null;
+  /** Срок ожидания вектора вопроса, мс. */
+  embedDeadlineMs: number;
 }>;
 
 function defaultLog(entry: Readonly<Record<string, LogValue>>): void {
@@ -206,6 +211,8 @@ export function createAiAgentsMcpHandler(
     authDeadlineMs: DEFAULT_AUTH_DEADLINE_MS,
     toolDeadlineMs: AI_AGENT_LIMITS.toolTimeoutMs,
     bodyDeadlineMs: DEFAULT_BODY_DEADLINE_MS,
+    embedQuery: createKnowledgeQueryEmbedder(environment),
+    embedDeadlineMs: KNOWLEDGE_QUERY_EMBEDDING_TIMEOUT_MS,
     ...overrides,
     environment,
   };
@@ -475,6 +482,8 @@ export function createAiAgentsMcpHandler(
       maxOutputChars: AI_AGENT_LIMITS.toolOutputMaxChars,
       now: deps.now,
       log: deps.log,
+      embedQuery: deps.embedQuery,
+      embedDeadlineMs: deps.embedDeadlineMs,
     };
 
     if (Array.isArray(parsed)) {

@@ -494,7 +494,7 @@ export const AI_AGENT_TOOLS: readonly AiAgentToolDefinition[] = [
   },
   {
     name: "search_knowledge", title: "База знаний", kind: "read", audit: "none", rpc: toolRpc("search_knowledge"),
-    description: "Search approved client knowledge and internal knowledge (full text). Prices, guarantees and legal claims must come from here. Поиск по базе знаний; цены, гарантии и юридические утверждения — только отсюда.",
+    description: "Search approved client knowledge and internal knowledge: full text ru + simple, plus vector search when available; works for ru/ky/en questions, each result says how it matched. Prices, guarantees and legal claims must come from here. Поиск по базе знаний на русском, кыргызском и английском (полный текст ru + simple, по смыслу — когда доступен); цены, гарантии и юридические утверждения — только отсюда.",
     inputSchema: objectArg({
       query: textArg("Question or keywords.", 200, 2), audience: enumArg(["client", "internal", "both"], "Knowledge audience.", "both"),
       limit: intArg("Max passages.", 1, 10, 5),

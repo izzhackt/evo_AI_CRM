@@ -6472,6 +6472,36 @@ SQL
       exit 1
     fi
   fi
+  # «ИИ-агенты»: поиск по базе знаний (migration 384, ночь 28.11.2026). Matched by name, not number. The migration adds the
+  # generated `fts_simple` column with its GIN index, a closed helper and a four-argument `search_knowledge` (query vector);
+  # right after it a second apply refuses (a384_already_applied), then the suite, insisting on its marker. The suite proves:
+  # the posture; a Russian question keeps its first result; Kyrgyz and English questions are found through `simple` (also
+  # the wiki); no draft, superseded text, raw area, deleted page, secret, other organization or wrong audience comes out,
+  # by text and by vector; the query vector finds the nearest fragment, merges with text hits once, adds nothing below the
+  # threshold, and a vector of the wrong length is refused.
+  if [[ "$(basename "$migration")" == *_platform_ai_agent_knowledge_search.sql ]]; then
+    t384_again_log="$(mktemp -t evo-t384-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t384_again_log" 2>&1; then
+      echo "migration 384 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a384_already_applied" "$t384_again_log"; then
+      echo "a second apply of migration 384 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t384_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t384_again_log"
+    ai_agent_knowledge_search_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agent_knowledge_search.sql </dev/null)"
+    printf '%s\n' "$ai_agent_knowledge_search_log"
+    if ! grep -q 'A384_AI_AGENT_KNOWLEDGE_SEARCH_SUITE_PASSED' <<<"$ai_agent_knowledge_search_log"; then
+      echo "platform_ai_agent_knowledge_search.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

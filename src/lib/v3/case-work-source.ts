@@ -1,8 +1,11 @@
 import "server-only";
 
-import type { CaseWorkActivity, CaseWorkChat, CaseWorkRead, CaseWorkRow, CaseWorkTasks } from "@/components/staff/profile/case-work-view";
+import { randomUUID } from "node:crypto";
+
+import type { CaseWorkActivity, CaseWorkAgent, CaseWorkChat, CaseWorkRead, CaseWorkRow, CaseWorkTasks } from "@/components/staff/profile/case-work-view";
 import { caseChatWork, caseOpenTasks } from "@/components/staff/profile/case-work-view";
 
+import { readAgentSuggestion, readCaseHandoffNote } from "../platform-agent-suggestions";
 import { hasOpenAccountDeletionRequestForCase } from "../platform-account-deletion";
 import { readCaseAiConsent } from "./ai-consent-source";
 import { readCaseAttentionFlags } from "../platform-admissions";
@@ -84,6 +87,26 @@ async function readCaseActivity(actor: ActivePlatformActor, target: CaseWorkTarg
   }
 }
 
+/**
+ * Предложение агента по шагу (шапка, любая вкладка) и страница передачи (только «Обзор»). Права решает база тем же правом
+ * чтения дела: отказ или сбой не роняют страницу — предложения и страницы просто нет, а сбой страницы передачи назван.
+ */
+async function readCaseAgent(actor: ActivePlatformActor, target: CaseWorkTarget, overview: boolean): Promise<CaseWorkAgent> {
+  const [suggestion, handoff] = await Promise.all([
+    readAgentSuggestion(actor, target.studentCaseId),
+    overview ? readCaseHandoffNote(actor, target.studentCaseId) : null,
+  ]);
+  return Object.freeze({
+    suggestion: suggestion.kind === "ready" ? suggestion.value : null,
+    suggestionRead: suggestion.kind,
+    handoff: handoff === null ? Object.freeze({ kind: "not_read" as const })
+      : handoff.kind === "ready" ? Object.freeze({ kind: "ready" as const, note: handoff.value })
+        : Object.freeze({ kind: "unavailable" as const }),
+    nextStepRequestId: randomUUID(),
+    handoffRequestId: randomUUID(),
+  });
+}
+
 const NOT_READ = Object.freeze({ kind: "unavailable" } as const);
 const ACTIVITY_NOT_READ = Object.freeze({ kind: "not_read" } as const);
 const FORBIDDEN = Object.freeze({ kind: "forbidden" } as const);
@@ -107,7 +130,7 @@ export async function readCaseWork(
 ): Promise<CaseWorkRead> {
   const now = new Date();
   const assignOnly = options.assignOnly === true;
-  const [row, tasks, chat, activity, deletionRequested, aiConsent] = await Promise.all([
+  const [row, tasks, chat, activity, deletionRequested, aiConsent, agent] = await Promise.all([
     readCaseQueueRow(actor, target),
     // Задачи читаются на любой вкладке: пока шага дела нет, «Что дальше» шапки называет ближайшую открытую задачу.
     assignOnly ? FORBIDDEN : readCaseTasks(actor, target),
@@ -116,6 +139,8 @@ export async function readCaseWork(
     hasOpenAccountDeletionRequestForCase(actor, target.studentCaseId),
     // Чип «ИИ: ...» шапки (миграция 320): тому же читателю, что видит дело целиком; без права - без чипа.
     assignOnly ? null : readCaseAiConsent(actor, target.studentCaseId),
+    // «Предложить шаг» и «Передача» (миграция 383).
+    assignOnly ? null : readCaseAgent(actor, target, options.overview),
   ]);
   // «Нужен куратор» — флаг строки очереди (как в списке); без строки тот, кто назначает
   // кураторов (Admin и `case.curator.assign`, миграция 248), читает его отдельно (182).
@@ -125,7 +150,7 @@ export async function readCaseWork(
       : false;
   const awaitingAck = row ? row.attentionFlags.includes("awaiting_ack") : null;
   return Object.freeze({
-    row, tasks, chat, activity, needsCurator, awaitingAck, deletionRequested, aiConsent,
+    row, tasks, chat, activity, needsCurator, awaitingAck, deletionRequested, aiConsent, agent,
     today: dayInOrganizationTimezone(now),
     nowIso: now.toISOString(),
   });

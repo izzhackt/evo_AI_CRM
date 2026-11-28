@@ -330,11 +330,12 @@ export const AI_AGENT_MCP_RPC = {
 /* ----------------------------------------------------- реестр MCP-инструментов */
 
 export const AI_AGENT_TOOL_NAMES = [
+  "get_lead_dossier", "get_case_dossier",
   "search_clients", "get_client_card", "list_leads", "get_lead", "list_student_cases", "get_case",
   "get_document_file", "list_conversations", "get_conversation", "get_case_chat", "sales_report",
   "payments_summary", "funnel_stats", "list_tasks", "search_catalog", "search_knowledge", "get_company_facts",
   "recent_calls", "list_staff", "get_my_settings",
-  "create_task", "add_note", "send_message", "post_digest", "notify_staff",
+  "create_task", "add_note", "propose_next_step", "send_message", "post_digest", "notify_staff",
 ] as const;
 export type AiAgentToolName = (typeof AI_AGENT_TOOL_NAMES)[number];
 
@@ -376,6 +377,17 @@ const CURSOR = textArg("Opaque next_cursor from the previous page. Курсор 
 const toolRpc = (name: AiAgentToolName): string => `ai_agent_tool_${name}_v1`;
 
 export const AI_AGENT_TOOLS: readonly AiAgentToolDefinition[] = [
+  // 382: досье — первая остановка агента. Остальные инструменты чтения нужны, чтобы догрузить то, что в досье обрезано.
+  {
+    name: "get_lead_dossier", title: "Досье лида", kind: "read", audit: "read", rpc: toolRpc("get_lead_dossier"),
+    description: "Start here: one call returns the whole lead card (about 6 000 characters) — stage in words, where the client heard of EVO (apart from the contact channel), sale conditions before the contract (labelled, not a debt), next action and due date, open tasks, latest notes, the last 15 WhatsApp messages (only if the student allows AI helpers), calls of 14 days and the link to the student case. Use get_lead, get_conversation and the other read tools only to load more. Начните отсюда: вся карточка лида одним вызовом, этап словами, откуда узнал, условия до договора, следующее действие, задачи, заметки, переписка WhatsApp (при согласии), звонки, ссылка на дело.",
+    inputSchema: objectArg({ lead_id: uuidArg("Lead id.") }, ["lead_id"]),
+  },
+  {
+    name: "get_case_dossier", title: "Досье дела студента", kind: "read", audit: "read", rpc: toolRpc("get_case_dossier"),
+    description: "Start here: one call returns the whole student case (about 12 000 characters) — curator, country, degree, THREE separate stages (process stage, curator board column, step of the country path) with a mismatch flag, next step, the student's own questionnaire (self-reported), document slots without files, applications with intake, MONEY IN THREE BLOCKS that are never added (sale conditions before the contract, live contract tranches and payments, catalog prices that are not a debt), open tasks, notes, the last 10 cabinet chat messages (only if the student allows AI helpers) and the lead source. Use get_case, get_case_chat, get_document_file and the other read tools only to load more. Начните отсюда: всё дело одним вызовом, три этапа отдельно, деньги тремя блоками, документы, заявки, задачи, чат кабинета (при согласии).",
+    inputSchema: objectArg({ case_id: uuidArg("Student case id.") }, ["case_id"]),
+  },
   {
     name: "search_clients", title: "Поиск клиента", kind: "read", audit: "none", rpc: toolRpc("search_clients"),
     description: "Find clients by name, phone digits or e-mail fragment; contacts are masked. Найти клиента по имени, цифрам телефона или части e-mail; контакты замаскированы.",
@@ -527,6 +539,15 @@ export const AI_AGENT_TOOLS: readonly AiAgentToolDefinition[] = [
     name: "add_note", title: "Заметка", kind: "write", audit: "write", rpc: toolRpc("add_note"),
     description: "Add an internal note to a lead or a student case (never visible to the client). Внутренняя заметка к лиду или делу.",
     inputSchema: objectArg({ lead_id: uuidArg("Lead id."), case_id: uuidArg("Student case id."), body: textArg("Note text.", 3500), idempotency_key: textArg("Repeat-safe key (10 min).", 120) }, ["body"]),
+  },
+  {
+    name: "propose_next_step", title: "Предложить шаг", kind: "write", audit: "write", rpc: toolRpc("propose_next_step"),
+    description: "Propose ONE next step for an active student case. It is only a suggestion: it appears on the case card and a staff member accepts or rejects it, the case itself is not changed. One line, no guarantees of a visa or admission, no amounts of money. A new proposal replaces the previous one. Предложить сотруднику один следующий шаг по делу; шаг не записывается сам, его принимает человек.",
+    inputSchema: objectArg({
+      case_id: uuidArg("Student case id."), text: textArg("The one next step, one line, no guarantees and no amounts of money.", 300),
+      due_on: dateArg("Due date, not earlier than today"), assignee_id: uuidArg("Who does it: staff id (membership)."),
+      reason: textArg("Why this step (shown to staff, small).", 300),
+    }, ["case_id", "text", "reason"]),
   },
   {
     name: "send_message", title: "Сообщение клиенту", kind: "write", audit: "write", rpc: toolRpc("send_message"),

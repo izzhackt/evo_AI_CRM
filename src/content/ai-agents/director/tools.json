@@ -1,6 +1,8 @@
 {
   "tools": [
     "get_my_settings",
+    "get_case_dossier",
+    "get_lead_dossier",
     "sales_report",
     "payments_summary",
     "funnel_stats",

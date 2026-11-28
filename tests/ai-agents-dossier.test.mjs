@@ -255,9 +255,9 @@ test("Postgres-прогон знает набор 382 по имени файла
   assert.doesNotMatch(SQL + SUITE, /sk-ant-|Bearer [A-Za-z0-9]|\+996\d{6,}|@gmail\.|@mail\./u);
 });
 
-test("наборы инструментов: досье лида у продаж и директора, досье дела у пяти кураторов и директора, ни у кого лишнего", () => {
+test("наборы инструментов: досье лида у продаж, директора и (с 383, страница передачи дела) пяти кураторов, досье дела у пяти кураторов и директора, ни у кого лишнего", () => {
   const withTool = (name) => AI_AGENT_KEYS.filter((key) => AI_AGENT_TOOL_GRANTS[key].includes(name)).sort();
-  assert.deepEqual(withTool("get_lead_dossier"), ["director", "sales"]);
+  assert.deepEqual(withTool("get_lead_dossier"), ["curator-ae", "curator-cn", "curator-eu", "curator-my", "curator-tr", "director", "sales"]);
   assert.deepEqual(withTool("get_case_dossier"), ["curator-ae", "curator-cn", "curator-eu", "curator-my", "curator-tr", "director"]);
 });
 

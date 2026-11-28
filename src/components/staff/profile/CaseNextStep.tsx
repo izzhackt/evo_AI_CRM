@@ -8,8 +8,11 @@ import type { CaseNextActionReceipt, StudentCaseQueueRow } from "@/lib/platform-
 import type { QueueTask } from "@/lib/v3/task-queue";
 
 import { DueWord } from "../blocks/DueWord";
+import { AgentNextStep } from "./AgentNextStep";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
 import { useAnchoredPopover } from "../queue/useAnchoredPopover";
+import type { AgentSuggestion } from "@/lib/agent-suggestions-contract";
+
 import { NextStepEditor } from "../students/NextStepEditor";
 import type { NextStepAccess } from "../students/students-queue-view";
 
@@ -37,6 +40,7 @@ export function CaseNextStep({
   today,
   nowIso,
   requestId,
+  agent,
 }: Readonly<{
   row: StudentCaseQueueRow | null;
   fallbackStep: string | null;
@@ -46,6 +50,11 @@ export function CaseNextStep({
   today: string;
   nowIso: string;
   requestId: string;
+  /**
+   * «Предложить шаг» (миграция 383): предложение агента, его направление и страна дела для выбора агента-куратора, id запроса
+   * для кнопки. Нет поля — кнопки и строки нет (чтение не сделано или дело без строки очереди).
+   */
+  agent?: Readonly<{ suggestion: AgentSuggestion | null; suggestionUnread: boolean; studentCaseId: string; requestId: string }> | null;
 }>) {
   const router = useRouter();
   const titleId = useId();
@@ -112,6 +121,14 @@ export function CaseNextStep({
           </button>
         ) : null}
       </p>
+      {agent && row ? (
+        <AgentNextStep studentCaseId={agent.studentCaseId} noStep={!step} editable={editable} version={row.admissionsVersion}
+          suggestion={agent.suggestion} unread={agent.suggestionUnread} today={today} requestId={agent.requestId}
+          onAccepted={(receipt, decisionRequestId) => onSaved({
+            studentCaseId: agent.studentCaseId, nextAction: receipt.nextAction, nextActionDueOn: receipt.nextActionDueOn,
+            admissionsVersion: receipt.admissionsVersion, cleared: false, requestId: decisionRequestId, changedAt: new Date().toISOString(),
+          })} />
+      ) : null}
       {/* У дела в работе причина бывает одна — просмотр роли. Закрытое дело говорит то же, что «Быстрый просмотр»
           («Дело закрыто: шаг не меняется.»): шаг и срок — последние, а не живые. «Ожидает начала» уже названо в строке фактов. */}
       {access.kind === "read_only" && access.reason && (row?.state === "active" || row?.state === "closed")

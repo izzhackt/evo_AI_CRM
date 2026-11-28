@@ -2,6 +2,7 @@
   "tools": [
     "get_my_settings",
     "get_case_dossier",
+    "get_lead_dossier",
     "search_clients",
     "get_client_card",
     "get_lead",
@@ -19,6 +20,7 @@
     "get_company_facts",
     "create_task",
     "add_note",
+    "propose_next_step",
     "send_message",
     "notify_staff"
   ]

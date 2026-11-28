@@ -45,7 +45,7 @@ const src = (path) => require(join(ROOT, "src", path));
 }
 
 // Дело «admin» с настоящей панелью «Обращения студента» (в сценариях прежнего вида её чтение пусто): одно ждёт ответа, одно закрыто.
-const CASE_SCENARIOS = ["admin", "admin-help", "curator-accept", "needs-curator", "closed-outcome", "assign-only", "direct-case", "unread", "fresh"];
+const CASE_SCENARIOS = ["admin", "admin-help", "curator-accept", "needs-curator", "closed-outcome", "assign-only", "direct-case", "unread", "fresh", "agent-empty", "agent-suggestion", "agent-step-set"];
 const HELP_PAGE = {
   caseId: cases.CASE_ID, nextCursor: null,
   items: [

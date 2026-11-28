@@ -333,7 +333,7 @@ export const AI_AGENT_TOOL_NAMES = [
   "get_document_file", "list_conversations", "get_conversation", "get_case_chat", "sales_report",
   "payments_summary", "funnel_stats", "list_tasks", "search_catalog", "search_knowledge", "get_company_facts",
   "recent_calls", "list_staff", "get_my_settings",
-  "create_task", "add_note", "send_message", "post_digest", "notify_staff",
+  "create_task", "add_note", "propose_next_step", "send_message", "post_digest", "notify_staff",
 ] as const;
 export type AiAgentToolName = (typeof AI_AGENT_TOOL_NAMES)[number];
 
@@ -537,6 +537,15 @@ export const AI_AGENT_TOOLS: readonly AiAgentToolDefinition[] = [
     name: "add_note", title: "Заметка", kind: "write", audit: "write", rpc: toolRpc("add_note"),
     description: "Add an internal note to a lead or a student case (never visible to the client). Внутренняя заметка к лиду или делу.",
     inputSchema: objectArg({ lead_id: uuidArg("Lead id."), case_id: uuidArg("Student case id."), body: textArg("Note text.", 3500), idempotency_key: textArg("Repeat-safe key (10 min).", 120) }, ["body"]),
+  },
+  {
+    name: "propose_next_step", title: "Предложить шаг", kind: "write", audit: "write", rpc: toolRpc("propose_next_step"),
+    description: "Propose ONE next step for an active student case. It is only a suggestion: it appears on the case card and a staff member accepts or rejects it, the case itself is not changed. One line, no guarantees of a visa or admission, no amounts of money. A new proposal replaces the previous one. Предложить сотруднику один следующий шаг по делу; шаг не записывается сам, его принимает человек.",
+    inputSchema: objectArg({
+      case_id: uuidArg("Student case id."), text: textArg("The one next step, one line, no guarantees and no amounts of money.", 300),
+      due_on: dateArg("Due date, not earlier than today"), assignee_id: uuidArg("Who does it: staff id (membership)."),
+      reason: textArg("Why this step (shown to staff, small).", 300),
+    }, ["case_id", "text", "reason"]),
   },
   {
     name: "send_message", title: "Сообщение клиенту", kind: "write", audit: "write", rpc: toolRpc("send_message"),
